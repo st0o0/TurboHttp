@@ -43,12 +43,12 @@ jobs:
         run: dotnet tool run slopwatch analyze --fail-on error
 
       - name: Install GitVersion
-        uses: gittools/actions/gitversion/setup@v4.2.0
+        uses: gittools/actions/gitversion/setup@v1.1.1
         with:
-          versionSpec: '6.x'
+          versionSpec: '5.x'
 
       - name: Determine Version
-        uses: gittools/actions/gitversion/execute@v4.2.0
+        uses: gittools/actions/gitversion/execute@v1.1.1
         id: gitversion
       
       - name: Display GitVersion outputs
