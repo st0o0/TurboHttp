@@ -2,7 +2,7 @@ using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Net.Http;
 
-namespace TurboMqtt.Protocol;
+namespace TurboHttp.Protocol;
 
 public sealed class Http2DecodeResult
 {

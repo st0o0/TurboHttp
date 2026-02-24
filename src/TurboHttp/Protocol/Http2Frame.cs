@@ -2,7 +2,7 @@ using System;
 using System.Buffers.Binary;
 using System.Collections.Generic;
 
-namespace TurboMqtt.Protocol;
+namespace TurboHttp.Protocol;
 
 // ══════════════════════════════════════════════════════════════════════════════
 // HTTP/2 Frame Types  —  RFC 7540 §6

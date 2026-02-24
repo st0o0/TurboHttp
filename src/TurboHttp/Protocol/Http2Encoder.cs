@@ -4,7 +4,7 @@ using System.Linq;
 using System.Net.Http;
 using System.Text;
 
-namespace TurboMqtt.Protocol;
+namespace TurboHttp.Protocol;
 
 public sealed class Http2Encoder(bool useHuffman = true)
 {

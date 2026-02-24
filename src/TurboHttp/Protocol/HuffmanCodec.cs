@@ -1,7 +1,7 @@
 using System;
 using System.IO;
 
-namespace TurboMqtt.Protocol;
+namespace TurboHttp.Protocol;
 
 public static class HuffmanCodec
 {

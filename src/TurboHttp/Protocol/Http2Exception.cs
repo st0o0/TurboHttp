@@ -1,6 +1,6 @@
 using System;
 
-namespace TurboMqtt.Protocol;
+namespace TurboHttp.Protocol;
 
 public sealed class Http2Exception(string message, Http2ErrorCode errorCode = Http2ErrorCode.ProtocolError)
     : Exception(message)

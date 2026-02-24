@@ -2,7 +2,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Text;
 
-namespace TurboMqtt.Protocol;
+namespace TurboHttp.Protocol;
 
 public sealed class HpackEncoder(bool useHuffman = true)
 {

@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Net.Http;
 
-namespace TurboMqtt.Protocol;
+namespace TurboHttp.Protocol;
 
 public sealed class Http2SizePredictor
 {

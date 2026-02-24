@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Buffers.Binary;
 
-namespace TurboMqtt.Protocol;
+namespace TurboHttp.Protocol;
 
 public static class Http2FrameWriter
 {

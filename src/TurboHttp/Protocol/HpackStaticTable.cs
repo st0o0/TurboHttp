@@ -1,4 +1,4 @@
-namespace TurboMqtt.Protocol;
+namespace TurboHttp.Protocol;
 
 internal static class HpackStaticTable
 {

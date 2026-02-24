@@ -1,6 +1,6 @@
 using System;
 
-namespace TurboMqtt.Protocol;
+namespace TurboHttp.Protocol;
 
 public sealed class HttpDecoderException(HttpDecodeError error)
     : Exception($"HTTP Decoder Fehler: {error}")
