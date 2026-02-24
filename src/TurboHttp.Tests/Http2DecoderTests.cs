@@ -1,3 +1,4 @@
+using System.Linq;
 using TurboHttp.Protocol;
 
 namespace TurboHttp.Tests;
@@ -173,8 +174,7 @@ public sealed class Http2DecoderTests
     public void Decode_HeadersWithEndStream_NoBodyResponse()
     {
         var hpackEncoder = new HpackEncoder(useHuffman: false);
-        var headerBlock = hpackEncoder.Encode(new List<(string, string)>
-            { (":status", "204") });
+        var headerBlock = hpackEncoder.Encode([(":status", "204")]);
         var headersFrame = new HeadersFrame(3, headerBlock,
             endStream: true, endHeaders: true).Serialize();
 
@@ -186,16 +186,112 @@ public sealed class Http2DecoderTests
         Assert.Equal(0, result.Responses[0].Response.Content.Headers.ContentLength);
     }
 
+    // ── RFC 7540 §6.1 / §6.2 / §6.10 — Stream-0 and wrong-stream errors ────────
+
+    [Fact]
+    public void Decode_DataOnStream0_ThrowsProtocolError()
+    {
+        // RFC 7540 §6.1: DATA frames MUST be associated with a stream.
+        // Stream identifier 0x0 MUST be treated as a connection error (PROTOCOL_ERROR).
+        var frame = new byte[]
+        {
+            0x00, 0x00, 0x04,  // length = 4
+            0x00,              // type  = DATA
+            0x00,              // flags = none
+            0x00, 0x00, 0x00, 0x00, // stream ID = 0
+            0x00, 0x00, 0x00, 0x00  // payload (4 bytes)
+        };
+
+        var decoder = new Http2Decoder();
+        var ex = Assert.Throws<Http2Exception>(() => decoder.TryDecode(frame, out _));
+        Assert.Equal(Http2ErrorCode.ProtocolError, ex.ErrorCode);
+    }
+
+    [Fact]
+    public void Decode_HeadersOnStream0_ThrowsProtocolError()
+    {
+        // RFC 7540 §6.2: HEADERS frames MUST be associated with a stream.
+        // Stream identifier 0x0 MUST be treated as a connection error (PROTOCOL_ERROR).
+        var frame = new byte[]
+        {
+            0x00, 0x00, 0x01,  // length = 1
+            0x01,              // type  = HEADERS
+            0x05,              // flags = END_STREAM | END_HEADERS
+            0x00, 0x00, 0x00, 0x00, // stream ID = 0
+            0x88               // HPACK: :status 200 (static index 8)
+        };
+
+        var decoder = new Http2Decoder();
+        var ex = Assert.Throws<Http2Exception>(() => decoder.TryDecode(frame, out _));
+        Assert.Equal(Http2ErrorCode.ProtocolError, ex.ErrorCode);
+    }
+
+    [Fact]
+    public void Decode_ContinuationOnStream0_ThrowsProtocolError()
+    {
+        // RFC 7540 §6.10: CONTINUATION frames MUST be associated with a stream.
+        // Stream identifier 0x0 MUST be treated as a connection error (PROTOCOL_ERROR).
+        // Setup: HEADERS on stream 1 without END_HEADERS, then CONTINUATION on stream 0.
+        var headersOnStream1 = new byte[]
+        {
+            0x00, 0x00, 0x01,  // length = 1
+            0x01,              // type  = HEADERS
+            0x00,              // flags = none (no END_STREAM, no END_HEADERS)
+            0x00, 0x00, 0x00, 0x01, // stream ID = 1
+            0x82               // HPACK: :method GET
+        };
+        var contOnStream0 = new byte[]
+        {
+            0x00, 0x00, 0x01,  // length = 1
+            0x09,              // type  = CONTINUATION
+            0x04,              // flags = END_HEADERS
+            0x00, 0x00, 0x00, 0x00, // stream ID = 0  ← violation
+            0x84               // HPACK: :path /
+        };
+
+        var combined = headersOnStream1.Concat(contOnStream0).ToArray();
+        var decoder = new Http2Decoder();
+        var ex = Assert.Throws<Http2Exception>(() => decoder.TryDecode(combined, out _));
+        Assert.Equal(Http2ErrorCode.ProtocolError, ex.ErrorCode);
+    }
+
+    [Fact]
+    public void Decode_ContinuationOnWrongStream_ThrowsProtocolError()
+    {
+        // RFC 7540 §6.10: A CONTINUATION frame MUST follow on the same stream
+        // as the preceding HEADERS. A different stream ID is a PROTOCOL_ERROR.
+        var headersOnStream1 = new byte[]
+        {
+            0x00, 0x00, 0x01,  // length = 1
+            0x01,              // type  = HEADERS
+            0x00,              // flags = none (no END_STREAM, no END_HEADERS)
+            0x00, 0x00, 0x00, 0x01, // stream ID = 1
+            0x82               // HPACK: :method GET
+        };
+        var contOnStream3 = new byte[]
+        {
+            0x00, 0x00, 0x01,  // length = 1
+            0x09,              // type  = CONTINUATION
+            0x04,              // flags = END_HEADERS
+            0x00, 0x00, 0x00, 0x03, // stream ID = 3  ← wrong stream
+            0x84               // HPACK: :path /
+        };
+
+        var combined = headersOnStream1.Concat(contOnStream3).ToArray();
+        var decoder = new Http2Decoder();
+        var ex = Assert.Throws<Http2Exception>(() => decoder.TryDecode(combined, out _));
+        Assert.Equal(Http2ErrorCode.ProtocolError, ex.ErrorCode);
+    }
+
     [Fact]
     public async Task Decode_ContinuationFrames_Reassembled()
     {
-        var hpackEncoder = new HpackEncoder(useHuffman: false);
-        var headerBlock = hpackEncoder.Encode(new List<(string, string)>
-        {
+        var hpackEncoder = new HpackEncoder();
+        var headerBlock = hpackEncoder.Encode([
             (":status", "200"),
             ("content-type", "application/json"),
             ("x-request-id", "abc-123"),
-        });
+        ]);
 
         var split1 = headerBlock[..(headerBlock.Length / 2)];
         var split2 = headerBlock[(headerBlock.Length / 2)..];

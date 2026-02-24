@@ -219,7 +219,7 @@ public sealed class Http2EncoderTests
     [Fact]
     public void EncodePing_ProducesPingFrame()
     {
-        var data = new byte[] { 1, 2, 3, 4, 5, 6, 7, 8 };
+        byte[] data = [1, 2, 3, 4, 5, 6, 7, 8];
         var frame = Http2Encoder.EncodePing(data);
 
         Assert.Equal((byte)FrameType.Ping, frame[3]);
@@ -229,7 +229,7 @@ public sealed class Http2EncoderTests
     [Fact]
     public void EncodePingAck_ProducesPingAckFrame()
     {
-        var data = new byte[] { 1, 2, 3, 4, 5, 6, 7, 8 };
+        byte[] data = [1, 2, 3, 4, 5, 6, 7, 8];
         var frame = Http2Encoder.EncodePingAck(data);
 
         Assert.Equal((byte)FrameType.Ping, frame[3]);

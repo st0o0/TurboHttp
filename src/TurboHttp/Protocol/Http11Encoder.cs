@@ -1,122 +1,294 @@
 using System;
+using System.Buffers;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net.Http;
+using System.Net.Http.Headers;
 using System.Text;
 
 namespace TurboHttp.Protocol;
 
+/// <summary>
+/// RFC 9112 compliant HTTP/1.1 request encoder with zero-allocation patterns.
+/// Writes directly to Span&lt;byte&gt; for maximum efficiency.
+/// </summary>
 public static class Http11Encoder
 {
-    public static long Encode(HttpRequestMessage request, ref Memory<byte> buffer)
+    // ── Public API ──────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Encodes an HTTP/1.1 request directly into a span.
+    /// Zero-allocation - writes directly to the provided buffer.
+    /// </summary>
+    /// <param name="request">The HTTP request to encode</param>
+    /// <param name="buffer">Target buffer (advanced as data is written)</param>
+    /// <returns>Total bytes written</returns>
+    public static int Encode(HttpRequestMessage request, ref Span<byte> buffer)
     {
-        var headers = MergeHeaders(request);
-        EnforceRequiredHeaders(request, headers);
+        ArgumentNullException.ThrowIfNull(request);
+        ArgumentNullException.ThrowIfNull(request.RequestUri);
 
-        var span = buffer.Span;
-        var bytesWritten = 0L;
+        var bytesWritten = 0;
 
-        // Request-Line
-        bytesWritten += WriteAscii(ref span, request.Method.Method);
-        bytesWritten += WriteAscii(ref span, " ");
-        bytesWritten += WriteAscii(ref span, request.RequestUri!.PathAndQuery);
-        bytesWritten += WriteAscii(ref span, " HTTP/1.1\r\n");
+        // 1. Request-Line (RFC 9112 Section 3)
+        bytesWritten += WriteRequestLine(request, ref buffer);
 
-        // Headers
-        foreach (var (name, values) in headers)
+        // 2. Host header (RFC 9112 Section 5.4 - MUST be present and first)
+        bytesWritten += WriteHostHeader(request.RequestUri, ref buffer);
+
+        // 3. Request headers (excluding Host which we already wrote)
+        bytesWritten += WriteHeaders(request.Headers, ref buffer, skipHost: true);
+
+        // 4. Content headers (if body present)
+        if (request.Content != null)
         {
-            bytesWritten += WriteAscii(ref span, name);
-            bytesWritten += WriteAscii(ref span, ": ");
-            bytesWritten += WriteAscii(ref span, string.Join(", ", values));
-            bytesWritten += WriteAscii(ref span, "\r\n");
+            bytesWritten += WriteHeaders(request.Content.Headers, ref buffer, skipHost: false);
         }
 
-        // Header/Body Separator
-        bytesWritten += WriteAscii(ref span, "\r\n");
+        // 5. Connection header (if not already set, default to keep-alive)
+        bytesWritten += WriteConnectionHeaderIfNeeded(request.Headers, ref buffer);
 
-        // Body
-        if (request.Content == null)
+        // 6. Header/body separator
+        bytesWritten += WriteCrlf(ref buffer);
+
+        // 7. Body (if present)
+        if (request.Content != null)
         {
-            return bytesWritten;
+            bytesWritten += WriteBody(request.Content, ref buffer);
         }
 
-        bytesWritten += CopyContentStream(request.Content, ref span);
         return bytesWritten;
     }
 
-    private static int WriteAscii(ref Span<byte> span, string value)
+    /// <summary>
+    /// Encodes an HTTP/1.1 request into a Memory buffer (legacy compatibility).
+    /// </summary>
+    public static long Encode(HttpRequestMessage request, ref Memory<byte> buffer)
     {
-        var written = Encoding.ASCII.GetBytes(value.AsSpan(), span);
-        span = span[written..];
+        var span = buffer.Span;
+        var written = Encode(request, ref span);
+        buffer = buffer[written..];
         return written;
     }
 
-    private static Dictionary<string, List<string>> MergeHeaders(HttpRequestMessage request)
+    // ── Request Line ────────────────────────────────────────────────────────────
+
+    private static int WriteRequestLine(HttpRequestMessage request, ref Span<byte> buffer)
     {
-        var headers = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
+        var bytesWritten = 0;
 
-        // Request-Headers
-        foreach (var header in request.Headers)
+        // Method (GET, POST, etc.)
+        bytesWritten += WriteAscii(ref buffer, request.Method.Method);
+
+        // Space
+        bytesWritten += WriteBytes(ref buffer, " "u8);
+
+        // Request-target (RFC 9112 Section 3.2)
+        var pathAndQuery = request.RequestUri!.PathAndQuery;
+        if (string.IsNullOrEmpty(pathAndQuery))
         {
-            headers[header.Key] = new List<string>(header.Value);
+            pathAndQuery = "/";
         }
 
-        // Content-Headers
-        if (request.Content?.Headers == null)
+        bytesWritten += WriteAscii(ref buffer, pathAndQuery);
+
+        // HTTP/1.1 and CRLF
+        bytesWritten += WriteBytes(ref buffer, " HTTP/1.1\r\n"u8);
+
+        return bytesWritten;
+    }
+
+    // ── Host Header ─────────────────────────────────────────────────────────────
+
+    private static int WriteHostHeader(Uri uri, ref Span<byte> buffer)
+    {
+        var bytesWritten = 0;
+
+        bytesWritten += WriteBytes(ref buffer, "Host: "u8);
+        bytesWritten += WriteAscii(ref buffer, uri.Host);
+
+        // Include port if non-default
+        if (!uri.IsDefaultPort)
         {
-            return headers;
+            bytesWritten += WriteBytes(ref buffer, ":"u8);
+            bytesWritten += WriteInt(ref buffer, uri.Port);
         }
 
-        foreach (var header in request.Content.Headers)
+        bytesWritten += WriteCrlf(ref buffer);
+
+        return bytesWritten;
+    }
+
+    // ── Headers ─────────────────────────────────────────────────────────────────
+
+    private static int WriteHeaders(
+        IEnumerable<KeyValuePair<string, IEnumerable<string>>> headers,
+        ref Span<byte> buffer,
+        bool skipHost)
+    {
+        var bytesWritten = 0;
+
+        foreach (var header in headers)
         {
-            if (!headers.TryGetValue(header.Key, out var list))
+            // Skip Host - we handle it separately
+            if (skipHost && header.Key.Equals("Host", StringComparison.OrdinalIgnoreCase))
             {
-                list = [];
-                headers[header.Key] = list;
+                continue;
             }
 
-            list.AddRange(header.Value);
+            // Skip Connection - we handle it separately
+            if (header.Key.Equals("Connection", StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            bytesWritten += WriteHeader(ref buffer, header.Key, header.Value);
         }
 
-        return headers;
+        return bytesWritten;
     }
 
-    private static void EnforceRequiredHeaders(HttpRequestMessage request, Dictionary<string, List<string>> headers)
+    private static int WriteHeader(ref Span<byte> buffer, string name, IEnumerable<string> values)
     {
-        // Host Header (HTTP/1.1)
-        var host = request.RequestUri!.IsDefaultPort
-            ? request.RequestUri.Host
-            : $"{request.RequestUri.Host}:{request.RequestUri.Port}";
+        var bytesWritten = 0;
 
-        if (!headers.TryGetValue("Host", out var hostValues) ||
-            hostValues.All(h => !string.Equals(h, host, StringComparison.OrdinalIgnoreCase)))
+        // Header name
+        bytesWritten += WriteAscii(ref buffer, name);
+        bytesWritten += WriteBytes(ref buffer, ": "u8);
+
+        // Values joined with comma (RFC 9110 Section 5.3)
+        var first = true;
+        foreach (var value in values)
         {
-            headers["Host"] = [host];
+            if (!first)
+            {
+                bytesWritten += WriteBytes(ref buffer, ", "u8);
+            }
+
+            bytesWritten += WriteAscii(ref buffer, value);
+            first = false;
         }
 
-        // Connection Header
-        if (headers.TryGetValue("Connection", out var connValues) &&
-            connValues.Any(v => v.Equals("close", StringComparison.OrdinalIgnoreCase))) return;
-        if (!headers.TryGetValue("Connection", out _))
-        {
-            headers["Connection"] = [];
-        }
+        bytesWritten += WriteCrlf(ref buffer);
 
-        headers["Connection"].Add("keep-alive");
+        return bytesWritten;
     }
 
-    private static int CopyContentStream(HttpContent content, ref Span<byte> destination)
+    private static int WriteConnectionHeaderIfNeeded(HttpRequestHeaders headers, ref Span<byte> buffer)
     {
-        var stream = content.ReadAsStream();
+        var bytesWritten = 0;
+
+        // Check if Connection header is already set
+        if (headers.Connection.Any(value => value.Equals("close", StringComparison.OrdinalIgnoreCase)))
+        {
+            bytesWritten += WriteBytes(ref buffer, "Connection: close\r\n"u8);
+            return bytesWritten;
+        }
+
+        // Other connection values - write them with keep-alive
+        bytesWritten += WriteBytes(ref buffer, "Connection: "u8);
+
+        var first = true;
+        foreach (var value in headers.Connection)
+        {
+            if (!first)
+            {
+                bytesWritten += WriteBytes(ref buffer, ", "u8);
+            }
+            bytesWritten += WriteAscii(ref buffer, value);
+            first = false;
+        }
+
+        if (!first) bytesWritten += WriteBytes(ref buffer, ", "u8);
+        bytesWritten += WriteBytes(ref buffer, "keep-alive\r\n"u8);
+
+        return bytesWritten;
+    }
+
+    // ── Body ────────────────────────────────────────────────────────────────────
+
+    private static int WriteBody(HttpContent content, ref Span<byte> buffer)
+    {
+        using var stream = content.ReadAsStream();
         var total = 0;
 
-        while (total < destination.Length)
+        while (buffer.Length > 0)
         {
-            var read = stream.Read(destination[total..]);
-            if (read == 0) break;
+            var read = stream.Read(buffer);
+            if (read == 0)
+            {
+                break;
+            }
+
+            buffer = buffer[read..];
             total += read;
         }
 
         return total;
+    }
+
+    // ── Low-Level Write Utilities ───────────────────────────────────────────────
+
+    /// <summary>
+    /// Writes bytes directly to span and advances it.
+    /// </summary>
+    private static int WriteBytes(ref Span<byte> buffer, ReadOnlySpan<byte> data)
+    {
+        data.CopyTo(buffer);
+        buffer = buffer[data.Length..];
+        return data.Length;
+    }
+
+    /// <summary>
+    /// Writes ASCII string directly to span and advances it.
+    /// </summary>
+    private static int WriteAscii(ref Span<byte> buffer, string value)
+    {
+        if (string.IsNullOrEmpty(value))
+        {
+            return 0;
+        }
+
+        var written = Encoding.ASCII.GetBytes(value.AsSpan(), buffer);
+        buffer = buffer[written..];
+        return written;
+    }
+
+    /// <summary>
+    /// Writes CRLF and advances span.
+    /// </summary>
+    private static int WriteCrlf(ref Span<byte> buffer)
+    {
+        buffer[0] = (byte)'\r';
+        buffer[1] = (byte)'\n';
+        buffer = buffer[2..];
+        return 2;
+    }
+
+    /// <summary>
+    /// Writes an integer as ASCII digits without heap allocation.
+    /// </summary>
+    private static int WriteInt(ref Span<byte> buffer, int value)
+    {
+        if (value < 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(value), "Value must be non-negative");
+        }
+
+        // Max int32 is 10 digits
+        Span<byte> temp = stackalloc byte[10];
+        var pos = temp.Length;
+
+        do
+        {
+            temp[--pos] = (byte)('0' + value % 10);
+            value /= 10;
+        } while (value > 0);
+
+        var length = temp.Length - pos;
+        temp[pos..].CopyTo(buffer);
+        buffer = buffer[length..];
+
+        return length;
     }
 }

@@ -11,7 +11,7 @@ public sealed class TcpConnectionManagerActor : ReceiveActor
 
     public sealed record ConnectionReady(IActorRef Runner, string Host, int Port);
 
-    public sealed record ConnectionFailed(string Host, int Port, Exception Reason);
+    public sealed record ConnectionFailed(string Host, int Port);
 
     private readonly Dictionary<IActorRef, (string Host, int Port)> _runners = new();
     private int _connCounter;
@@ -37,9 +37,9 @@ public sealed class TcpConnectionManagerActor : ReceiveActor
 
             caller.Tell(new ConnectionReady(runner, msg.Host, msg.Port));
         }
-        catch (Exception ex)
+        catch (Exception)
         {
-            caller.Tell(new ConnectionFailed(msg.Host, msg.Port, ex));
+            caller.Tell(new ConnectionFailed(msg.Host, msg.Port));
         }
     }
 

@@ -56,7 +56,6 @@ public static class Http2FrameWriter
     // ========================================================================
     // HEADERS FRAME
     // ========================================================================
-
     public static int WriteHeadersFrame(
         Span<byte> destination,
         int streamId,
@@ -77,7 +76,6 @@ public static class Http2FrameWriter
     // ========================================================================
     // CONTINUATION FRAME
     // ========================================================================
-
     public static int WriteContinuationFrame(
         Span<byte> destination,
         int streamId,
@@ -95,7 +93,6 @@ public static class Http2FrameWriter
     // ========================================================================
     // SETTINGS FRAME
     // ========================================================================
-
     public static int WriteSettingsFrame(
         Span<byte> destination,
         ReadOnlySpan<(SettingsParameter Key, uint Value)> parameters)
@@ -125,7 +122,6 @@ public static class Http2FrameWriter
     // ========================================================================
     // RST_STREAM FRAME
     // ========================================================================
-
     public static int WriteRstStreamFrame(
         Span<byte> destination,
         int streamId,
@@ -139,7 +135,6 @@ public static class Http2FrameWriter
     // ========================================================================
     // WINDOW_UPDATE FRAME
     // ========================================================================
-
     public static int WriteWindowUpdateFrame(
         Span<byte> destination,
         int streamId,
@@ -156,7 +151,6 @@ public static class Http2FrameWriter
     // ========================================================================
     // PING FRAME
     // ========================================================================
-
     public static int WritePingFrame(
         Span<byte> destination,
         ReadOnlySpan<byte> data,
@@ -176,11 +170,7 @@ public static class Http2FrameWriter
     // ========================================================================
     // GOAWAY FRAME
     // ========================================================================
-
-    public static int WriteGoAwayFrame(
-        Span<byte> destination,
-        int lastStreamId,
-        Http2ErrorCode errorCode,
+    public static int WriteGoAwayFrame(Span<byte> destination, int lastStreamId, Http2ErrorCode errorCode,
         ReadOnlySpan<byte> debugData = default)
     {
         var payloadSize = 8 + debugData.Length;

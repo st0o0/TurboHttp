@@ -43,8 +43,6 @@ public class TcpClientRunner : ReceiveActor
 
     protected override void PreStart()
     {
-        base.PreStart();
-
         _handler.Tell(new TcpClientConnected(_client.Client.RemoteEndPoint!, _state.InboundReader,
             _state.OutboundWriter));
 

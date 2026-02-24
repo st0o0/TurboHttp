@@ -1,21 +1,15 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Net.Http;
 
 namespace TurboHttp.Protocol;
 
-public sealed class Http2SizePredictor
+public sealed class Http2SizePredictor(bool useHuffman = true)
 {
-    private readonly HpackEncoder _encoder;
+    private readonly HpackEncoder _encoder = new(useHuffman);
 
-    public Http2SizePredictor(bool useHuffman = true)
-    {
-        _encoder = new HpackEncoder(useHuffman);
-    }
-
-    public int Predict(HttpRequestMessage request,
-        int maxFrameSize = 16384,
-        int connectionWindow = int.MaxValue,
+    public int Predict(HttpRequestMessage request, int maxFrameSize = 16384, int connectionWindow = int.MaxValue,
         int streamWindow = int.MaxValue)
     {
         var prediction = new Http2RequestPrediction();
@@ -58,7 +52,9 @@ public sealed class Http2SizePredictor
     {
         // 1. Headers.ContentLength (preferred)
         if (content.Headers.ContentLength.HasValue)
+        {
             return content.Headers.ContentLength.Value;
+        }
 
         // 2. TryComputeLength (StreamContent etc.)
         _ = content.Headers.ContentLength ?? 0;
@@ -85,7 +81,7 @@ public sealed class Http2SizePredictor
 
         var frames = (int)Math.Ceiling(headerBlockSize / (double)maxFrameSize);
         prediction.FrameOverheadBytes += frames * 9; // 1x HEADERS + (frames-1)x CONTINUATION
-        prediction.FrameOverheadBytes += (frames - 1); // END_HEADERS flag on first frame only
+        prediction.FrameOverheadBytes += frames - 1; // END_HEADERS flag on first frame only
 
         return frames;
     }
@@ -106,7 +102,7 @@ public sealed class Http2SizePredictor
         return frames;
     }
 
-    private static IReadOnlyList<(string, string)> BuildHeaders(HttpRequestMessage request)
+    private static List<(string, string)> BuildHeaders(HttpRequestMessage request)
     {
         var list = new List<(string, string)>
         {
@@ -119,35 +115,32 @@ public sealed class Http2SizePredictor
         // Filter HTTP/1.1 pseudo-headers (RFC 7540 §8.1.2.3)
         var forbiddenHeaders = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
         {
-            "connection", "keep-alive", "proxy-connection",
-            "transfer-encoding", "upgrade", "te"
+            "connection", "keep-alive", "proxy-connection", "transfer-encoding", "upgrade", "te"
         };
 
         // Request Headers
         foreach (var header in request.Headers)
         {
             var lowerName = header.Key.ToLowerInvariant();
-            if (forbiddenHeaders.Contains(lowerName)) continue;
-
-            foreach (var value in header.Value)
+            if (forbiddenHeaders.Contains(lowerName))
             {
-                list.Add((lowerName, value));
+                continue;
             }
+
+            list.AddRange(header.Value.Select(value => (lowerName, value)));
         }
 
         // Content Headers
-        if (request.Content?.Headers != null)
+        if (request.Content?.Headers == null) return list;
+        foreach (var header in request.Content.Headers)
         {
-            foreach (var header in request.Content.Headers)
+            var lowerName = header.Key.ToLowerInvariant();
+            if (forbiddenHeaders.Contains(lowerName))
             {
-                var lowerName = header.Key.ToLowerInvariant();
-                if (forbiddenHeaders.Contains(lowerName)) continue;
-
-                foreach (var value in header.Value)
-                {
-                    list.Add((lowerName, value));
-                }
+                continue;
             }
+
+            list.AddRange(header.Value.Select(value => (lowerName, value)));
         }
 
         return list;

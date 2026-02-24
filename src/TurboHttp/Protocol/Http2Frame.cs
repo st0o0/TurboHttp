@@ -18,7 +18,6 @@ namespace TurboHttp.Protocol;
 //   |                   Frame Payload (0...)                        |
 //   +---------------------------------------------------------------+
 // ══════════════════════════════════════════════════════════════════════════════
-
 public enum FrameType : byte
 {
     Data = 0x0,
@@ -34,7 +33,6 @@ public enum FrameType : byte
 }
 
 // ── Frame Flags ───────────────────────────────────────────────────────────────
-
 [Flags]
 public enum DataFlags : byte
 {
@@ -134,7 +132,6 @@ public abstract class Http2Frame(int streamId)
 }
 
 // ── DATA Frame ────────────────────────────────────────────────────────────────
-
 public sealed class DataFrame : Http2Frame
 {
     public override FrameType Type => FrameType.Data;
@@ -161,7 +158,6 @@ public sealed class DataFrame : Http2Frame
 }
 
 // ── HEADERS Frame ─────────────────────────────────────────────────────────────
-
 public sealed class HeadersFrame : Http2Frame
 {
     public override FrameType Type => FrameType.Headers;
@@ -194,7 +190,6 @@ public sealed class HeadersFrame : Http2Frame
 }
 
 // ── CONTINUATION Frame ────────────────────────────────────────────────────────
-
 public sealed class ContinuationFrame : Http2Frame
 {
     public override FrameType Type => FrameType.Continuation;
@@ -221,7 +216,6 @@ public sealed class ContinuationFrame : Http2Frame
 }
 
 // ── RST_STREAM Frame ──────────────────────────────────────────────────────────
-
 public sealed class RstStreamFrame : Http2Frame
 {
     public override FrameType Type => FrameType.RstStream;
@@ -243,7 +237,6 @@ public sealed class RstStreamFrame : Http2Frame
 }
 
 // ── SETTINGS Frame ────────────────────────────────────────────────────────────
-
 public sealed class SettingsFrame : Http2Frame
 {
     public override FrameType Type => FrameType.Settings;
@@ -265,9 +258,8 @@ public sealed class SettingsFrame : Http2Frame
         WriteFrameHeader(ref span, payloadSize, FrameType.Settings, flags, 0);
         span = span[FrameHeaderSize..];
 
-        for (var i = 0; i < Parameters.Count; i++)
+        foreach (var (key, val) in Parameters)
         {
-            var (key, val) = Parameters[i];
             BinaryPrimitives.WriteUInt16BigEndian(span, (ushort)key);
             BinaryPrimitives.WriteUInt32BigEndian(span[2..], val);
             span = span[6..];
@@ -286,7 +278,6 @@ public sealed class SettingsFrame : Http2Frame
 }
 
 // ── PING Frame ────────────────────────────────────────────────────────────────
-
 public sealed class PingFrame : Http2Frame
 {
     public override FrameType Type => FrameType.Ping;
@@ -315,7 +306,6 @@ public sealed class PingFrame : Http2Frame
 }
 
 // ── GOAWAY Frame ──────────────────────────────────────────────────────────────
-
 public sealed class GoAwayFrame : Http2Frame
 {
     public override FrameType Type => FrameType.GoAway;
@@ -349,7 +339,6 @@ public sealed class GoAwayFrame : Http2Frame
 }
 
 // ── WINDOW_UPDATE Frame ───────────────────────────────────────────────────────
-
 public sealed class WindowUpdateFrame : Http2Frame
 {
     public override FrameType Type => FrameType.WindowUpdate;
@@ -378,7 +367,6 @@ public sealed class WindowUpdateFrame : Http2Frame
 }
 
 // ── PUSH_PROMISE Frame ────────────────────────────────────────────────────────
-
 public sealed class PushPromiseFrame : Http2Frame
 {
     public override FrameType Type => FrameType.PushPromise;

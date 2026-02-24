@@ -82,7 +82,7 @@ internal static class TcpClientByteMover
 
                 // consume this entire sequence by copying it into a pooled buffer
                 var buffer = result.Buffer;
-                var length = (int) buffer.Length;
+                var length = (int)buffer.Length;
                 if (length > 0)
                 {
                     var pooled = MemoryPool<byte>.Shared.Rent(length);
@@ -115,7 +115,7 @@ internal static class TcpClientByteMover
             }
         }
     }
-    
+
     internal static async Task MoveChannelToStream(TcpClientState state, IActorRef runner, CancellationToken ct)
     {
         while (!state.OutboundReader.Completion.IsCompleted)
@@ -133,7 +133,7 @@ internal static class TcpClientByteMover
                         {
                             var slice = workingBuffer[..readableBytes];
                             await state.Stream.WriteAsync(slice, ct).ConfigureAwait(false);
-                            readableBytes = 0; 
+                            readableBytes = 0;
                         }
                     }
                     finally
@@ -148,7 +148,7 @@ internal static class TcpClientByteMover
                 // we're being shut down
                 return;
             }
-            catch (Exception ex)
+            catch (Exception)
             {
                 return;
             }

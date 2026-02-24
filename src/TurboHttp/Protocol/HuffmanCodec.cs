@@ -5,7 +5,7 @@ namespace TurboHttp.Protocol;
 
 public static class HuffmanCodec
 {
-    internal static readonly (uint Code, int Bits)[] HpackHuffmanTable =
+    private static readonly (uint Code, int Bits)[] HpackHuffmanTable =
     [
         (0x1ff8, 13), (0x7fffd8, 23), (0xfffffe2, 28), (0xfffffe3, 28),
         (0xfffffe4, 28), (0xfffffe5, 28), (0xfffffe6, 28), (0xfffffe7, 28),
@@ -79,11 +79,10 @@ public static class HuffmanCodec
         (0x3fffffff, 30) // EOS (256)
     ];
 
-    public static int Encode(ReadOnlySpan<byte> input, Stream output)
+    private static void Encode(ReadOnlySpan<byte> input, Stream output)
     {
         ulong bitBuf = 0;
         var bitLen = 0;
-        var start = output.Position;
 
         foreach (var b in input)
         {
@@ -98,15 +97,10 @@ public static class HuffmanCodec
             }
         }
 
-        if (bitLen <= 0)
-        {
-            return (int)(output.Position - start);
-        }
+        if (bitLen <= 0) return;
 
         bitBuf = (bitBuf << (8 - bitLen)) | (0xffu >> bitLen);
         output.WriteByte((byte)bitBuf);
-
-        return (int)(output.Position - start);
     }
 
     public static byte[] Encode(ReadOnlySpan<byte> input)
@@ -159,11 +153,13 @@ public static class HuffmanCodec
                 remainingValue = (remainingValue << 1) | (isOne ? 1 : 0);
 
                 if (node.Symbol is not { } sym)
+                {
                     continue;
+                }
 
                 if (sym == 256)
                 {
-                    throw new HpackException("EOS-Symbol in Huffman-Daten.");
+                    throw new HpackException("");
                 }
 
                 result.WriteByte((byte)sym);
@@ -177,13 +173,13 @@ public static class HuffmanCodec
         {
             if (remainingBits > 7)
             {
-                throw new HpackException("Zu viele Padding-Bits.");
+                throw new HpackException("");
             }
 
             var mask = (1 << remainingBits) - 1;
             if (remainingValue != mask)
             {
-                throw new HpackException("Ungültiges Huffman-EOS-Padding.");
+                throw new HpackException("");
             }
         }
 
@@ -195,10 +191,8 @@ public static class HuffmanCodec
         public HuffmanNode? Zero { get; private set; }
         public HuffmanNode? One { get; private set; }
 
-        /// <summary>Nicht null wenn Blattknoten (Symbol 0-256).</summary>
         public int? Symbol { get; private set; }
 
-        /// <summary>True wenn alle weiteren Bits im aktuellen Byte EOS-Padding sein können.</summary>
         public bool IsEosPadding { get; private set; }
 
         public void Insert(int code, int bits, int symbol)
@@ -220,7 +214,7 @@ public static class HuffmanCodec
             }
 
             node.Symbol = symbol;
-            node.IsEosPadding = (symbol == 256);
+            node.IsEosPadding = symbol == 256;
         }
     }
 }

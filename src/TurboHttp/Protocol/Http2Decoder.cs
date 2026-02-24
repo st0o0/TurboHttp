@@ -157,6 +157,13 @@ public sealed class Http2Decoder
         int streamId,
         ImmutableList<(int, HttpResponseMessage)>.Builder responses)
     {
+        // RFC 7540 §6.1: DATA frames MUST be associated with a stream.
+        // Stream identifier 0x0 MUST be treated as a connection error (PROTOCOL_ERROR).
+        if (streamId == 0)
+            throw new Http2Exception(
+                "RFC 7540 §6.1: DATA frame received on stream 0.",
+                Http2ErrorCode.ProtocolError);
+
         if (!_streams.TryGetValue(streamId, out var state))
         {
             return;
@@ -179,6 +186,13 @@ public sealed class Http2Decoder
         int streamId,
         ImmutableList<(int, HttpResponseMessage)>.Builder responses)
     {
+        // RFC 7540 §6.2: HEADERS frames MUST be associated with a stream.
+        // Stream identifier 0x0 MUST be treated as a connection error (PROTOCOL_ERROR).
+        if (streamId == 0)
+            throw new Http2Exception(
+                "RFC 7540 §6.2: HEADERS frame received on stream 0.",
+                Http2ErrorCode.ProtocolError);
+
         var data = payload;
 
         if ((flags & 0x8) != 0)
@@ -222,10 +236,20 @@ public sealed class Http2Decoder
         int streamId,
         ImmutableList<(int, HttpResponseMessage)>.Builder responses)
     {
-        if (streamId != _continuationStreamId || _continuationBuffer == null)
-        {
-            return;
-        }
+        // RFC 7540 §6.10: CONTINUATION frames MUST be associated with a stream.
+        // Stream identifier 0x0 MUST be treated as a connection error (PROTOCOL_ERROR).
+        if (streamId == 0)
+            throw new Http2Exception(
+                "RFC 7540 §6.10: CONTINUATION frame received on stream 0.",
+                Http2ErrorCode.ProtocolError);
+
+        // RFC 7540 §6.10: A CONTINUATION frame MUST follow a HEADERS or PUSH_PROMISE
+        // frame on the same stream. Any other frame type or a different stream ID is
+        // a connection error (PROTOCOL_ERROR).
+        if (_continuationBuffer == null || streamId != _continuationStreamId)
+            throw new Http2Exception(
+                $"RFC 7540 §6.10: CONTINUATION on stream {streamId} but expected stream {_continuationStreamId}.",
+                Http2ErrorCode.ProtocolError);
 
         var newSize = _continuationBufferLength + payload.Length;
 
@@ -318,7 +342,7 @@ public sealed class Http2Decoder
         return merged;
     }
 
-    private sealed class StreamState(List<(string Name, string Value)> headers)
+    private sealed class StreamState(List<HpackHeader> headers)
     {
         private byte[]? _bodyBuffer;
         private int _bodyLength;
@@ -350,11 +374,11 @@ public sealed class Http2Decoder
             var statusCode = HttpStatusCode.OK;
             var response = new HttpResponseMessage();
 
-            foreach (var (name, value) in headers)
+            foreach (var header in headers)
             {
-                if (name == ":status")
+                if (header.Name == ":status")
                 {
-                    if (int.TryParse(value, out var s))
+                    if (int.TryParse(header.Value, out var s))
                     {
                         statusCode = (HttpStatusCode)s;
                     }
@@ -362,17 +386,17 @@ public sealed class Http2Decoder
                     continue;
                 }
 
-                if (name.StartsWith(':'))
+                if (header.Name.StartsWith(':'))
                 {
                     continue;
                 }
 
-                if (IsContentHeader(name))
+                if (IsContentHeader(header.Name))
                 {
                     continue;
                 }
 
-                response.Headers.TryAddWithoutValidation(name, value);
+                response.Headers.TryAddWithoutValidation(header.Name, header.Value);
             }
 
             response.StatusCode = statusCode;
@@ -387,20 +411,16 @@ public sealed class Http2Decoder
 
                 response.Content = new ByteArrayContent(bodyBytes);
 
-                foreach (var (name, value) in headers)
+                foreach (var header in headers.Where(header =>
+                             !header.Name.StartsWith(':') && IsContentHeader(header.Name)))
                 {
-                    if (!name.StartsWith(':') && IsContentHeader(name))
-                    {
-                        response.Content.Headers.TryAddWithoutValidation(name, value);
-                    }
+                    response.Content.Headers.TryAddWithoutValidation(header.Name, header.Value);
                 }
             }
 
-            if (_bodyBuffer != null)
-            {
-                ArrayPool<byte>.Shared.Return(_bodyBuffer);
-                _bodyBuffer = null;
-            }
+            if (_bodyBuffer == null) return response;
+            ArrayPool<byte>.Shared.Return(_bodyBuffer);
+            _bodyBuffer = null;
 
             return response;
         }

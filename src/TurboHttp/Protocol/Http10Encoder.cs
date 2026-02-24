@@ -36,16 +36,14 @@ public static class Http10Encoder
 
         bytesWritten += WriteAscii(span[bytesWritten..], "\r\n");
 
-        if (bodyBytes.Length > 0)
+        if (bodyBytes.Length <= 0) return bytesWritten;
+        if (bytesWritten + bodyBytes.Length > buffer.Length)
         {
-            if (bytesWritten + bodyBytes.Length > buffer.Length)
-            {
-                throw new InvalidOperationException();
-            }
-
-            bodyBytes.Span.CopyTo(span[bytesWritten..]);
-            bytesWritten += bodyBytes.Length;
+            throw new InvalidOperationException();
         }
+
+        bodyBytes.Span.CopyTo(span[bytesWritten..]);
+        bytesWritten += bodyBytes.Length;
 
         return bytesWritten;
     }

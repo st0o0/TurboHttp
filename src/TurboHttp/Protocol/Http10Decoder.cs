@@ -80,7 +80,10 @@ public sealed class Http10Decoder
 
         foreach (var rawLine in lines)
         {
-            if (string.IsNullOrWhiteSpace(rawLine)) continue;
+            if (string.IsNullOrWhiteSpace(rawLine))
+            {
+                continue;
+            }
 
             if ((rawLine[0] == ' ' || rawLine[0] == '\t') && lastHeader != null)
             {
@@ -89,17 +92,21 @@ public sealed class Http10Decoder
             }
 
             var colon = rawLine.IndexOf(':');
-            if (colon <= 0) continue;
+            if (colon <= 0)
+            {
+                continue;
+            }
 
             var name = rawLine[..colon].Trim();
             var value = rawLine[(colon + 1)..].Trim();
 
-            if (!headers.ContainsKey(name))
+            if (!headers.TryGetValue(name, out var value1))
             {
-                headers[name] = [];
+                value1 = [];
+                headers[name] = value1;
             }
 
-            headers[name].Add(value);
+            value1.Add(value);
             lastHeader = name;
         }
 

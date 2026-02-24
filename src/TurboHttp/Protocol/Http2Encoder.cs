@@ -27,7 +27,7 @@ public sealed class Http2Encoder(bool useHuffman = true)
     {
         var magic = "PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n"u8.ToArray();
 
-        var settingsSize = 9 + (DefaultSettings.Length * 6);
+        var settingsSize = 9 + DefaultSettings.Length * 6;
         var result = new byte[magic.Length + settingsSize];
 
         magic.CopyTo(result, 0);
@@ -83,12 +83,9 @@ public sealed class Http2Encoder(bool useHuffman = true)
 
         bytesWritten += WriteHeadersWithContinuation(ref span, streamId, headerBlock, endStream: !hasBody);
 
-        if (hasBody)
-        {
-            span = buffer[bytesWritten..].Span;
-            bytesWritten += WriteData(ref span, streamId, request.Content!, endStream: true);
-        }
-
+        if (!hasBody) return (streamId, bytesWritten);
+        span = buffer[bytesWritten..].Span;
+        bytesWritten += WriteData(ref span, streamId, request.Content!, endStream: true);
         return (streamId, bytesWritten);
     }
 
@@ -104,7 +101,7 @@ public sealed class Http2Encoder(bool useHuffman = true)
 
     public static byte[] EncodeSettings(ReadOnlySpan<(SettingsParameter Key, uint Value)> parameters)
     {
-        var size = 9 + (parameters.Length * 6);
+        var size = 9 + parameters.Length * 6;
         var buf = new byte[size];
         Http2FrameWriter.WriteSettingsFrame(buf, parameters);
         return buf;
