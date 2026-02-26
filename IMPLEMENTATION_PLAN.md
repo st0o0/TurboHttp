@@ -285,18 +285,18 @@
 
 ### Range Header Encoding (RFC 7233 §2.1)
 
-- [ ] `7233-2.1-001` **P2** — `Range: bytes=0-499` encoded · `[DisplayName("7233-2.1-001: Range: bytes=0-499 encoded")]`
-- [ ] `7233-2.1-002` **P2** — Suffix range `bytes=-500` encoded · `[DisplayName("7233-2.1-002: Range: bytes=-500 suffix encoded")]`
-- [ ] `7233-2.1-003` **P2** — Open-ended range `bytes=500-` encoded · `[DisplayName("7233-2.1-003: Range: bytes=500- open range encoded")]`
-- [ ] `7233-2.1-004` **P2** — Multi-range comma-separated encoded · `[DisplayName("7233-2.1-004: Multi-range bytes=0-499,1000-1499 encoded")]`
-- [ ] `7233-2.1-005` **P2** — Invalid range rejected · `[DisplayName("7233-2.1-005: Invalid range bytes=abc-xyz rejected")]`
+- [x] `7233-2.1-001` **P2** — `Range: bytes=0-499` encoded · `[DisplayName("7233-2.1-001: Range: bytes=0-499 encoded")]`
+- [x] `7233-2.1-002` **P2** — Suffix range `bytes=-500` encoded · `[DisplayName("7233-2.1-002: Range: bytes=-500 suffix encoded")]`
+- [x] `7233-2.1-003` **P2** — Open-ended range `bytes=500-` encoded · `[DisplayName("7233-2.1-003: Range: bytes=500- open range encoded")]`
+- [x] `7233-2.1-004` **P2** — Multi-range comma-separated encoded · `[DisplayName("7233-2.1-004: Multi-range bytes=0-499,1000-1499 encoded")]`
+- [x] `7233-2.1-005` **P2** — Invalid range rejected · `[DisplayName("7233-2.1-005: Invalid range bytes=abc-xyz rejected")]`
 
 ### 206 Partial Content Decoding (RFC 7233 §4.1)
 
-- [ ] `7233-4.1-001` **P2** — `Content-Range: bytes 0-499/1000` parsed · `[DisplayName("7233-4.1-001: Content-Range: bytes 0-499/1000 accessible")]`
-- [ ] `7233-4.1-002` **P2** — 206 Partial Content with Content-Range decoded · `[DisplayName("7233-4.1-002: 206 Partial Content with Content-Range decoded")]`
-- [ ] `7233-4.1-003` **P2** — `multipart/byteranges` body decoded · `[DisplayName("7233-4.1-003: 206 multipart/byteranges body decoded")]`
-- [ ] `7233-4.1-004` **P2** — Unknown total length (`*`) accepted · `[DisplayName("7233-4.1-004: Content-Range: bytes 0-499/* unknown total")]`
+- [x] `7233-4.1-001` **P2** — `Content-Range: bytes 0-499/1000` parsed · `[DisplayName("7233-4.1-001: Content-Range: bytes 0-499/1000 accessible")]`
+- [x] `7233-4.1-002` **P2** — 206 Partial Content with Content-Range decoded · `[DisplayName("7233-4.1-002: 206 Partial Content with Content-Range decoded")]`
+- [x] `7233-4.1-003` **P2** — `multipart/byteranges` body decoded · `[DisplayName("7233-4.1-003: 206 multipart/byteranges body decoded")]`
+- [x] `7233-4.1-004` **P2** — Unknown total length (`*`) accepted · `[DisplayName("7233-4.1-004: Content-Range: bytes 0-499/* unknown total")]`
 
 ---
 
