@@ -28,20 +28,30 @@ public sealed class Http10Decoder
         var lines = SplitHeaderLines(headerBytes);
         if (lines.Length == 0) return false;
 
+        ValidateStatusLine(lines[0]);
         var headers = ParseHeaders(lines[1..]);
         var bodyStart = headerEnd + GetHeaderDelimiterLength(working.Span, headerEnd);
         var bodyData = working[bodyStart..];
 
-        if (headers.TryGetValue("Content-Length", out var clValues) &&
-            int.TryParse(clValues.LastOrDefault(), out var len) && len >= 0)
+        var statusCode = ParseStatusCode(lines[0]);
+
+        // No-body responses: 204 and 304 always have empty body (RFC 1945 §7)
+        if (statusCode is 204 or 304)
         {
-            if (bodyData.Length < len)
+            response = BuildResponse(lines[0], headers, []);
+            return true;
+        }
+
+        var contentLength = GetContentLength(headers);
+        if (contentLength.HasValue)
+        {
+            if (bodyData.Length < contentLength.Value)
             {
                 _remainder = working;
                 return false;
             }
 
-            response = BuildResponse(lines[0], headers, bodyData.Span[..len].ToArray());
+            response = BuildResponse(lines[0], headers, bodyData.Span[..contentLength.Value].ToArray());
             return true;
         }
 
@@ -62,6 +72,7 @@ public sealed class Http10Decoder
         var lines = SplitHeaderLines(headerBytes);
         if (lines.Length == 0) return false;
 
+        ValidateStatusLine(lines[0]);
         var headers = ParseHeaders(lines[1..]);
         var index = headerEnd + GetHeaderDelimiterLength(span, headerEnd);
         var body = _remainder[index..].ToArray();
@@ -72,6 +83,63 @@ public sealed class Http10Decoder
     }
 
     public void Reset() => _remainder = ReadOnlyMemory<byte>.Empty;
+
+    private static void ValidateStatusLine(string statusLine)
+    {
+        var parts = statusLine.Split(' ', 3);
+        if (parts.Length < 2 || !int.TryParse(parts[1], out var code))
+        {
+            throw new HttpDecoderException(HttpDecodeError.InvalidStatusLine);
+        }
+
+        if (code is < 100 or > 999)
+        {
+            throw new HttpDecoderException(HttpDecodeError.InvalidStatusLine);
+        }
+    }
+
+    private static int ParseStatusCode(string statusLine)
+    {
+        var parts = statusLine.Split(' ', 3);
+        return parts.Length >= 2 && int.TryParse(parts[1], out var code) ? code : 500;
+    }
+
+    /// <summary>
+    /// Validates and returns Content-Length from headers.
+    /// Throws on negative values or conflicting multiple values.
+    /// </summary>
+    private static int? GetContentLength(Dictionary<string, List<string>> headers)
+    {
+        if (!headers.TryGetValue("Content-Length", out var clValues) || clValues.Count == 0)
+        {
+            return null;
+        }
+
+        // RFC 1945: Multiple Content-Length with different values is an error
+        if (clValues.Count > 1)
+        {
+            var first = clValues[0];
+            for (var i = 1; i < clValues.Count; i++)
+            {
+                if (!clValues[i].Equals(first, StringComparison.Ordinal))
+                {
+                    throw new HttpDecoderException(HttpDecodeError.MultipleContentLengthValues);
+                }
+            }
+        }
+
+        if (!int.TryParse(clValues[0], out var len))
+        {
+            throw new HttpDecoderException(HttpDecodeError.InvalidContentLength);
+        }
+
+        if (len < 0)
+        {
+            throw new HttpDecoderException(HttpDecodeError.InvalidContentLength);
+        }
+
+        return len;
+    }
 
     private static Dictionary<string, List<string>> ParseHeaders(string[] lines)
     {
@@ -85,19 +153,30 @@ public sealed class Http10Decoder
                 continue;
             }
 
+            // Obs-fold continuation (RFC 1945 §4.2): line starting with SP or HT
             if ((rawLine[0] == ' ' || rawLine[0] == '\t') && lastHeader != null)
             {
-                headers[lastHeader].Add(headers[lastHeader].Last() + " " + rawLine.Trim());
+                var lastValues = headers[lastHeader];
+                var lastValue = lastValues[^1];
+                lastValues[^1] = lastValue + " " + rawLine.Trim();
                 continue;
             }
 
             var colon = rawLine.IndexOf(':');
             if (colon <= 0)
             {
-                continue;
+                throw new HttpDecoderException(HttpDecodeError.InvalidHeader);
             }
 
-            var name = rawLine[..colon].Trim();
+            var name = rawLine[..colon];
+
+            // Validate header name: no spaces allowed
+            if (name.Contains(' '))
+            {
+                throw new HttpDecoderException(HttpDecodeError.InvalidFieldName);
+            }
+
+            name = name.Trim();
             var value = rawLine[(colon + 1)..].Trim();
 
             if (!headers.TryGetValue(name, out var value1))
@@ -134,18 +213,14 @@ public sealed class Http10Decoder
             Version = new Version(1, 0)
         };
 
-        ByteArrayContent? content = null;
-        if (body.Length > 0)
-        {
-            content = new ByteArrayContent(body);
-            response.Content = content;
-        }
+        var content = new ByteArrayContent(body);
+        response.Content = content;
 
         foreach (var (name, values) in headers)
         {
             foreach (var value in values)
             {
-                if (ContentHeaders.Contains(name) && content != null)
+                if (ContentHeaders.Contains(name))
                 {
                     content.Headers.TryAddWithoutValidation(name, value);
                 }

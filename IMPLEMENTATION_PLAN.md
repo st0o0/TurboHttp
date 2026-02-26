@@ -68,58 +68,58 @@
 
 ### Status-Line (RFC 1945 §6)
 
-- [ ] `1945-dec-003a` **P0** `[T]` — Each of 15 RFC 1945 status codes (200,201,202,204,301,302,304,400,401,403,404,500,501,502,503) · `[DisplayName("1945-dec-003: RFC 1945 status code {code} parsed")]`
-- [ ] `dec1-sl-001` **P0** — Unknown status code 299 accepted · `[DisplayName("dec1-sl-001: Unknown status code 299 accepted")]`
-- [ ] `dec1-sl-002` **P0** — Status code 99 rejected · `[DisplayName("dec1-sl-002: Status code 99 rejected")]`
-- [ ] `dec1-sl-003` **P0** — Status code 1000 rejected · `[DisplayName("dec1-sl-003: Status code 1000 rejected")]`
-- [ ] `dec1-sl-004` **P0** — LF-only line endings accepted (HTTP/1.0 permissive) · `[DisplayName("dec1-sl-004: LF-only line endings accepted in HTTP/1.0")]`
-- [ ] `dec1-sl-005` **P0** — Empty reason phrase accepted · `[DisplayName("dec1-sl-005: Empty reason phrase after status code accepted")]`
+- [x] `1945-dec-003a` **P0** `[T]` — Each of 15 RFC 1945 status codes (200,201,202,204,301,302,304,400,401,403,404,500,501,502,503) · `[DisplayName("1945-dec-003: RFC 1945 status code {code} parsed")]`
+- [x] `dec1-sl-001` **P0** — Unknown status code 299 accepted · `[DisplayName("dec1-sl-001: Unknown status code 299 accepted")]`
+- [x] `dec1-sl-002` **P0** — Status code 99 rejected · `[DisplayName("dec1-sl-002: Status code 99 rejected")]`
+- [x] `dec1-sl-003` **P0** — Status code 1000 rejected · `[DisplayName("dec1-sl-003: Status code 1000 rejected")]`
+- [x] `dec1-sl-004` **P0** — LF-only line endings accepted (HTTP/1.0 permissive) · `[DisplayName("dec1-sl-004: LF-only line endings accepted in HTTP/1.0")]`
+- [x] `dec1-sl-005` **P0** — Empty reason phrase accepted · `[DisplayName("dec1-sl-005: Empty reason phrase after status code accepted")]`
 
 ### Header Parsing (RFC 1945 §4)
 
-- [ ] `1945-4-002` **P0** — Obs-fold continuation accepted and merged · `[DisplayName("1945-4-002: Obs-fold continuation accepted in HTTP/1.0")]`
-- [ ] `1945-4-002b` **P1** — Double obs-fold merged into single value · `[DisplayName("1945-4-002b: Double obs-fold line merged into single value")]`
-- [ ] `1945-4-003` **P0** — Duplicate response headers both accessible · `[DisplayName("1945-4-003: Duplicate response headers both accessible")]`
-- [ ] `1945-4-004` **P0** — Header without colon → `InvalidHeader` error · `[DisplayName("1945-4-004: Header without colon causes parse error")]`
-- [ ] `1945-4-005` **P0** — Header name lookup case-insensitive · `[DisplayName("1945-4-005: CONTENT-LENGTH and Content-Length are equivalent")]`
-- [ ] `1945-4-006` **P0** — Leading/trailing whitespace trimmed from value · `[DisplayName("1945-4-006: Header value whitespace trimmed")]`
-- [ ] `1945-4-007` **P0** — Space in header name → `InvalidFieldName` · `[DisplayName("1945-4-007: Space in header name causes parse error")]`
-- [ ] `dec1-hdr-001` **P1** — Tab in header value accepted · `[DisplayName("dec1-hdr-001: Tab character in header value accepted")]`
-- [ ] `dec1-hdr-002` **P0** — Response with zero headers accepted · `[DisplayName("dec1-hdr-002: Response with no headers except status-line accepted")]`
+- [x] `1945-4-002` **P0** — Obs-fold continuation accepted and merged · `[DisplayName("1945-4-002: Obs-fold continuation accepted in HTTP/1.0")]`
+- [x] `1945-4-002b` **P1** — Double obs-fold merged into single value · `[DisplayName("1945-4-002b: Double obs-fold line merged into single value")]`
+- [x] `1945-4-003` **P0** — Duplicate response headers both accessible · `[DisplayName("1945-4-003: Duplicate response headers both accessible")]`
+- [x] `1945-4-004` **P0** — Header without colon → `InvalidHeader` error · `[DisplayName("1945-4-004: Header without colon causes parse error")]`
+- [x] `1945-4-005` **P0** — Header name lookup case-insensitive · `[DisplayName("1945-4-005: CONTENT-LENGTH and Content-Length are equivalent")]`
+- [x] `1945-4-006` **P0** — Leading/trailing whitespace trimmed from value · `[DisplayName("1945-4-006: Header value whitespace trimmed")]`
+- [x] `1945-4-007` **P0** — Space in header name → `InvalidFieldName` · `[DisplayName("1945-4-007: Space in header name causes parse error")]`
+- [x] `dec1-hdr-001` **P1** — Tab in header value accepted · `[DisplayName("dec1-hdr-001: Tab character in header value accepted")]`
+- [x] `dec1-hdr-002` **P0** — Response with zero headers accepted · `[DisplayName("dec1-hdr-002: Response with no headers except status-line accepted")]`
 
 ### No-Body Responses
 
-- [ ] `1945-dec-004` **P0** — 304 Not Modified with Content-Length: body empty · `[DisplayName("1945-dec-004: 304 Not Modified ignores Content-Length body")]`
-- [ ] `1945-dec-004b` **P0** — 304 Not Modified without Content-Length: body empty · `[DisplayName("1945-dec-004b: 304 Not Modified without Content-Length has empty body")]`
-- [ ] `dec1-nb-001` **P0** — 204 No Content: body length = 0 · `[DisplayName("dec1-nb-001: 204 No Content has empty body")]`
+- [x] `1945-dec-004` **P0** — 304 Not Modified with Content-Length: body empty · `[DisplayName("1945-dec-004: 304 Not Modified ignores Content-Length body")]`
+- [x] `1945-dec-004b` **P0** — 304 Not Modified without Content-Length: body empty · `[DisplayName("1945-dec-004b: 304 Not Modified without Content-Length has empty body")]`
+- [x] `dec1-nb-001` **P0** — 204 No Content: body length = 0 · `[DisplayName("dec1-nb-001: 204 No Content has empty body")]`
 
 ### Body Parsing (RFC 1945 §7)
 
-- [ ] `1945-7-001` **P0** — Content-Length body decoded to exact byte count · `[DisplayName("1945-7-001: Content-Length body decoded to exact byte count")]`
-- [ ] `1945-7-002` **P0** — Zero Content-Length → empty body · `[DisplayName("1945-7-002: Zero Content-Length produces empty body")]`
-- [ ] `1945-7-003` **P0** — No Content-Length → read until EOF via `TryDecodeEof` · `[DisplayName("1945-7-003: Body without Content-Length read via TryDecodeEof")]`
-- [ ] `1945-7-005` **P0** — Two different Content-Length values → error · `[DisplayName("1945-7-005: Two different Content-Length values rejected")]`
-- [ ] `1945-7-005b` **P1** — Two identical Content-Length values accepted · `[DisplayName("1945-7-005b: Two identical Content-Length values accepted")]`
-- [ ] `1945-7-006` **P0** — Negative Content-Length → `InvalidContentLength` · `[DisplayName("1945-7-006: Negative Content-Length is parse error")]`
-- [ ] `dec1-body-001` **P0** — Binary body with null bytes decoded intact · `[DisplayName("dec1-body-001: Body with null bytes decoded intact")]`
-- [ ] `dec1-body-002` **P1** — 2 MB body decoded correctly · `[DisplayName("dec1-body-002: 2 MB body decoded with correct Content-Length")]`
-- [ ] `1945-dec-006` **P1** — Chunked transfer treated as raw bytes · `[DisplayName("1945-dec-006: Transfer-Encoding chunked is raw body in HTTP/1.0")]`
+- [x] `1945-7-001` **P0** — Content-Length body decoded to exact byte count · `[DisplayName("1945-7-001: Content-Length body decoded to exact byte count")]`
+- [x] `1945-7-002` **P0** — Zero Content-Length → empty body · `[DisplayName("1945-7-002: Zero Content-Length produces empty body")]`
+- [x] `1945-7-003` **P0** — No Content-Length → read until EOF via `TryDecodeEof` · `[DisplayName("1945-7-003: Body without Content-Length read via TryDecodeEof")]`
+- [x] `1945-7-005` **P0** — Two different Content-Length values → error · `[DisplayName("1945-7-005: Two different Content-Length values rejected")]`
+- [x] `1945-7-005b` **P1** — Two identical Content-Length values accepted · `[DisplayName("1945-7-005b: Two identical Content-Length values accepted")]`
+- [x] `1945-7-006` **P0** — Negative Content-Length → `InvalidContentLength` · `[DisplayName("1945-7-006: Negative Content-Length is parse error")]`
+- [x] `dec1-body-001` **P0** — Binary body with null bytes decoded intact · `[DisplayName("dec1-body-001: Body with null bytes decoded intact")]`
+- [x] `dec1-body-002` **P1** — 2 MB body decoded correctly · `[DisplayName("dec1-body-002: 2 MB body decoded with correct Content-Length")]`
+- [x] `1945-dec-006` **P1** — Chunked transfer treated as raw bytes · `[DisplayName("1945-dec-006: Transfer-Encoding chunked is raw body in HTTP/1.0")]`
 
 ### Connection Semantics (RFC 1945 §8)
 
-- [ ] `1945-8-001` **P0** — Default connection is close · `[DisplayName("1945-8-001: HTTP/1.0 default connection is close")]`
-- [ ] `1945-8-002` **P1** — `Connection: keep-alive` recognized · `[DisplayName("1945-8-002: Connection: keep-alive recognized in HTTP/1.0")]`
-- [ ] `1945-8-003` **P1** — Keep-Alive timeout/max parameters parsed · `[DisplayName("1945-8-003: Keep-Alive timeout and max parameters parsed")]`
-- [ ] `1945-8-004` **P0** — HTTP/1.0 does not default to keep-alive · `[DisplayName("1945-8-004: HTTP/1.0 does not default to keep-alive")]`
-- [ ] `1945-8-005` **P0** — `Connection: close` sets close flag · `[DisplayName("1945-8-005: Connection: close signals close after response")]`
+- [x] `1945-8-001` **P0** — Default connection is close · `[DisplayName("1945-8-001: HTTP/1.0 default connection is close")]`
+- [x] `1945-8-002` **P1** — `Connection: keep-alive` recognized · `[DisplayName("1945-8-002: Connection: keep-alive recognized in HTTP/1.0")]`
+- [x] `1945-8-003` **P1** — Keep-Alive timeout/max parameters parsed · `[DisplayName("1945-8-003: Keep-Alive timeout and max parameters parsed")]`
+- [x] `1945-8-004` **P0** — HTTP/1.0 does not default to keep-alive · `[DisplayName("1945-8-004: HTTP/1.0 does not default to keep-alive")]`
+- [x] `1945-8-005` **P0** — `Connection: close` sets close flag · `[DisplayName("1945-8-005: Connection: close signals close after response")]`
 
 ### TCP Fragmentation
 
-- [ ] `dec1-frag-001` **P0** — Status-line split at byte 1 reassembled · `[DisplayName("dec1-frag-001: Status-line split at byte 1 reassembled")]`
-- [ ] `dec1-frag-002` **P0** — Status-line split inside version reassembled · `[DisplayName("dec1-frag-002: Status-line split inside HTTP/1.0 version reassembled")]`
-- [ ] `dec1-frag-003` **P0** — Header name split across two reads · `[DisplayName("dec1-frag-003: Header name split across two reads")]`
-- [ ] `dec1-frag-004` **P0** — Header value split across two reads · `[DisplayName("dec1-frag-004: Header value split across two reads")]`
-- [ ] `dec1-frag-005` **P0** — Body split mid-content reassembled · `[DisplayName("dec1-frag-005: Body split mid-content reassembled")]`
+- [x] `dec1-frag-001` **P0** — Status-line split at byte 1 reassembled · `[DisplayName("dec1-frag-001: Status-line split at byte 1 reassembled")]`
+- [x] `dec1-frag-002` **P0** — Status-line split inside version reassembled · `[DisplayName("dec1-frag-002: Status-line split inside HTTP/1.0 version reassembled")]`
+- [x] `dec1-frag-003` **P0** — Header name split across two reads · `[DisplayName("dec1-frag-003: Header name split across two reads")]`
+- [x] `dec1-frag-004` **P0** — Header value split across two reads · `[DisplayName("dec1-frag-004: Header value split across two reads")]`
+- [x] `dec1-frag-005` **P0** — Body split mid-content reassembled · `[DisplayName("dec1-frag-005: Body split mid-content reassembled")]`
 
 ---
 
