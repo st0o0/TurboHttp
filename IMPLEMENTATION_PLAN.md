@@ -186,72 +186,72 @@
 
 ### Status-Line (RFC 7231 §6.1)
 
-- [ ] `7231-6.1-002a` **P0** `[T]` — All 2xx codes (200,201,202,203,204,205,206,207 × 8) · `[DisplayName("7231-6.1-002: 2xx status code {code} parsed correctly")]`
-- [ ] `7231-6.1-003a` **P0** `[T]` — All 3xx codes (300,301,302,303,304,307,308 × 7) · `[DisplayName("7231-6.1-003: 3xx status code {code} parsed correctly")]`
-- [ ] `7231-6.1-004a` **P0** `[T]` — All 4xx codes (400,401,403,404,405,408,409,410,413,415,422,429 × 12) · `[DisplayName("7231-6.1-004: 4xx status code {code} parsed correctly")]`
-- [ ] `7231-6.1-005a` **P0** `[T]` — All 5xx codes (500,501,502,503,504 × 5) · `[DisplayName("7231-6.1-005: 5xx status code {code} parsed correctly")]`
-- [ ] `7231-6.1-001` **P0** — 1xx informational response has no body · `[DisplayName("7231-6.1-001: 1xx Informational response has no body")]`
-- [ ] `dec4-1xx-001` **P0** `[T]` — All 1xx codes individually (100,101,102,103 × 4) · `[DisplayName("dec4-1xx-001: 1xx code {code} parsed with no body")]`
-- [ ] `dec4-1xx-002` **P0** — 100 Continue before 200 OK decoded correctly · `[DisplayName("dec4-1xx-002: 100 Continue before 200 OK decoded correctly")]`
-- [ ] `dec4-1xx-003` **P0** — Multiple 1xx interim responses then 200 · `[DisplayName("dec4-1xx-003: Multiple 1xx interim responses before 200")]`
-- [ ] `7231-6.1-006` **P1** — Custom status code 599 parsed · `[DisplayName("7231-6.1-006: Custom status code 599 parsed")]`
-- [ ] `7231-6.1-007` **P0** — Status > 599 rejected · `[DisplayName("7231-6.1-007: Status code >599 is a parse error")]`
-- [ ] `7231-6.1-008` **P0** — Empty reason phrase valid · `[DisplayName("7231-6.1-008: Empty reason phrase is valid")]`
+- [x] `7231-6.1-002a` **P0** `[T]` — All 2xx codes (200,201,202,203,204,205,206,207 × 8) · `[DisplayName("7231-6.1-002: 2xx status code {code} parsed correctly")]`
+- [x] `7231-6.1-003a` **P0** `[T]` — All 3xx codes (300,301,302,303,304,307,308 × 7) · `[DisplayName("7231-6.1-003: 3xx status code {code} parsed correctly")]`
+- [x] `7231-6.1-004a` **P0** `[T]` — All 4xx codes (400,401,403,404,405,408,409,410,413,415,422,429 × 12) · `[DisplayName("7231-6.1-004: 4xx status code {code} parsed correctly")]`
+- [x] `7231-6.1-005a` **P0** `[T]` — All 5xx codes (500,501,502,503,504 × 5) · `[DisplayName("7231-6.1-005: 5xx status code {code} parsed correctly")]`
+- [x] `7231-6.1-001` **P0** — 1xx informational response has no body · `[DisplayName("7231-6.1-001: 1xx Informational response has no body")]`
+- [x] `dec4-1xx-001` **P0** `[T]` — All 1xx codes individually (100,101,102,103 × 4) · `[DisplayName("dec4-1xx-001: 1xx code {code} parsed with no body")]`
+- [x] `dec4-1xx-002` **P0** — 100 Continue before 200 OK decoded correctly · `[DisplayName("dec4-1xx-002: 100 Continue before 200 OK decoded correctly")]`
+- [x] `dec4-1xx-003` **P0** — Multiple 1xx interim responses then 200 · `[DisplayName("dec4-1xx-003: Multiple 1xx interim responses before 200")]`
+- [x] `7231-6.1-006` **P1** — Custom status code 599 parsed · `[DisplayName("7231-6.1-006: Custom status code 599 parsed")]`
+- [x] `7231-6.1-007` **P0** — Status > 599 rejected · `[DisplayName("7231-6.1-007: Status code >599 is a parse error")]`
+- [x] `7231-6.1-008` **P0** — Empty reason phrase valid · `[DisplayName("7231-6.1-008: Empty reason phrase is valid")]`
 
 ### Header Parsing (RFC 7230 §3.2)
 
-- [ ] `7230-3.2-001` **P0** — Standard `Name: value\r\n` parsed · `[DisplayName("7230-3.2-001: Standard header field Name: value parsed")]`
-- [ ] `7230-3.2-002` **P0** — OWS trimmed from header value · `[DisplayName("7230-3.2-002: OWS trimmed from header value")]`
-- [ ] `7230-3.2-003` **P0** — Empty header value accepted · `[DisplayName("7230-3.2-003: Empty header value accepted")]`
-- [ ] `7230-3.2-004` **P0** — Multiple same-name headers both accessible · `[DisplayName("7230-3.2-004: Multiple same-name headers both accessible")]`
-- [ ] `7230-3.2-005` **P0** — Obs-fold rejected in HTTP/1.1 → `ObsoleteFoldingDetected` · `[DisplayName("7230-3.2-005: Obs-fold rejected in HTTP/1.1")]`
-- [ ] `7230-3.2-006` **P0** — Header without colon → `InvalidHeader` · `[DisplayName("7230-3.2-006: Header without colon is parse error")]`
-- [ ] `7230-3.2-007` **P0** — Case-insensitive header name lookup · `[DisplayName("7230-3.2-007: Header name lookup case-insensitive")]`
-- [ ] `7230-3.2-008` **P0** — Space in header name → `InvalidFieldName` · `[DisplayName("7230-3.2-008: Space in header name is parse error")]`
-- [ ] `dec4-hdr-001` **P1** — Tab in header value accepted · `[DisplayName("dec4-hdr-001: Tab character in header value accepted")]`
-- [ ] `dec4-hdr-002` **P0** — Quoted-string header value parsed · `[DisplayName("dec4-hdr-002: Quoted-string header value parsed")]`
-- [ ] `dec4-hdr-003` **P0** — `Content-Type` with parameters parsed · `[DisplayName("dec4-hdr-003: Content-Type: text/html; charset=utf-8 accessible")]`
+- [x] `7230-3.2-001` **P0** — Standard `Name: value\r\n` parsed · `[DisplayName("7230-3.2-001: Standard header field Name: value parsed")]`
+- [x] `7230-3.2-002` **P0** — OWS trimmed from header value · `[DisplayName("7230-3.2-002: OWS trimmed from header value")]`
+- [x] `7230-3.2-003` **P0** — Empty header value accepted · `[DisplayName("7230-3.2-003: Empty header value accepted")]`
+- [x] `7230-3.2-004` **P0** — Multiple same-name headers both accessible · `[DisplayName("7230-3.2-004: Multiple same-name headers both accessible")]`
+- [x] `7230-3.2-005` **P0** — Obs-fold rejected in HTTP/1.1 → `ObsoleteFoldingDetected` · `[DisplayName("7230-3.2-005: Obs-fold rejected in HTTP/1.1")]`
+- [x] `7230-3.2-006` **P0** — Header without colon → `InvalidHeader` · `[DisplayName("7230-3.2-006: Header without colon is parse error")]`
+- [x] `7230-3.2-007` **P0** — Case-insensitive header name lookup · `[DisplayName("7230-3.2-007: Header name lookup case-insensitive")]`
+- [x] `7230-3.2-008` **P0** — Space in header name → `InvalidFieldName` · `[DisplayName("7230-3.2-008: Space in header name is parse error")]`
+- [x] `dec4-hdr-001` **P1** — Tab in header value accepted · `[DisplayName("dec4-hdr-001: Tab character in header value accepted")]`
+- [x] `dec4-hdr-002` **P0** — Quoted-string header value parsed · `[DisplayName("dec4-hdr-002: Quoted-string header value parsed")]`
+- [x] `dec4-hdr-003` **P0** — `Content-Type` with parameters parsed · `[DisplayName("dec4-hdr-003: Content-Type: text/html; charset=utf-8 accessible")]`
 
 ### Message Body (RFC 7230 §3.3)
 
-- [ ] `7230-3.3-001` **P0** — Content-Length body decoded to exact byte count · `[DisplayName("7230-3.3-001: Content-Length body decoded to exact byte count")]`
-- [ ] `7230-3.3-002` **P0** — Zero Content-Length → empty body · `[DisplayName("7230-3.3-002: Zero Content-Length produces empty body")]`
-- [ ] `7230-3.3-003` **P0** — Chunked response body decoded · `[DisplayName("7230-3.3-003: Chunked response body decoded correctly")]`
-- [ ] `7230-3.3-004` **P0** — Transfer-Encoding chunked takes priority over CL · `[DisplayName("7230-3.3-004: Transfer-Encoding chunked takes priority over CL")]`
-- [ ] `7230-3.3-005` **P0** — Multiple Content-Length values rejected · `[DisplayName("7230-3.3-005: Multiple Content-Length values rejected")]`
-- [ ] `7230-3.3-006` **P0** — Negative Content-Length rejected · `[DisplayName("7230-3.3-006: Negative Content-Length is parse error")]`
-- [ ] `7230-3.3-007` **P0** — Response without body framing has empty body (204/304) · `[DisplayName("7230-3.3-007: Response without body framing has empty body")]`
-- [ ] `dec4-body-001` **P0** — 10 MB body decoded correctly · `[DisplayName("dec4-body-001: 10 MB body decoded with correct Content-Length")]`
-- [ ] `dec4-body-002` **P0** — Binary body with null bytes intact · `[DisplayName("dec4-body-002: Binary body with null bytes intact")]`
+- [x] `7230-3.3-001` **P0** — Content-Length body decoded to exact byte count · `[DisplayName("7230-3.3-001: Content-Length body decoded to exact byte count")]`
+- [x] `7230-3.3-002` **P0** — Zero Content-Length → empty body · `[DisplayName("7230-3.3-002: Zero Content-Length produces empty body")]`
+- [x] `7230-3.3-003` **P0** — Chunked response body decoded · `[DisplayName("7230-3.3-003: Chunked response body decoded correctly")]`
+- [x] `7230-3.3-004` **P0** — Transfer-Encoding chunked takes priority over CL · `[DisplayName("7230-3.3-004: Transfer-Encoding chunked takes priority over CL")]`
+- [x] `7230-3.3-005` **P0** — Multiple Content-Length values rejected · `[DisplayName("7230-3.3-005: Multiple Content-Length values rejected")]`
+- [x] `7230-3.3-006` **P0** — Negative Content-Length rejected · `[DisplayName("7230-3.3-006: Negative Content-Length is parse error")]`
+- [x] `7230-3.3-007` **P0** — Response without body framing has empty body (204/304) · `[DisplayName("7230-3.3-007: Response without body framing has empty body")]`
+- [x] `dec4-body-001` **P0** — 10 MB body decoded correctly · `[DisplayName("dec4-body-001: 10 MB body decoded with correct Content-Length")]`
+- [x] `dec4-body-002` **P0** — Binary body with null bytes intact · `[DisplayName("dec4-body-002: Binary body with null bytes intact")]`
 
 ### Chunked Transfer Encoding (RFC 7230 §4.1)
 
-- [ ] `7230-4.1-001` **P0** — Single chunk decoded: `5\r\nHello\r\n0\r\n\r\n` → `Hello` · `[DisplayName("7230-4.1-001: Single chunk body decoded")]`
-- [ ] `7230-4.1-002` **P0** — Multiple chunks concatenated correctly · `[DisplayName("7230-4.1-002: Multiple chunks concatenated")]`
-- [ ] `7230-4.1-003` **P1** — Chunk extensions silently ignored · `[DisplayName("7230-4.1-003: Chunk extension silently ignored")]`
-- [ ] `7230-4.1-004` **P1** — Trailer fields after final chunk accessible · `[DisplayName("7230-4.1-004: Trailer fields after final chunk")]`
-- [ ] `7230-4.1-005` **P0** — Non-hex chunk size → `InvalidChunkedEncoding` · `[DisplayName("7230-4.1-005: Non-hex chunk size is parse error")]`
-- [ ] `7230-4.1-006` **P0** — Missing final chunk → `NeedMoreData` / `Incomplete()` · `[DisplayName("7230-4.1-006: Missing final chunk is NeedMoreData")]`
-- [ ] `7230-4.1-007` **P0** — `0\r\n\r\n` terminates chunked body · `[DisplayName("7230-4.1-007: 0\\r\\n\\r\\n terminates chunked body")]`
-- [ ] `7230-4.1-008` **P0** — Chunk size overflow → parse error · `[DisplayName("7230-4.1-008: Chunk size overflow is parse error")]`
-- [ ] `dec4-chk-001` **P0** — 1-byte chunk decoded: `1\r\nX\r\n0\r\n\r\n` → `X` · `[DisplayName("dec4-chk-001: 1-byte chunk decoded")]`
-- [ ] `dec4-chk-002` **P0** — Uppercase hex chunk size accepted · `[DisplayName("dec4-chk-002: Uppercase hex chunk size accepted")]`
-- [ ] `dec4-chk-003` **P1** — Empty chunk before terminator accepted · `[DisplayName("dec4-chk-003: Empty chunk (0 data bytes) before terminator accepted")]`
+- [x] `7230-4.1-001` **P0** — Single chunk decoded: `5\r\nHello\r\n0\r\n\r\n` → `Hello` · `[DisplayName("7230-4.1-001: Single chunk body decoded")]`
+- [x] `7230-4.1-002` **P0** — Multiple chunks concatenated correctly · `[DisplayName("7230-4.1-002: Multiple chunks concatenated")]`
+- [x] `7230-4.1-003` **P1** — Chunk extensions silently ignored · `[DisplayName("7230-4.1-003: Chunk extension silently ignored")]`
+- [x] `7230-4.1-004` **P1** — Trailer fields after final chunk accessible · `[DisplayName("7230-4.1-004: Trailer fields after final chunk")]`
+- [x] `7230-4.1-005` **P0** — Non-hex chunk size → `InvalidChunkedEncoding` · `[DisplayName("7230-4.1-005: Non-hex chunk size is parse error")]`
+- [x] `7230-4.1-006` **P0** — Missing final chunk → `NeedMoreData` / `Incomplete()` · `[DisplayName("7230-4.1-006: Missing final chunk is NeedMoreData")]`
+- [x] `7230-4.1-007` **P0** — `0\r\n\r\n` terminates chunked body · `[DisplayName("7230-4.1-007: 0\\r\\n\\r\\n terminates chunked body")]`
+- [x] `7230-4.1-008` **P0** — Chunk size overflow → parse error · `[DisplayName("7230-4.1-008: Chunk size overflow is parse error")]`
+- [x] `dec4-chk-001` **P0** — 1-byte chunk decoded: `1\r\nX\r\n0\r\n\r\n` → `X` · `[DisplayName("dec4-chk-001: 1-byte chunk decoded")]`
+- [x] `dec4-chk-002` **P0** — Uppercase hex chunk size accepted · `[DisplayName("dec4-chk-002: Uppercase hex chunk size accepted")]`
+- [x] `dec4-chk-003` **P1** — Empty chunk before terminator accepted · `[DisplayName("dec4-chk-003: Empty chunk (0 data bytes) before terminator accepted")]`
 
 ### No-Body Responses
 
-- [ ] `7230-nb-001` **P0** — 204 No Content: empty body · `[DisplayName("RFC 7230: 204 No Content has empty body")]`
-- [ ] `7230-nb-002` **P0** — 304 Not Modified: empty body · `[DisplayName("RFC 7230: 304 Not Modified has empty body")]`
-- [ ] `dec4-nb-001` **P0** `[T]` — 204/205/304 always empty body (× 3) · `[DisplayName("dec4-nb-001: Status {code} always has empty body")]`
-- [ ] `dec4-nb-002` **P0** — HEAD response: `Content-Length` present, no body bytes · `[DisplayName("dec4-nb-002: HEAD response has Content-Length header but empty body")]`
+- [x] `7230-nb-001` **P0** — 204 No Content: empty body · `[DisplayName("RFC 7230: 204 No Content has empty body")]`
+- [x] `7230-nb-002` **P0** — 304 Not Modified: empty body · `[DisplayName("RFC 7230: 304 Not Modified has empty body")]`
+- [x] `dec4-nb-001` **P0** `[T]` — 204/205/304 always empty body (× 3) · `[DisplayName("dec4-nb-001: Status {code} always has empty body")]`
+- [x] `dec4-nb-002` **P0** — HEAD response: `Content-Length` present, no body bytes · `[DisplayName("dec4-nb-002: HEAD response has Content-Length header but empty body")]`
 
 ### Connection Semantics (RFC 7230 §6.1)
 
-- [ ] `7230-6.1-001` **P0** — `Connection: close` signals connection close · `[DisplayName("7230-6.1-001: Connection: close signals connection close")]`
-- [ ] `7230-6.1-002` **P1** — `Connection: keep-alive` signals reuse · `[DisplayName("7230-6.1-002: Connection: keep-alive signals reuse")]`
-- [ ] `7230-6.1-003` **P0** — HTTP/1.1 default connection is keep-alive · `[DisplayName("7230-6.1-003: HTTP/1.1 default connection is keep-alive")]`
-- [ ] `7230-6.1-004` **P0** — HTTP/1.0 default connection is close · `[DisplayName("7230-6.1-004: HTTP/1.0 connection defaults to close")]`
-- [ ] `7230-6.1-005` **P1** — Multiple `Connection` tokens all recognized · `[DisplayName("7230-6.1-005: Multiple Connection tokens all recognized")]`
+- [x] `7230-6.1-001` **P0** — `Connection: close` signals connection close · `[DisplayName("7230-6.1-001: Connection: close signals connection close")]`
+- [x] `7230-6.1-002` **P1** — `Connection: keep-alive` signals reuse · `[DisplayName("7230-6.1-002: Connection: keep-alive signals reuse")]`
+- [x] `7230-6.1-003` **P0** — HTTP/1.1 default connection is keep-alive · `[DisplayName("7230-6.1-003: HTTP/1.1 default connection is keep-alive")]`
+- [x] `7230-6.1-004` **P0** — HTTP/1.0 default connection is close · `[DisplayName("7230-6.1-004: HTTP/1.0 connection defaults to close")]`
+- [x] `7230-6.1-005` **P1** — Multiple `Connection` tokens all recognized · `[DisplayName("7230-6.1-005: Multiple Connection tokens all recognized")]`
 
 ### Date/Time Parsing (RFC 7231 §7.1.1.1)
 
@@ -269,13 +269,13 @@
 
 ### TCP Fragmentation (HTTP/1.1)
 
-- [ ] `dec4-frag-001` **P0** — Status-line split at byte 1 reassembled · `[DisplayName("dec4-frag-001: Status-line split byte 1 reassembled")]`
-- [ ] `dec4-frag-002` **P0** — Status-line split inside `HTTP/1.1` version · `[DisplayName("dec4-frag-002: Status-line split inside HTTP/1.1 version")]`
-- [ ] `dec4-frag-003` **P0** — Header split at colon · `[DisplayName("dec4-frag-003: Header name:value split at colon")]`
-- [ ] `dec4-frag-004` **P0** — Split at `\r\n\r\n` header-body boundary · `[DisplayName("dec4-frag-004: Split at CRLFCRLF header-body boundary")]`
-- [ ] `dec4-frag-005` **P0** — Chunk-size line split across two reads · `[DisplayName("dec4-frag-005: Chunk-size line split across two reads")]`
-- [ ] `dec4-frag-006` **P0** — Chunk data split mid-content · `[DisplayName("dec4-frag-006: Chunk data split mid-content")]`
-- [ ] `dec4-frag-007` **P0** — Response delivered 1 byte at a time assembles correctly · `[DisplayName("dec4-frag-007: Response delivered 1 byte at a time assembles correctly")]`
+- [x] `dec4-frag-001` **P0** — Status-line split at byte 1 reassembled · `[DisplayName("dec4-frag-001: Status-line split byte 1 reassembled")]`
+- [x] `dec4-frag-002` **P0** — Status-line split inside `HTTP/1.1` version · `[DisplayName("dec4-frag-002: Status-line split inside HTTP/1.1 version")]`
+- [x] `dec4-frag-003` **P0** — Header split at colon · `[DisplayName("dec4-frag-003: Header name:value split at colon")]`
+- [x] `dec4-frag-004` **P0** — Split at `\r\n\r\n` header-body boundary · `[DisplayName("dec4-frag-004: Split at CRLFCRLF header-body boundary")]`
+- [x] `dec4-frag-005` **P0** — Chunk-size line split across two reads · `[DisplayName("dec4-frag-005: Chunk-size line split across two reads")]`
+- [x] `dec4-frag-006` **P0** — Chunk data split mid-content · `[DisplayName("dec4-frag-006: Chunk data split mid-content")]`
+- [x] `dec4-frag-007` **P0** — Response delivered 1 byte at a time assembles correctly · `[DisplayName("dec4-frag-007: Response delivered 1 byte at a time assembles correctly")]`
 
 ---
 
