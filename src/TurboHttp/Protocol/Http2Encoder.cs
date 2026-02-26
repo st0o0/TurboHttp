@@ -11,6 +11,10 @@ public sealed class Http2Encoder(bool useHuffman = true)
     private readonly HpackEncoder _hpack = new(useHuffman);
     private int _nextStreamId = 1;
     private int _maxFrameSize = 16384;
+    private long _connectionSendWindow = InitialWindowSize;
+    private readonly Dictionary<int, long> _streamSendWindows = new();
+
+    private const long InitialWindowSize = 65535;
 
     private static readonly (SettingsParameter, uint)[] DefaultSettings =
     [
@@ -154,10 +158,41 @@ public sealed class Http2Encoder(bool useHuffman = true)
         }
     }
 
+    public void UpdateConnectionWindow(int increment)
+    {
+        if (increment < 1 || increment > 0x7FFFFFFF)
+        {
+            throw new ArgumentOutOfRangeException(nameof(increment));
+        }
+
+        _connectionSendWindow += increment;
+    }
+
+    public void UpdateStreamWindow(int streamId, int increment)
+    {
+        if (increment < 1 || increment > 0x7FFFFFFF)
+        {
+            throw new ArgumentOutOfRangeException(nameof(increment));
+        }
+
+        _streamSendWindows.TryGetValue(streamId, out var current);
+        _streamSendWindows[streamId] = current + increment;
+    }
+
     private int AllocStreamId()
     {
+        // _nextStreamId < 0 means it wrapped around past int.MaxValue (stream ID space exhausted)
+        if (_nextStreamId < 0)
+        {
+            throw new Http2Exception("Stream ID space exhausted", Http2ErrorCode.ProtocolError);
+        }
+
         var id = _nextStreamId;
-        _nextStreamId += 2;
+        unchecked
+        {
+            _nextStreamId += 2; // allow wrap to negative as exhaustion sentinel
+        }
+
         return id;
     }
 
@@ -194,7 +229,7 @@ public sealed class Http2Encoder(bool useHuffman = true)
 
         if (endHeaders) return bytesWritten;
 
-        // CONTINUATION Frames
+        // CONTINUATION Frames — always index into the original `span` via `bytesWritten`
         var pos = firstChunkSize;
         while (pos < headerBlock.Length)
         {
@@ -203,8 +238,8 @@ public sealed class Http2Encoder(bool useHuffman = true)
             var isLast = pos + chunkSize >= headerBlock.Length;
             pos += chunkSize;
 
-            span = span[bytesWritten..];
-            bytesWritten += Http2FrameWriter.WriteContinuationFrame(span, streamId, chunk, isLast);
+            bytesWritten += Http2FrameWriter.WriteContinuationFrame(
+                span[bytesWritten..], streamId, chunk, isLast);
         }
 
         return bytesWritten;
@@ -219,7 +254,6 @@ public sealed class Http2Encoder(bool useHuffman = true)
 
         if (contentLength == 0)
         {
-            // Leerer DATA Frame
             return Http2FrameWriter.WriteDataFrame(span, streamId, ReadOnlySpan<byte>.Empty, endStream);
         }
 
@@ -236,7 +270,16 @@ public sealed class Http2Encoder(bool useHuffman = true)
                     break;
                 }
 
-                var payloadSize = Math.Min(_maxFrameSize, availableSpace);
+                var streamWindow = _streamSendWindows.TryGetValue(streamId, out var sw)
+                    ? sw
+                    : InitialWindowSize;
+                var effectiveWindow = Math.Min(_connectionSendWindow, streamWindow);
+                if (effectiveWindow <= 0)
+                {
+                    break;
+                }
+
+                var payloadSize = (int)Math.Min(Math.Min(_maxFrameSize, availableSpace), effectiveWindow);
 
                 var payloadDestination = span.Slice(bytesWritten + 9, payloadSize);
                 var read = stream.Read(payloadDestination);
@@ -245,6 +288,9 @@ public sealed class Http2Encoder(bool useHuffman = true)
                 {
                     break;
                 }
+
+                _connectionSendWindow -= read;
+                _streamSendWindows[streamId] = streamWindow - read;
 
                 var isLast = stream.Position >= stream.Length ||
                              (contentLength.HasValue && stream.Position >= contentLength.Value);

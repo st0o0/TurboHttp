@@ -306,57 +306,57 @@
 
 ### Connection Preface (RFC 7540 §3.5)
 
-- [ ] `7540-3.5-001` **P0** — Client preface bytes = `PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n` · `[DisplayName("7540-3.5-001: Client preface is PRI * HTTP/2.0 SM")]`
-- [ ] `7540-3.5-003` **P0** — SETTINGS frame immediately follows client preface · `[DisplayName("7540-3.5-003: SETTINGS frame immediately follows client preface")]`
+- [x] `7540-3.5-001` **P0** — Client preface bytes = `PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n` · `[DisplayName("7540-3.5-001: Client preface is PRI * HTTP/2.0 SM")]`
+- [x] `7540-3.5-003` **P0** — SETTINGS frame immediately follows client preface · `[DisplayName("7540-3.5-003: SETTINGS frame immediately follows client preface")]`
 
 ### Pseudo-Headers (RFC 7540 §8.1.2)
 
-- [ ] `7540-8.1-001` **P0** — All four pseudo-headers emitted (`:method` `:scheme` `:authority` `:path`) · `[DisplayName("7540-8.1-001: All four pseudo-headers emitted")]`
-- [ ] `7540-8.1-002` **P0** — Pseudo-headers precede all regular headers · `[DisplayName("7540-8.1-002: Pseudo-headers precede regular headers")]`
-- [ ] `7540-8.1-003` **P0** — No duplicate pseudo-headers · `[DisplayName("7540-8.1-003: No duplicate pseudo-headers")]`
-- [ ] `7540-8.1-004` **P0** — `Connection`, `Keep-Alive`, `Upgrade` absent in HTTP/2 · `[DisplayName("7540-8.1-004: Connection-specific headers absent in HTTP/2")]`
-- [ ] `enc5-ph-001` **P0** `[T]` — `:method` correct for all HTTP methods (× 9) · `[DisplayName("enc5-ph-001: :method pseudo-header correct for [{method}]")]`
-- [ ] `enc5-ph-002` **P0** — `:scheme http` and `:scheme https` reflect URI scheme · `[DisplayName("enc5-ph-002: :scheme reflects request URI scheme")]`
+- [x] `7540-8.1-001` **P0** — All four pseudo-headers emitted (`:method` `:scheme` `:authority` `:path`) · `[DisplayName("7540-8.1-001: All four pseudo-headers emitted")]`
+- [x] `7540-8.1-002` **P0** — Pseudo-headers precede all regular headers · `[DisplayName("7540-8.1-002: Pseudo-headers precede regular headers")]`
+- [x] `7540-8.1-003` **P0** — No duplicate pseudo-headers · `[DisplayName("7540-8.1-003: No duplicate pseudo-headers")]`
+- [x] `7540-8.1-004` **P0** — `Connection`, `Keep-Alive`, `Upgrade` absent in HTTP/2 · `[DisplayName("7540-8.1-004: Connection-specific headers absent in HTTP/2")]`
+- [x] `enc5-ph-001` **P0** `[T]` — `:method` correct for all HTTP methods (× 9) · `[DisplayName("enc5-ph-001: :method pseudo-header correct for [{method}]")]`
+- [x] `enc5-ph-002` **P0** — `:scheme http` and `:scheme https` reflect URI scheme · `[DisplayName("enc5-ph-002: :scheme reflects request URI scheme")]`
 
 ### SETTINGS Frame (RFC 7540 §6.5)
 
-- [ ] `enc5-set-001` **P0** `[T]` — All 6 SETTINGS parameters encoded correctly (× 6) · `[DisplayName("enc5-set-001: SETTINGS parameter {param} encoded correctly")]`
-- [ ] `enc5-set-002` **P0** — SETTINGS ACK has type=`0x04` flags=`0x01` stream=0 · `[DisplayName("enc5-set-002: SETTINGS ACK frame has type=0x04 flags=0x01 stream=0")]`
+- [x] `enc5-set-001` **P0** `[T]` — All 6 SETTINGS parameters encoded correctly (× 6) · `[DisplayName("enc5-set-001: SETTINGS parameter {param} encoded correctly")]`
+- [x] `enc5-set-002` **P0** — SETTINGS ACK has type=`0x04` flags=`0x01` stream=0 · `[DisplayName("enc5-set-002: SETTINGS ACK frame has type=0x04 flags=0x01 stream=0")]`
 
 ### Stream IDs (RFC 7540 §5.1)
 
-- [ ] `7540-5.1-001` **P0** — First request uses stream ID 1 · `[DisplayName("7540-5.1-001: First request uses stream ID 1")]`
-- [ ] `7540-5.1-002` **P0** — Stream IDs increment as 1, 3, 5, … · `[DisplayName("7540-5.1-002: Stream IDs increment (1,3,5,...)")]`
-- [ ] `enc5-sid-001` **P0** — Client never produces even stream IDs · `[DisplayName("enc5-sid-001: Client never produces even stream IDs")]`
-- [ ] `enc5-sid-002` **P1** — Stream ID near 2^31 handled gracefully · `[DisplayName("enc5-sid-002: Stream ID approaching 2^31 handled gracefully")]`
+- [x] `7540-5.1-001` **P0** — First request uses stream ID 1 · `[DisplayName("7540-5.1-001: First request uses stream ID 1")]`
+- [x] `7540-5.1-002` **P0** — Stream IDs increment as 1, 3, 5, … · `[DisplayName("7540-5.1-002: Stream IDs increment (1,3,5,...)")]`
+- [x] `enc5-sid-001` **P0** — Client never produces even stream IDs · `[DisplayName("enc5-sid-001: Client never produces even stream IDs")]`
+- [x] `enc5-sid-002` **P1** — Stream ID near 2^31 handled gracefully · `[DisplayName("enc5-sid-002: Stream ID approaching 2^31 handled gracefully")]`
 
 ### HEADERS Frame (RFC 7540 §6.2)
 
-- [ ] `7540-6.2-001` **P0** — HEADERS frame has correct 9-byte header, type `0x01` · `[DisplayName("7540-6.2-001: HEADERS frame has correct 9-byte header and payload")]`
-- [ ] `7540-6.2-002` **P0** — END_STREAM set on HEADERS for GET (bodyless) · `[DisplayName("7540-6.2-002: END_STREAM flag set on HEADERS for GET")]`
-- [ ] `7540-6.2-003` **P0** — END_HEADERS set on single HEADERS frame · `[DisplayName("7540-6.2-003: END_HEADERS flag set on single HEADERS frame")]`
+- [x] `7540-6.2-001` **P0** — HEADERS frame has correct 9-byte header, type `0x01` · `[DisplayName("7540-6.2-001: HEADERS frame has correct 9-byte header and payload")]`
+- [x] `7540-6.2-002` **P0** — END_STREAM set on HEADERS for GET (bodyless) · `[DisplayName("7540-6.2-002: END_STREAM flag set on HEADERS for GET")]`
+- [x] `7540-6.2-003` **P0** — END_HEADERS set on single HEADERS frame · `[DisplayName("7540-6.2-003: END_HEADERS flag set on single HEADERS frame")]`
 
 ### CONTINUATION Frames (RFC 7540 §6.9)
 
-- [ ] `7540-6.9-001` **P0** — Headers exceeding max frame size split into CONTINUATION · `[DisplayName("7540-6.9-001: Headers exceeding max frame size split into CONTINUATION")]`
-- [ ] `7540-6.9-002` **P0** — END_HEADERS on final CONTINUATION frame · `[DisplayName("7540-6.9-002: END_HEADERS on final CONTINUATION frame")]`
-- [ ] `7540-6.9-003` **P1** — Multiple CONTINUATION frames for very large headers · `[DisplayName("7540-6.9-003: Multiple CONTINUATION frames for very large headers")]`
+- [x] `7540-6.9-001` **P0** — Headers exceeding max frame size split into CONTINUATION · `[DisplayName("7540-6.9-001: Headers exceeding max frame size split into CONTINUATION")]`
+- [x] `7540-6.9-002` **P0** — END_HEADERS on final CONTINUATION frame · `[DisplayName("7540-6.9-002: END_HEADERS on final CONTINUATION frame")]`
+- [x] `7540-6.9-003` **P1** — Multiple CONTINUATION frames for very large headers · `[DisplayName("7540-6.9-003: Multiple CONTINUATION frames for very large headers")]`
 
 ### DATA Frames (RFC 7540 §6.1)
 
-- [ ] `7540-6.1-002enc` **P0** — END_STREAM set on final DATA frame · `[DisplayName("7540-6.1-enc-002: END_STREAM set on final DATA frame")]`
-- [ ] `7540-6.1-003enc` **P0** — GET uses END_STREAM on HEADERS, no DATA · `[DisplayName("7540-6.1-enc-003: GET END_STREAM on HEADERS frame")]`
-- [ ] `enc5-data-001` **P0** — DATA frame type byte = `0x00` · `[DisplayName("enc5-data-001: DATA frame has type byte 0x00")]`
-- [ ] `enc5-data-002` **P0** — DATA frame carries correct stream ID · `[DisplayName("enc5-data-002: DATA frame carries correct stream ID")]`
-- [ ] `enc5-data-003` **P1** — Body > MAX_FRAME_SIZE split into multiple DATA frames · `[DisplayName("enc5-data-003: Body exceeding MAX_FRAME_SIZE split into multiple DATA frames")]`
+- [x] `7540-6.1-002enc` **P0** — END_STREAM set on final DATA frame · `[DisplayName("7540-6.1-enc-002: END_STREAM set on final DATA frame")]`
+- [x] `7540-6.1-003enc` **P0** — GET uses END_STREAM on HEADERS, no DATA · `[DisplayName("7540-6.1-enc-003: GET END_STREAM on HEADERS frame")]`
+- [x] `enc5-data-001` **P0** — DATA frame type byte = `0x00` · `[DisplayName("enc5-data-001: DATA frame has type byte 0x00")]`
+- [x] `enc5-data-002` **P0** — DATA frame carries correct stream ID · `[DisplayName("enc5-data-002: DATA frame carries correct stream ID")]`
+- [x] `enc5-data-003` **P1** — Body > MAX_FRAME_SIZE split into multiple DATA frames · `[DisplayName("enc5-data-003: Body exceeding MAX_FRAME_SIZE split into multiple DATA frames")]`
 
 ### Flow Control — Encoder Side (RFC 7540 §5.2)
 
-- [ ] `7540-5.2-001enc` **P0** — Encoder does not exceed initial 65535-byte window · `[DisplayName("7540-5.2-enc-001: Encoder does not exceed initial 65535-byte window")]`
-- [ ] `7540-5.2-002enc` **P0** — WINDOW_UPDATE allows more DATA to be sent · `[DisplayName("7540-5.2-enc-002: WINDOW_UPDATE allows more DATA to be sent")]`
-- [ ] `7540-5.2-005enc` **P0** — Encoder blocks when window is zero · `[DisplayName("7540-5.2-enc-005: Encoder blocks when window is zero")]`
-- [ ] `7540-5.2-006enc` **P0** — Connection-level window limits total DATA · `[DisplayName("7540-5.2-enc-006: Connection-level window limits total DATA")]`
-- [ ] `7540-5.2-007enc` **P0** — Per-stream window limits DATA on that stream · `[DisplayName("7540-5.2-enc-007: Per-stream window limits DATA on that stream")]`
+- [x] `7540-5.2-001enc` **P0** — Encoder does not exceed initial 65535-byte window · `[DisplayName("7540-5.2-enc-001: Encoder does not exceed initial 65535-byte window")]`
+- [x] `7540-5.2-002enc` **P0** — WINDOW_UPDATE allows more DATA to be sent · `[DisplayName("7540-5.2-enc-002: WINDOW_UPDATE allows more DATA to be sent")]`
+- [x] `7540-5.2-005enc` **P0** — Encoder blocks when window is zero · `[DisplayName("7540-5.2-enc-005: Encoder blocks when window is zero")]`
+- [x] `7540-5.2-006enc` **P0** — Connection-level window limits total DATA · `[DisplayName("7540-5.2-enc-006: Connection-level window limits total DATA")]`
+- [x] `7540-5.2-007enc` **P0** — Per-stream window limits DATA on that stream · `[DisplayName("7540-5.2-enc-007: Per-stream window limits DATA on that stream")]`
 
 ---
 
