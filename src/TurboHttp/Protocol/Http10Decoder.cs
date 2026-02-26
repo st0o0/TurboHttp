@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using System.Net;
 using System.Net.Http;
 using System.Text;
@@ -194,8 +193,7 @@ public sealed class Http10Decoder
 
     private static readonly HashSet<string> ContentHeaders = new(StringComparer.OrdinalIgnoreCase)
     {
-        "Content-Type", "Content-Length", "Content-Encoding",
-        "Content-Language", "Content-Location", "Content-MD5",
+        "Content-Type", "Content-Length", "Content-Encoding", "Content-Language", "Content-Location", "Content-MD5",
         "Content-Range", "Content-Disposition", "Expires", "Last-Modified"
     };
 

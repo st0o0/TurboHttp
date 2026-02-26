@@ -263,9 +263,9 @@
 
 ### Pipelining
 
-- [ ] `7230-pipe-001` **P1** — Two pipelined responses decoded · `[DisplayName("RFC 7230: Two pipelined responses decoded")]`
-- [ ] `7230-pipe-002` **P1** — Partial second response buffered as remainder · `[DisplayName("RFC 7230: Partial second response held in remainder")]`
-- [ ] `dec4-pipe-001` **P1** — Three pipelined responses decoded in order · `[DisplayName("dec4-pipe-001: Three pipelined responses decoded in order")]`
+- [x] `7230-pipe-001` **P1** — Two pipelined responses decoded · `[DisplayName("RFC 7230: Two pipelined responses decoded")]`
+- [x] `7230-pipe-002` **P1** — Partial second response buffered as remainder · `[DisplayName("RFC 7230: Partial second response held in remainder")]`
+- [x] `dec4-pipe-001` **P1** — Three pipelined responses decoded in order · `[DisplayName("dec4-pipe-001: Three pipelined responses decoded in order")]`
 
 ### TCP Fragmentation (HTTP/1.1)
 

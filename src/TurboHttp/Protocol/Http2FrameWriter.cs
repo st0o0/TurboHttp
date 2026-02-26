@@ -7,12 +7,7 @@ public static class Http2FrameWriter
 {
     private const int FrameHeaderSize = 9;
 
-    public static void WriteFrameHeader(
-        Span<byte> span,
-        int payloadLength,
-        FrameType type,
-        byte flags,
-        int streamId)
+    public static void WriteFrameHeader(Span<byte> span, int payloadLength, FrameType type, byte flags, int streamId)
     {
         span[0] = (byte)(payloadLength >> 16);
         span[1] = (byte)(payloadLength >> 8);
@@ -56,12 +51,8 @@ public static class Http2FrameWriter
     // ========================================================================
     // HEADERS FRAME
     // ========================================================================
-    public static int WriteHeadersFrame(
-        Span<byte> destination,
-        int streamId,
-        ReadOnlySpan<byte> headerBlock,
-        bool endStream = false,
-        bool endHeaders = true)
+    public static int WriteHeadersFrame(Span<byte> destination, int streamId, ReadOnlySpan<byte> headerBlock,
+        bool endStream = false, bool endHeaders = true)
     {
         var flags = HeadersFlags.None;
         if (endStream) flags |= HeadersFlags.EndStream;
@@ -76,10 +67,7 @@ public static class Http2FrameWriter
     // ========================================================================
     // CONTINUATION FRAME
     // ========================================================================
-    public static int WriteContinuationFrame(
-        Span<byte> destination,
-        int streamId,
-        ReadOnlySpan<byte> headerBlock,
+    public static int WriteContinuationFrame(Span<byte> destination, int streamId, ReadOnlySpan<byte> headerBlock,
         bool endHeaders = true)
     {
         var flags = endHeaders ? (byte)ContinuationFlags.EndHeaders : (byte)0;
@@ -93,8 +81,7 @@ public static class Http2FrameWriter
     // ========================================================================
     // SETTINGS FRAME
     // ========================================================================
-    public static int WriteSettingsFrame(
-        Span<byte> destination,
+    public static int WriteSettingsFrame(Span<byte> destination,
         ReadOnlySpan<(SettingsParameter Key, uint Value)> parameters)
     {
         var payloadSize = parameters.Length * 6;
@@ -102,9 +89,8 @@ public static class Http2FrameWriter
         WriteFrameHeader(destination, payloadSize, FrameType.Settings, 0, 0);
 
         var span = destination[FrameHeaderSize..];
-        for (var i = 0; i < parameters.Length; i++)
+        foreach (var (key, val) in parameters)
         {
-            var (key, val) = parameters[i];
             BinaryPrimitives.WriteUInt16BigEndian(span, (ushort)key);
             BinaryPrimitives.WriteUInt32BigEndian(span[2..], val);
             span = span[6..];
@@ -122,10 +108,7 @@ public static class Http2FrameWriter
     // ========================================================================
     // RST_STREAM FRAME
     // ========================================================================
-    public static int WriteRstStreamFrame(
-        Span<byte> destination,
-        int streamId,
-        Http2ErrorCode errorCode)
+    public static int WriteRstStreamFrame(Span<byte> destination, int streamId, Http2ErrorCode errorCode)
     {
         WriteFrameHeader(destination, 4, FrameType.RstStream, 0, streamId);
         BinaryPrimitives.WriteUInt32BigEndian(destination[FrameHeaderSize..], (uint)errorCode);
@@ -135,13 +118,12 @@ public static class Http2FrameWriter
     // ========================================================================
     // WINDOW_UPDATE FRAME
     // ========================================================================
-    public static int WriteWindowUpdateFrame(
-        Span<byte> destination,
-        int streamId,
-        int increment)
+    public static int WriteWindowUpdateFrame(Span<byte> destination, int streamId, int increment)
     {
         if (increment is < 1 or > 0x7FFFFFFF)
+        {
             throw new ArgumentOutOfRangeException(nameof(increment));
+        }
 
         WriteFrameHeader(destination, 4, FrameType.WindowUpdate, 0, streamId);
         BinaryPrimitives.WriteUInt32BigEndian(destination[FrameHeaderSize..], (uint)increment & 0x7FFFFFFFu);
@@ -151,10 +133,7 @@ public static class Http2FrameWriter
     // ========================================================================
     // PING FRAME
     // ========================================================================
-    public static int WritePingFrame(
-        Span<byte> destination,
-        ReadOnlySpan<byte> data,
-        bool isAck = false)
+    public static int WritePingFrame(Span<byte> destination, ReadOnlySpan<byte> data, bool isAck = false)
     {
         if (data.Length != 8)
         {

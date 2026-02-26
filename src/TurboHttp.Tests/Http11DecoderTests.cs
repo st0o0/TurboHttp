@@ -254,7 +254,8 @@ public sealed class Http11DecoderTests
     {
         // RFC 7230 §3.2.2: Multiple header fields with the same name are valid;
         // the recipient MUST preserve all values.
-        var raw = "HTTP/1.1 200 OK\r\nAccept: text/html\r\nAccept: application/json\r\nContent-Length: 0\r\n\r\n"u8.ToArray();
+        var raw = "HTTP/1.1 200 OK\r\nAccept: text/html\r\nAccept: application/json\r\nContent-Length: 0\r\n\r\n"u8
+            .ToArray();
 
         var decoded = _decoder.TryDecode(raw, out var responses);
 
@@ -305,7 +306,8 @@ public sealed class Http11DecoderTests
     [Fact(DisplayName = "7230-3.2-004: Multiple same-name headers both accessible")]
     public void Multiple_SameName_Headers_Preserved()
     {
-        var raw = "HTTP/1.1 200 OK\r\nAccept: text/html\r\nAccept: application/json\r\nContent-Length: 0\r\n\r\n"u8.ToArray();
+        var raw = "HTTP/1.1 200 OK\r\nAccept: text/html\r\nAccept: application/json\r\nContent-Length: 0\r\n\r\n"u8
+            .ToArray();
 
         var decoded = _decoder.TryDecode(raw, out var responses);
 
@@ -1355,10 +1357,172 @@ public sealed class Http11DecoderTests
         Assert.Null(responses[0].Headers.Date);
     }
 
+    // ── Pipelining (RFC 7230) ────────────────────────────────────────────────
+
+    [Fact(DisplayName = "RFC 7230: Two pipelined responses decoded")]
+    public async Task TwoPipelinedResponses_InSameBuffer_BothDecoded()
+    {
+        var resp1 = BuildResponse(200, "OK", "first", ("Content-Length", "5"));
+        var resp2 = BuildResponse(201, "Created", "second", ("Content-Length", "6"));
+
+        var combined = new byte[resp1.Length + resp2.Length];
+        resp1.Span.CopyTo(combined);
+        resp2.Span.CopyTo(combined.AsSpan(resp1.Length));
+
+        var decoded = _decoder.TryDecode(combined, out var responses);
+
+        Assert.True(decoded);
+        Assert.Equal(2, responses.Count);
+        Assert.Equal(HttpStatusCode.OK, responses[0].StatusCode);
+        Assert.Equal(HttpStatusCode.Created, responses[1].StatusCode);
+        Assert.Equal("first", await responses[0].Content.ReadAsStringAsync());
+        Assert.Equal("second", await responses[1].Content.ReadAsStringAsync());
+    }
+
+    [Fact(DisplayName = "RFC 7230: Partial second response held in remainder")]
+    public async Task TwoPipelinedResponses_SecondPartial_RemainderBuffered()
+    {
+        var resp1 = BuildResponse(200, "OK", "first", ("Content-Length", "5"));
+        var resp2 = BuildResponse(202, "Accepted", "done", ("Content-Length", "4"));
+
+        // Send first complete + partial second (headers only, no body)
+        var headerEndInResp2 = IndexOfDoubleCrlf(resp2) + 4;
+        var chunk1 = new byte[resp1.Length + headerEndInResp2];
+        resp1.Span.CopyTo(chunk1);
+        resp2.Span[..headerEndInResp2].CopyTo(chunk1.AsSpan(resp1.Length));
+
+        var chunk2 = resp2[headerEndInResp2..]; // remaining body bytes of resp2
+
+        // First decode: should yield resp1, buffer partial resp2
+        var decoded1 = _decoder.TryDecode(chunk1, out var responses1);
+        Assert.True(decoded1);
+        Assert.Single(responses1);
+        Assert.Equal(HttpStatusCode.OK, responses1[0].StatusCode);
+
+        // Second decode: completes resp2
+        var decoded2 = _decoder.TryDecode(chunk2, out var responses2);
+        Assert.True(decoded2);
+        Assert.Single(responses2);
+        Assert.Equal(HttpStatusCode.Accepted, responses2[0].StatusCode);
+        Assert.Equal("done", await responses2[0].Content.ReadAsStringAsync());
+    }
+
+    [Fact(DisplayName = "dec4-pipe-001: Three pipelined responses decoded in order")]
+    public async Task ThreePipelinedResponses_InSameBuffer_DecodedInOrder()
+    {
+        var resp1 = BuildResponse(200, "OK", "alpha", ("Content-Length", "5"));
+        var resp2 = BuildResponse(201, "Created", "beta", ("Content-Length", "4"));
+        var resp3 = BuildResponse(202, "Accepted", "gamma", ("Content-Length", "5"));
+
+        var combined = new byte[resp1.Length + resp2.Length + resp3.Length];
+        resp1.Span.CopyTo(combined);
+        resp2.Span.CopyTo(combined.AsSpan(resp1.Length));
+        resp3.Span.CopyTo(combined.AsSpan(resp1.Length + resp2.Length));
+
+        var decoded = _decoder.TryDecode(combined, out var responses);
+
+        Assert.True(decoded);
+        Assert.Equal(3, responses.Count);
+        Assert.Equal(HttpStatusCode.OK, responses[0].StatusCode);
+        Assert.Equal(HttpStatusCode.Created, responses[1].StatusCode);
+        Assert.Equal(HttpStatusCode.Accepted, responses[2].StatusCode);
+        Assert.Equal("alpha", await responses[0].Content.ReadAsStringAsync());
+        Assert.Equal("beta", await responses[1].Content.ReadAsStringAsync());
+        Assert.Equal("gamma", await responses[2].Content.ReadAsStringAsync());
+    }
+
+    // ════════════════════════════════════════════════════════════════════════════
+    // Phase 4b: RFC 7233 — 206 Partial Content Decoding (Decoder)
+    // ════════════════════════════════════════════════════════════════════════════
+
+    // ── 206 Partial Content Decoding (RFC 7233 §4.1) ────────────────────────────
+
+    [Fact(DisplayName = "7233-4.1-001: Content-Range: bytes 0-499/1000 accessible")]
+    public void Test_7233_4_1_001_ContentRange_Accessible()
+    {
+        var raw = BuildResponse(206, "Partial Content", "first 500 bytes",
+            ("Content-Length", "15"),
+            ("Content-Range", "bytes 0-14/1000"));
+
+        var decoded = _decoder.TryDecode(raw, out var responses);
+
+        Assert.True(decoded);
+        Assert.Single(responses);
+        Assert.Equal(HttpStatusCode.PartialContent, responses[0].StatusCode);
+        Assert.True(responses[0].Content.Headers.TryGetValues("Content-Range", out var crValues));
+        Assert.Contains("bytes 0-14/1000", crValues);
+    }
+
+    [Fact(DisplayName = "7233-4.1-002: 206 Partial Content with Content-Range decoded")]
+    public async Task Test_7233_4_1_002_PartialContent_Decoded()
+    {
+        const string partialBody = "Hello";
+        var raw = BuildResponse(206, "Partial Content", partialBody,
+            ("Content-Length", "5"),
+            ("Content-Range", "bytes 0-4/1000"));
+
+        var decoded = _decoder.TryDecode(raw, out var responses);
+
+        Assert.True(decoded);
+        Assert.Single(responses);
+        Assert.Equal(HttpStatusCode.PartialContent, responses[0].StatusCode);
+        var body = await responses[0].Content.ReadAsStringAsync();
+        Assert.Equal(partialBody, body);
+    }
+
+    [Fact(DisplayName = "7233-4.1-003: 206 multipart/byteranges body decoded")]
+    public async Task Test_7233_4_1_003_Multipart_ByteRanges_Decoded()
+    {
+        // RFC 7233 §4.1: A server may return multiple ranges in a single multipart/byteranges response.
+        // The client decoder returns the raw body; multipart parsing is the caller's responsibility.
+        const string boundary = "3d6b6a416f9b5";
+        const string multipartBody = $"--{boundary}\r\n" +
+                                     $"Content-Type: text/plain\r\n" +
+                                     $"Content-Range: bytes 0-4/1000\r\n" +
+                                     $"\r\n" +
+                                     $"Hello\r\n" +
+                                     $"--{boundary}\r\n" +
+                                     $"Content-Type: text/plain\r\n" +
+                                     $"Content-Range: bytes 10-14/1000\r\n" +
+                                     $"\r\n" +
+                                     $"World\r\n" +
+                                     $"--{boundary}--\r\n";
+
+        var raw = BuildResponse(206, "Partial Content", multipartBody,
+            ("Content-Length", multipartBody.Length.ToString()),
+            ("Content-Type", $"multipart/byteranges; boundary={boundary}"));
+
+        var decoded = _decoder.TryDecode(raw, out var responses);
+
+        Assert.True(decoded);
+        Assert.Single(responses);
+        Assert.Equal(HttpStatusCode.PartialContent, responses[0].StatusCode);
+        Assert.Equal("multipart/byteranges", responses[0].Content.Headers.ContentType?.MediaType);
+        var body = await responses[0].Content.ReadAsStringAsync();
+        Assert.Contains("Hello", body);
+        Assert.Contains("World", body);
+    }
+
+    [Fact(DisplayName = "7233-4.1-004: Content-Range: bytes 0-499/* unknown total")]
+    public void Test_7233_4_1_004_ContentRange_UnknownTotal_Accepted()
+    {
+        // RFC 7233 §4.2: The "*" token indicates an unknown total length.
+        var raw = BuildResponse(206, "Partial Content", "Hello",
+            ("Content-Length", "5"),
+            ("Content-Range", "bytes 0-4/*"));
+
+        var decoded = _decoder.TryDecode(raw, out var responses);
+
+        Assert.True(decoded);
+        Assert.Single(responses);
+        Assert.Equal(HttpStatusCode.PartialContent, responses[0].StatusCode);
+        Assert.True(responses[0].Content.Headers.TryGetValues("Content-Range", out var crValues));
+        Assert.Contains("bytes 0-4/*", crValues);
+    }
+
     // ── Helper Methods ──────────────────────────────────────────────────────────
 
-    private static ReadOnlyMemory<byte> BuildResponse(
-        int code, string reason, string body,
+    private static ReadOnlyMemory<byte> BuildResponse(int code, string reason, string body,
         params (string Name, string Value)[] headers)
     {
         var sb = new StringBuilder();
@@ -1373,8 +1537,7 @@ public sealed class Http11DecoderTests
         return Encoding.UTF8.GetBytes(sb.ToString());
     }
 
-    private static ReadOnlyMemory<byte> BuildRaw(
-        int code, string reason, string rawBody,
+    private static ReadOnlyMemory<byte> BuildRaw(int code, string reason, string rawBody,
         params (string Name, string Value)[] headers)
     {
         var sb = new StringBuilder();

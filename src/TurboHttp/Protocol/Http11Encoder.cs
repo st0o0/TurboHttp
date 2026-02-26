@@ -498,5 +498,68 @@ public static class Http11Encoder
         {
             throw new ArgumentException($"Header '{name}' contains invalid characters (CR/LF/NUL)", name);
         }
+
+        if (name.Equals("Range", StringComparison.OrdinalIgnoreCase))
+        {
+            ValidateRangeValue(value);
+        }
+    }
+
+    private static void ValidateRangeValue(string value)
+    {
+        // RFC 7233 §2.1: bytes-range-spec = first-byte-pos "-" [last-byte-pos]
+        // suffix-byte-range-spec = "-" suffix-length
+        // All positions must consist only of DIGIT characters.
+        if (!value.StartsWith("bytes=", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new ArgumentException(
+                $"Invalid Range header value: '{value}' (must start with 'bytes=')", "Range");
+        }
+
+        var rangeSpec = value["bytes=".Length..];
+        var ranges = rangeSpec.Split(',');
+
+        foreach (var range in ranges)
+        {
+            var trimmed = range.AsSpan().Trim();
+            if (trimmed.IsEmpty)
+            {
+                continue;
+            }
+
+            var dashIdx = trimmed.IndexOf('-');
+            if (dashIdx < 0)
+            {
+                throw new ArgumentException(
+                    $"Invalid Range header value: '{value}' (missing '-' in range spec)", "Range");
+            }
+
+            var first = trimmed[..dashIdx];
+            var last = trimmed[(dashIdx + 1)..];
+
+            if (first.IsEmpty && last.IsEmpty)
+            {
+                throw new ArgumentException(
+                    $"Invalid Range header value: '{value}' (empty range spec)", "Range");
+            }
+
+            foreach (var ch in first)
+            {
+                if (!char.IsAsciiDigit(ch))
+                {
+                    throw new ArgumentException(
+                        $"Invalid Range header value: '{value}' (non-digit in byte position)", "Range");
+                }
+            }
+
+            foreach (var ch in last)
+            {
+                if (!char.IsAsciiDigit(ch))
+                {
+                    throw new ArgumentException(
+                        $"Invalid Range header value: '{value}' (non-digit in byte position)", "Range");
+                }
+            }
+        }
     }
 }
