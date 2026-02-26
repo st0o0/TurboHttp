@@ -255,11 +255,11 @@
 
 ### Date/Time Parsing (RFC 7231 §7.1.1.1)
 
-- [ ] `7231-7.1.1-001` **P1** — IMF-fixdate parsed to `DateTimeOffset` · `[DisplayName("7231-7.1.1-001: IMF-fixdate Date header parsed")]`
-- [ ] `7231-7.1.1-002` **P1** — RFC 850 obsolete format accepted · `[DisplayName("7231-7.1.1-002: RFC 850 Date format accepted")]`
-- [ ] `7231-7.1.1-003` **P1** — ANSI C asctime format accepted · `[DisplayName("7231-7.1.1-003: ANSI C asctime Date format accepted")]`
-- [ ] `7231-7.1.1-004` **P1** — Non-GMT timezone rejected or ignored · `[DisplayName("7231-7.1.1-004: Non-GMT timezone in Date rejected")]`
-- [ ] `7231-7.1.1-005` **P1** — Invalid Date value handled gracefully · `[DisplayName("7231-7.1.1-005: Invalid Date header value rejected")]`
+- [x] `7231-7.1.1-001` **P1** — IMF-fixdate parsed to `DateTimeOffset` · `[DisplayName("7231-7.1.1-001: IMF-fixdate Date header parsed")]`
+- [x] `7231-7.1.1-002` **P1** — RFC 850 obsolete format accepted · `[DisplayName("7231-7.1.1-002: RFC 850 Date format accepted")]`
+- [x] `7231-7.1.1-003` **P1** — ANSI C asctime format accepted · `[DisplayName("7231-7.1.1-003: ANSI C asctime Date format accepted")]`
+- [x] `7231-7.1.1-004` **P1** — Non-GMT timezone rejected or ignored · `[DisplayName("7231-7.1.1-004: Non-GMT timezone in Date rejected")]`
+- [x] `7231-7.1.1-005` **P1** — Invalid Date value handled gracefully · `[DisplayName("7231-7.1.1-005: Invalid Date header value rejected")]`
 
 ### Pipelining
 

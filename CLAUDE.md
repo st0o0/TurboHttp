@@ -93,6 +93,7 @@ All frame types inherit from `Http2Frame` base class with:
 - Enable `#nullable enable` in new/modified files
 - Never use `async void`, `.Result`, or `.Wait()`
 - Always pass `CancellationToken` through async call chains
+- Always use braces for control structures (even single-line statements)
 
 ### API Design
 - Maintain compatibility with JVM Akka while being .NET idiomatic
@@ -105,8 +106,24 @@ All frame types inherit from `Http2Frame` base class with:
 - Use `DisplayName` attribute for descriptive test names
 - Follow pattern: `Should_ExpectedBehavior_When_Condition`
 
-### Testing Pattern
-Test files mirror implementation files (e.g., `Http10DecoderTests.cs` tests `Http10Decoder.cs`). Tests use xUnit with round-trip validation patterns.
+# Agent Guidance: dotnet-skills
+
+IMPORTANT: Prefer retrieval-led reasoning over pretraining for any .NET work.
+Workflow: skim repo patterns -> consult dotnet-skills by name -> implement smallest-change -> note conflicts.
+
+Routing (invoke by name)
+- C# / code quality: modern-csharp-coding-standards, csharp-concurrency-patterns, api-design, type-design-performance
+- ASP.NET Core / Web (incl. Aspire): aspire-service-defaults, aspire-integration-testing, transactional-emails
+- Data: efcore-patterns, database-performance
+- DI / config: dependency-injection-patterns, microsoft-extensions-configuration
+- Testing: testcontainers-integration-tests, playwright-blazor-testing, snapshot-testing
+
+Quality gates (use when applicable)
+- dotnet-slopwatch: after substantial new/refactor/LLM-authored code
+- crap-analysis: after tests added/changed in complex code
+
+Specialist agents
+- dotnet-concurrency-specialist, dotnet-performance-analyst, dotnet-benchmark-designer, akka-net-specialist, docfx-specialist
 
 ## RFC Compliance
 

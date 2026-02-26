@@ -37,7 +37,7 @@ run_claude() {
 
 PLAN_FILE="${RALPH_PLAN_FILE:-IMPLEMENTATION_PLAN.md}"
 ITERATIONS=5
-MODEL="${RALPH_MODEL:-claude-opus-4-6}"
+MODEL="${RALPH_MODEL:-claude-sonnet-4-6}"
 POSTMORTEM_MODEL="${RALPH_POSTMORTEM_MODEL:-$MODEL}"
 REVIEW_INTERVAL="${RALPH_REVIEW_INTERVAL:-0}"  # 0 = disabled
 L3_GATE_ENABLED="${RALPH_L3_GATE:-true}"       # Block commits without L3 evidence
