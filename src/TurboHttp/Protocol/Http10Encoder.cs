@@ -7,8 +7,10 @@ namespace TurboHttp.Protocol;
 
 public static class Http10Encoder
 {
-    public static int Encode(HttpRequestMessage request, ref Memory<byte> buffer)
+    public static int Encode(HttpRequestMessage request, ref Memory<byte> buffer, bool absoluteForm = false)
     {
+        ValidateMethod(request.Method.Method);
+
         var bodyBytes = ReadBody(request.Content);
 
         var headers = MergeHeaders(request);
@@ -19,7 +21,7 @@ public static class Http10Encoder
 
         bytesWritten += WriteAscii(span[bytesWritten..], request.Method.Method);
         bytesWritten += WriteAscii(span[bytesWritten..], " ");
-        bytesWritten += WriteAscii(span[bytesWritten..], EncodeRequestUri(request.RequestUri!));
+        bytesWritten += WriteAscii(span[bytesWritten..], EncodeRequestUri(request.RequestUri!, absoluteForm));
         bytesWritten += WriteAscii(span[bytesWritten..], " HTTP/1.0\r\n");
 
         foreach (var (name, values) in headers)
@@ -71,8 +73,13 @@ public static class Http10Encoder
         return Encoding.ASCII.GetBytes(value.AsSpan(), destination);
     }
 
-    private static string EncodeRequestUri(Uri uri)
+    private static string EncodeRequestUri(Uri uri, bool absoluteForm = false)
     {
+        if (absoluteForm)
+        {
+            return uri.GetLeftPart(UriPartial.Query);
+        }
+
         var pathAndQuery = uri.GetComponents(
             UriComponents.PathAndQuery,
             UriFormat.UriEscaped);
@@ -125,9 +132,21 @@ public static class Http10Encoder
         }
     }
 
+    private static void ValidateMethod(string method)
+    {
+        foreach (var c in method)
+        {
+            if (char.IsLower(c))
+            {
+                throw new ArgumentException(
+                    $"HTTP/1.0 method must be uppercase: {method}", nameof(method));
+            }
+        }
+    }
+
     private static void ValidateHeaderValue(string name, string value)
     {
-        if (value.AsSpan().ContainsAny('\r', '\n'))
+        if (value.AsSpan().ContainsAny('\r', '\n', '\0'))
         {
             throw new ArgumentException(name);
         }

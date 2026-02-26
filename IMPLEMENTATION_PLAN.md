@@ -29,36 +29,36 @@
 
 ### Request-Line (RFC 1945 §5.1)
 
-- [ ] `1945-enc-001` **P0** — Request-line starts with `METHOD path HTTP/1.0\r\n` · `[DisplayName("1945-enc-001: Request-line uses HTTP/1.0")]`
-- [ ] `1945-enc-007` **P0** — Path and query string preserved in request-line · `[DisplayName("1945-enc-007: Path-and-query preserved in request-line")]`
-- [ ] `1945-5.1-004` **P0** — Lowercase method causes exception · `[DisplayName("1945-5.1-004: Lowercase method rejected by HTTP/1.0 encoder")]`
-- [ ] `1945-5.1-005` **P1** — Absolute URI encoded in request-line · `[DisplayName("1945-5.1-005: Absolute URI encoded in request-line")]`
-- [ ] `enc1-m-001` **P0** `[T]` — All HTTP methods uppercase (GET/POST/PUT/DELETE/PATCH/HEAD/OPTIONS/TRACE × 8) · `[DisplayName("enc1-m-001: All HTTP methods produce correct uppercase request-line")]`
-- [ ] `enc1-uri-001` **P0** — Missing path normalized to `/` · `[DisplayName("enc1-uri-001: Missing path normalized to /")]`
-- [ ] `enc1-uri-002` **P0** — Query string preserved verbatim · `[DisplayName("enc1-uri-002: Query string preserved in request-target")]`
-- [ ] `enc1-uri-003` **P1** — Percent-encoded chars not double-encoded · `[DisplayName("enc1-uri-003: Percent-encoded chars not double-encoded")]`
-- [ ] `enc1-uri-004` **P1** — URI fragment stripped · `[DisplayName("enc1-uri-004: URI fragment stripped from request-target")]`
+- [x] `1945-enc-001` **P0** — Request-line starts with `METHOD path HTTP/1.0\r\n` · `[DisplayName("1945-enc-001: Request-line uses HTTP/1.0")]`
+- [x] `1945-enc-007` **P0** — Path and query string preserved in request-line · `[DisplayName("1945-enc-007: Path-and-query preserved in request-line")]`
+- [x] `1945-5.1-004` **P0** — Lowercase method causes exception · `[DisplayName("1945-5.1-004: Lowercase method rejected by HTTP/1.0 encoder")]`
+- [x] `1945-5.1-005` **P1** — Absolute URI encoded in request-line · `[DisplayName("1945-5.1-005: Absolute URI encoded in request-line")]`
+- [x] `enc1-m-001` **P0** `[T]` — All HTTP methods uppercase (GET/POST/PUT/DELETE/PATCH/HEAD/OPTIONS/TRACE × 8) · `[DisplayName("enc1-m-001: All HTTP methods produce correct uppercase request-line")]`
+- [x] `enc1-uri-001` **P0** — Missing path normalized to `/` · `[DisplayName("enc1-uri-001: Missing path normalized to /")]`
+- [x] `enc1-uri-002` **P0** — Query string preserved verbatim · `[DisplayName("enc1-uri-002: Query string preserved in request-target")]`
+- [x] `enc1-uri-003` **P1** — Percent-encoded chars not double-encoded · `[DisplayName("enc1-uri-003: Percent-encoded chars not double-encoded")]`
+- [x] `enc1-uri-004` **P1** — URI fragment stripped · `[DisplayName("enc1-uri-004: URI fragment stripped from request-target")]`
 
 ### Header Suppression
 
-- [ ] `1945-enc-002` **P0** — `Host:` absent in HTTP/1.0 request · `[DisplayName("1945-enc-002: Host header absent in HTTP/1.0 request")]`
-- [ ] `1945-enc-003` **P0** — `Transfer-Encoding:` absent · `[DisplayName("1945-enc-003: Transfer-Encoding absent in HTTP/1.0 request")]`
-- [ ] `1945-enc-004` **P0** — `Connection:` absent · `[DisplayName("1945-enc-004: Connection header absent in HTTP/1.0 request")]`
-- [ ] `enc1-hdr-001` **P0** — Every header line ends with `\r\n`, no bare `\n` · `[DisplayName("enc1-hdr-001: Every header line terminated with CRLF")]`
-- [ ] `enc1-hdr-002` **P1** — Custom header name casing preserved · `[DisplayName("enc1-hdr-002: Custom header name casing preserved")]`
-- [ ] `enc1-hdr-003` **P1** — Multiple custom headers all emitted · `[DisplayName("enc1-hdr-003: Multiple custom headers all emitted")]`
-- [ ] `enc1-hdr-004` **P1** — Semicolon in header value preserved verbatim · `[DisplayName("enc1-hdr-004: Semicolon in header value preserved verbatim")]`
-- [ ] `enc1-hdr-005` **P0** — NUL byte in header value throws `ArgumentException` · `[DisplayName("enc1-hdr-005: NUL byte in header value throws exception")]`
+- [x] `1945-enc-002` **P0** — `Host:` absent in HTTP/1.0 request · `[DisplayName("1945-enc-002: Host header absent in HTTP/1.0 request")]`
+- [x] `1945-enc-003` **P0** — `Transfer-Encoding:` absent · `[DisplayName("1945-enc-003: Transfer-Encoding absent in HTTP/1.0 request")]`
+- [x] `1945-enc-004` **P0** — `Connection:` absent · `[DisplayName("1945-enc-004: Connection header absent in HTTP/1.0 request")]`
+- [x] `enc1-hdr-001` **P0** — Every header line ends with `\r\n`, no bare `\n` · `[DisplayName("enc1-hdr-001: Every header line terminated with CRLF")]`
+- [x] `enc1-hdr-002` **P1** — Custom header name casing preserved · `[DisplayName("enc1-hdr-002: Custom header name casing preserved")]`
+- [x] `enc1-hdr-003` **P1** — Multiple custom headers all emitted · `[DisplayName("enc1-hdr-003: Multiple custom headers all emitted")]`
+- [x] `enc1-hdr-004` **P1** — Semicolon in header value preserved verbatim · `[DisplayName("enc1-hdr-004: Semicolon in header value preserved verbatim")]`
+- [x] `enc1-hdr-005` **P0** — NUL byte in header value throws `ArgumentException` · `[DisplayName("enc1-hdr-005: NUL byte in header value throws exception")]`
 
 ### Body Encoding
 
-- [ ] `1945-enc-005` **P0** — `Content-Length` set for POST body · `[DisplayName("1945-enc-005: Content-Length present for POST body")]`
-- [ ] `1945-enc-006` **P0** — `Content-Length` absent for bodyless GET · `[DisplayName("1945-enc-006: Content-Length absent for bodyless GET")]`
-- [ ] `1945-enc-008` **P0** — Binary body bytes match input exactly · `[DisplayName("1945-enc-008: Binary POST body encoded verbatim")]`
-- [ ] `1945-enc-009` **P0** — UTF-8 JSON body encoded correctly · `[DisplayName("1945-enc-009: UTF-8 JSON body encoded correctly")]`
-- [ ] `enc1-body-001` **P0** — Body with null bytes not truncated · `[DisplayName("enc1-body-001: Body with null bytes not truncated")]`
-- [ ] `enc1-body-002` **P1** — 2 MB body with correct `Content-Length` · `[DisplayName("enc1-body-002: 2 MB body encoded with correct Content-Length")]`
-- [ ] `enc1-body-003` **P0** — `\r\n\r\n` separates headers from body exactly · `[DisplayName("enc1-body-003: CRLFCRLF separates headers from body")]`
+- [x] `1945-enc-005` **P0** — `Content-Length` set for POST body · `[DisplayName("1945-enc-005: Content-Length present for POST body")]`
+- [x] `1945-enc-006` **P0** — `Content-Length` absent for bodyless GET · `[DisplayName("1945-enc-006: Content-Length absent for bodyless GET")]`
+- [x] `1945-enc-008` **P0** — Binary body bytes match input exactly · `[DisplayName("1945-enc-008: Binary POST body encoded verbatim")]`
+- [x] `1945-enc-009` **P0** — UTF-8 JSON body encoded correctly · `[DisplayName("1945-enc-009: UTF-8 JSON body encoded correctly")]`
+- [x] `enc1-body-001` **P0** — Body with null bytes not truncated · `[DisplayName("enc1-body-001: Body with null bytes not truncated")]`
+- [x] `enc1-body-002` **P1** — 2 MB body with correct `Content-Length` · `[DisplayName("enc1-body-002: 2 MB body encoded with correct Content-Length")]`
+- [x] `enc1-body-003` **P0** — `\r\n\r\n` separates headers from body exactly · `[DisplayName("enc1-body-003: CRLFCRLF separates headers from body")]`
 
 ---
 
