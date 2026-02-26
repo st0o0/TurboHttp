@@ -22,16 +22,27 @@ public static class Http11Encoder
     /// </summary>
     /// <param name="request">The HTTP request to encode</param>
     /// <param name="buffer">Target buffer (advanced as data is written)</param>
+    /// <param name="absoluteForm">If true, use absolute-form URI for proxy requests</param>
     /// <returns>Total bytes written</returns>
-    public static int Encode(HttpRequestMessage request, ref Span<byte> buffer)
+    public static int Encode(HttpRequestMessage request, ref Span<byte> buffer, bool absoluteForm = false)
     {
         ArgumentNullException.ThrowIfNull(request);
         ArgumentNullException.ThrowIfNull(request.RequestUri);
 
+        // Validate method before encoding
+        ValidateMethod(request.Method.Method);
+
+        // Validate all headers
+        ValidateHeaders(request.Headers);
+        if (request.Content != null)
+        {
+            ValidateHeaders(request.Content.Headers);
+        }
+
         var bytesWritten = 0;
 
         // 1. Request-Line (RFC 9112 Section 3)
-        bytesWritten += WriteRequestLine(request, ref buffer);
+        bytesWritten += WriteRequestLine(request, ref buffer, absoluteForm);
 
         // 2. Host header (RFC 9112 Section 5.4 - MUST be present and first)
         bytesWritten += WriteHostHeader(request.RequestUri, ref buffer);
@@ -42,6 +53,17 @@ public static class Http11Encoder
         // 4. Content headers (if body present)
         if (request.Content != null)
         {
+            // Ensure Content-Length is set for content with known length
+            // This is required for HTTP/1.1 requests with bodies
+            if (request.Content.Headers.ContentLength == null)
+            {
+                using var stream = request.Content.ReadAsStream();
+                if (stream.CanSeek)
+                {
+                    request.Content.Headers.ContentLength = stream.Length;
+                }
+            }
+
             bytesWritten += WriteHeaders(request.Content.Headers, ref buffer, skipHost: false);
         }
 
@@ -63,17 +85,18 @@ public static class Http11Encoder
     /// <summary>
     /// Encodes an HTTP/1.1 request into a Memory buffer (legacy compatibility).
     /// </summary>
-    public static long Encode(HttpRequestMessage request, ref Memory<byte> buffer)
+    public static long Encode(HttpRequestMessage request, ref Memory<byte> buffer, bool absoluteForm = false)
     {
         var span = buffer.Span;
-        var written = Encode(request, ref span);
-        buffer = buffer[written..];
+        var written = Encode(request, ref span, absoluteForm);
+        // Note: Don't advance buffer here - let caller decide if they want to advance
+        // buffer = buffer[written..];  // REMOVED - this was causing tests to fail
         return written;
     }
 
     // ── Request Line ────────────────────────────────────────────────────────────
 
-    private static int WriteRequestLine(HttpRequestMessage request, ref Span<byte> buffer)
+    private static int WriteRequestLine(HttpRequestMessage request, ref Span<byte> buffer, bool absoluteForm)
     {
         var bytesWritten = 0;
 
@@ -84,13 +107,29 @@ public static class Http11Encoder
         bytesWritten += WriteBytes(ref buffer, " "u8);
 
         // Request-target (RFC 9112 Section 3.2)
-        var pathAndQuery = request.RequestUri!.PathAndQuery;
-        if (string.IsNullOrEmpty(pathAndQuery))
-        {
-            pathAndQuery = "/";
-        }
+        var uri = request.RequestUri!;
 
-        bytesWritten += WriteAscii(ref buffer, pathAndQuery);
+        // OPTIONS * case (asterisk-form)
+        if (request.Method == HttpMethod.Options && (uri.PathAndQuery == "*" || uri.PathAndQuery == "/*"))
+        {
+            bytesWritten += WriteBytes(ref buffer, "*"u8);
+        }
+        // Absolute-form for proxy requests
+        else if (absoluteForm)
+        {
+            var absoluteUri = uri.GetLeftPart(UriPartial.Query); // Excludes fragment
+            bytesWritten += WriteAscii(ref buffer, absoluteUri);
+        }
+        // Origin-form (normal case) - path and query without fragment
+        else
+        {
+            var pathAndQuery = uri.PathAndQuery;
+            if (string.IsNullOrEmpty(pathAndQuery) || pathAndQuery == "/")
+            {
+                pathAndQuery = "/";
+            }
+            bytesWritten += WriteAscii(ref buffer, pathAndQuery);
+        }
 
         // HTTP/1.1 and CRLF
         bytesWritten += WriteBytes(ref buffer, " HTTP/1.1\r\n"u8);
@@ -105,6 +144,8 @@ public static class Http11Encoder
         var bytesWritten = 0;
 
         bytesWritten += WriteBytes(ref buffer, "Host: "u8);
+
+        // uri.Host already includes brackets for IPv6 addresses
         bytesWritten += WriteAscii(ref buffer, uri.Host);
 
         // Include port if non-default
@@ -142,10 +183,26 @@ public static class Http11Encoder
                 continue;
             }
 
+            // Skip connection-specific headers per RFC 9112
+            if (IsConnectionSpecificHeader(header.Key))
+            {
+                continue;
+            }
+
             bytesWritten += WriteHeader(ref buffer, header.Key, header.Value);
         }
 
         return bytesWritten;
+    }
+
+    private static bool IsConnectionSpecificHeader(string headerName)
+    {
+        // Connection-specific headers that must not be sent per RFC 9112
+        return headerName.Equals("TE", StringComparison.OrdinalIgnoreCase) ||
+               headerName.Equals("Trailers", StringComparison.OrdinalIgnoreCase) ||
+               headerName.Equals("Keep-Alive", StringComparison.OrdinalIgnoreCase) ||
+               headerName.Equals("Upgrade", StringComparison.OrdinalIgnoreCase) ||
+               headerName.Equals("Proxy-Connection", StringComparison.OrdinalIgnoreCase);
     }
 
     private static int WriteHeader(ref Span<byte> buffer, string name, IEnumerable<string> values)
@@ -290,5 +347,49 @@ public static class Http11Encoder
         buffer = buffer[length..];
 
         return length;
+    }
+
+    // ── Validation ──────────────────────────────────────────────────────────────
+
+    private static void ValidateMethod(string method)
+    {
+        foreach (var c in method)
+        {
+            if (char.IsLower(c))
+            {
+                throw new ArgumentException(
+                    $"HTTP/1.1 method must be uppercase: {method}", nameof(method));
+            }
+        }
+    }
+
+    private static void ValidateHeaders(IEnumerable<KeyValuePair<string, IEnumerable<string>>> headers)
+    {
+        foreach (var header in headers)
+        {
+            foreach (var value in header.Value)
+            {
+                ValidateHeaderValue(header.Key, value);
+            }
+        }
+    }
+
+    private static void ValidateHeaders(HttpContentHeaders headers)
+    {
+        foreach (var header in headers)
+        {
+            foreach (var value in header.Value)
+            {
+                ValidateHeaderValue(header.Key, value);
+            }
+        }
+    }
+
+    private static void ValidateHeaderValue(string name, string value)
+    {
+        if (value.AsSpan().ContainsAny('\r', '\n', '\0'))
+        {
+            throw new ArgumentException($"Header '{name}' contains invalid characters (CR/LF/NUL)", name);
+        }
     }
 }

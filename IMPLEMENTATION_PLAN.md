@@ -129,52 +129,52 @@
 
 ### Request-Line (RFC 7230 §3.1.1)
 
-- [ ] `7230-enc-001` **P0** — Request-line uses `HTTP/1.1` · `[DisplayName("7230-enc-001: Request-line uses HTTP/1.1")]`
-- [ ] `7230-3.1.1-002` **P0** — Lowercase method causes exception · `[DisplayName("7230-3.1.1-002: Lowercase method rejected by HTTP/1.1 encoder")]`
-- [ ] `7230-3.1.1-004` **P0** — Every request-line ends with `\r\n` · `[DisplayName("7230-3.1.1-004: Every request-line ends with CRLF")]`
-- [ ] `enc3-m-001` **P0** `[T]` — All 9 HTTP methods (GET/POST/PUT/DELETE/PATCH/HEAD/OPTIONS/TRACE/CONNECT) · `[DisplayName("enc3-m-001: All HTTP methods produce correct request-line [{method}]")]`
-- [ ] `enc3-uri-001` **P0** — `OPTIONS * HTTP/1.1` encoded correctly · `[DisplayName("enc3-uri-001: OPTIONS * HTTP/1.1 encoded correctly")]`
-- [ ] `enc3-uri-002` **P0** — Absolute-URI preserved for proxy request · `[DisplayName("enc3-uri-002: Absolute-URI preserved for proxy request")]`
-- [ ] `enc3-uri-003` **P0** — Missing path normalized to `/` · `[DisplayName("enc3-uri-003: Missing path normalized to /")]`
-- [ ] `enc3-uri-004` **P0** — Query string preserved verbatim · `[DisplayName("enc3-uri-004: Query string preserved verbatim")]`
-- [ ] `enc3-uri-005` **P0** — Fragment stripped from request-target · `[DisplayName("enc3-uri-005: Fragment stripped from request-target")]`
-- [ ] `enc3-uri-006` **P1** — Existing percent-encoding not re-encoded · `[DisplayName("enc3-uri-006: Existing percent-encoding not re-encoded")]`
+- [x] `7230-enc-001` **P0** — Request-line uses `HTTP/1.1` · `[DisplayName("7230-enc-001: Request-line uses HTTP/1.1")]`
+- [x] `7230-3.1.1-002` **P0** — Lowercase method causes exception · `[DisplayName("7230-3.1.1-002: Lowercase method rejected by HTTP/1.1 encoder")]`
+- [x] `7230-3.1.1-004` **P0** — Every request-line ends with `\r\n` · `[DisplayName("7230-3.1.1-004: Every request-line ends with CRLF")]`
+- [x] `enc3-m-001` **P0** `[T]` — All 9 HTTP methods (GET/POST/PUT/DELETE/PATCH/HEAD/OPTIONS/TRACE/CONNECT) · `[DisplayName("enc3-m-001: All HTTP methods produce correct request-line [{method}]")]`
+- [x] `enc3-uri-001` **P0** — `OPTIONS * HTTP/1.1` encoded correctly · `[DisplayName("enc3-uri-001: OPTIONS * HTTP/1.1 encoded correctly")]`
+- [x] `enc3-uri-002` **P0** — Absolute-URI preserved for proxy request · `[DisplayName("enc3-uri-002: Absolute-URI preserved for proxy request")]`
+- [x] `enc3-uri-003` **P0** — Missing path normalized to `/` · `[DisplayName("enc3-uri-003: Missing path normalized to /")]`
+- [x] `enc3-uri-004` **P0** — Query string preserved verbatim · `[DisplayName("enc3-uri-004: Query string preserved verbatim")]`
+- [x] `enc3-uri-005` **P0** — Fragment stripped from request-target · `[DisplayName("enc3-uri-005: Fragment stripped from request-target")]`
+- [x] `enc3-uri-006` **P1** — Existing percent-encoding not re-encoded · `[DisplayName("enc3-uri-006: Existing percent-encoding not re-encoded")]`
 
 ### Mandatory Host Header
 
-- [ ] `9112-enc-001` **P0** — `Host:` always present · `[DisplayName("RFC 9112 §5.4: Host header mandatory in HTTP/1.1")]`
-- [ ] `9112-enc-002` **P0** — `Host:` emitted exactly once · `[DisplayName("RFC 9112 §5.4: Host header emitted exactly once")]`
-- [ ] `enc3-host-001` **P0** — Non-standard port included in `Host` value · `[DisplayName("enc3-host-001: Host with non-standard port includes port")]`
-- [ ] `enc3-host-002` **P0** — IPv6 host literal bracketed: `Host: [::1]` · `[DisplayName("enc3-host-002: IPv6 host literal bracketed correctly")]`
-- [ ] `enc3-host-003` **P0** — Default port 80 omitted from `Host` header · `[DisplayName("enc3-host-003: Default port 80 omitted from Host header")]`
+- [x] `9112-enc-001` **P0** — `Host:` always present · `[DisplayName("RFC 9112 §5.4: Host header mandatory in HTTP/1.1")]`
+- [x] `9112-enc-002` **P0** — `Host:` emitted exactly once · `[DisplayName("RFC 9112 §5.4: Host header emitted exactly once")]`
+- [x] `enc3-host-001` **P0** — Non-standard port included in `Host` value · `[DisplayName("enc3-host-001: Host with non-standard port includes port")]`
+- [x] `enc3-host-002` **P0** — IPv6 host literal bracketed: `Host: [::1]` · `[DisplayName("enc3-host-002: IPv6 host literal bracketed correctly")]`
+- [x] `enc3-host-003` **P0** — Default port 80 omitted from `Host` header · `[DisplayName("enc3-host-003: Default port 80 omitted from Host header")]`
 
 ### Header Encoding (RFC 7230 §3.2)
 
-- [ ] `7230-3.2-001` **P0** — Header format is `Name: SP value CRLF` · `[DisplayName("7230-3.2-001: Header field format is Name: SP value CRLF")]`
-- [ ] `7230-3.2-002` **P0** — No spurious whitespace added to header values · `[DisplayName("7230-3.2-002: No spurious whitespace added to header values")]`
-- [ ] `7230-3.2-007` **P0** — Header name casing preserved (not lowercased) · `[DisplayName("7230-3.2-007: Header name casing preserved in output")]`
-- [ ] `enc3-hdr-001` **P0** — NUL byte in header value throws `ArgumentException` · `[DisplayName("enc3-hdr-001: NUL byte in header value throws exception")]`
-- [ ] `enc3-hdr-002` **P1** — `Content-Type` with semicolon parameters preserved · `[DisplayName("enc3-hdr-002: Content-Type with charset parameter preserved")]`
-- [ ] `enc3-hdr-003` **P1** — All custom headers appear in output · `[DisplayName("enc3-hdr-003: All custom headers appear in output")]`
-- [ ] `enc3-hdr-004` **P1** — `Accept-Encoding: gzip, deflate` encoded · `[DisplayName("enc3-hdr-004: Accept-Encoding gzip,deflate encoded")]`
-- [ ] `enc3-hdr-005` **P1** — `Authorization: Bearer …` preserved verbatim · `[DisplayName("enc3-hdr-005: Authorization header preserved verbatim")]`
+- [x] `7230-3.2-001` **P0** — Header format is `Name: SP value CRLF` · `[DisplayName("7230-3.2-001: Header field format is Name: SP value CRLF")]`
+- [x] `7230-3.2-002` **P0** — No spurious whitespace added to header values · `[DisplayName("7230-3.2-002: No spurious whitespace added to header values")]`
+- [x] `7230-3.2-007` **P0** — Header name casing preserved (not lowercased) · `[DisplayName("7230-3.2-007: Header name casing preserved in output")]`
+- [x] `enc3-hdr-001` **P0** — NUL byte in header value throws `ArgumentException` · `[DisplayName("enc3-hdr-001: NUL byte in header value throws exception")]`
+- [x] `enc3-hdr-002` **P1** — `Content-Type` with semicolon parameters preserved · `[DisplayName("enc3-hdr-002: Content-Type with charset parameter preserved")]`
+- [x] `enc3-hdr-003` **P1** — All custom headers appear in output · `[DisplayName("enc3-hdr-003: All custom headers appear in output")]`
+- [x] `enc3-hdr-004` **P1** — `Accept-Encoding: gzip, deflate` encoded · `[DisplayName("enc3-hdr-004: Accept-Encoding gzip,deflate encoded")]`
+- [x] `enc3-hdr-005` **P1** — `Authorization: Bearer …` preserved verbatim · `[DisplayName("enc3-hdr-005: Authorization header preserved verbatim")]`
 
 ### Connection Management
 
-- [ ] `7230-enc-003` **P0** — `Connection: keep-alive` default · `[DisplayName("7230-enc-003: Connection keep-alive default in HTTP/1.1")]`
-- [ ] `7230-enc-004` **P0** — `Connection: close` when explicitly set · `[DisplayName("7230-enc-004: Connection close encoded when set")]`
-- [ ] `7230-6.1-005` **P1** — Multiple `Connection` tokens encoded · `[DisplayName("7230-6.1-005: Multiple Connection tokens encoded")]`
-- [ ] `9112-enc-003` **P0** — `TE`, `Trailers`, `Keep-Alive` stripped · `[DisplayName("RFC 9112: Connection-specific headers stripped")]`
+- [x] `7230-enc-003` **P0** — `Connection: keep-alive` default · `[DisplayName("7230-enc-003: Connection keep-alive default in HTTP/1.1")]`
+- [x] `7230-enc-004` **P0** — `Connection: close` when explicitly set · `[DisplayName("7230-enc-004: Connection close encoded when set")]`
+- [x] `7230-6.1-005` **P1** — Multiple `Connection` tokens encoded · `[DisplayName("7230-6.1-005: Multiple Connection tokens encoded")]`
+- [x] `9112-enc-003` **P0** — `TE`, `Trailers`, `Keep-Alive` stripped · `[DisplayName("RFC 9112: Connection-specific headers stripped")]`
 
 ### Body Encoding
 
-- [ ] `7230-enc-006` **P0** — No `Content-Length` for bodyless GET · `[DisplayName("7230-enc-006: No Content-Length for bodyless GET")]`
-- [ ] `7230-enc-008` **P0** — `Content-Length` set for POST body · `[DisplayName("7230-enc-008: Content-Length set for POST body")]`
+- [x] `7230-enc-006` **P0** — No `Content-Length` for bodyless GET · `[DisplayName("7230-enc-006: No Content-Length for bodyless GET")]`
+- [x] `7230-enc-008` **P0** — `Content-Length` set for POST body · `[DisplayName("7230-enc-008: Content-Length set for POST body")]`
 - [ ] `7230-enc-009` **P1** — `Transfer-Encoding: chunked` + correct chunks · `[DisplayName("7230-enc-009: Chunked Transfer-Encoding for streamed body")]`
-- [ ] `enc3-body-001` **P0** `[T]` — POST/PUT/PATCH each get `Content-Length` (× 3) · `[DisplayName("enc3-body-001: {method} with body gets Content-Length [{method}]")]`
-- [ ] `enc3-body-002` **P0** `[T]` — GET/HEAD/DELETE omit `Content-Length` (× 3) · `[DisplayName("enc3-body-002: {method} without body omits Content-Length [{method}]")]`
-- [ ] `enc3-body-003` **P0** — `\r\n\r\n` separates headers from body · `[DisplayName("enc3-body-003: Empty line separates headers from body")]`
-- [ ] `enc3-body-004` **P0** — Binary body with null bytes preserved · `[DisplayName("enc3-body-004: Binary body with null bytes preserved")]`
+- [x] `enc3-body-001` **P0** `[T]` — POST/PUT/PATCH each get `Content-Length` (× 3) · `[DisplayName("enc3-body-001: {method} with body gets Content-Length [{method}]")]`
+- [x] `enc3-body-002` **P0** `[T]` — GET/HEAD/DELETE omit `Content-Length` (× 3) · `[DisplayName("enc3-body-002: {method} without body omits Content-Length [{method}]")]`
+- [x] `enc3-body-003` **P0** — `\r\n\r\n` separates headers from body · `[DisplayName("enc3-body-003: Empty line separates headers from body")]`
+- [x] `enc3-body-004` **P0** — Binary body with null bytes preserved · `[DisplayName("enc3-body-004: Binary body with null bytes preserved")]`
 - [ ] `enc3-body-005` **P1** — Chunked body ends with `0\r\n\r\n` · `[DisplayName("enc3-body-005: Chunked body terminated with final 0-chunk")]`
 - [ ] `enc3-body-006` **P0** — No `Content-Length` when chunked · `[DisplayName("enc3-body-006: Content-Length absent when Transfer-Encoding is chunked")]`
 
