@@ -47,6 +47,9 @@ public static class Http11Encoder
         // 2. Host header (RFC 9112 Section 5.4 - MUST be present and first)
         bytesWritten += WriteHostHeader(request.RequestUri, ref buffer);
 
+        // Check if chunked encoding is requested
+        var isChunked = request.Headers.TransferEncodingChunked == true;
+
         // 3. Request headers (excluding Host which we already wrote)
         bytesWritten += WriteHeaders(request.Headers, ref buffer, skipHost: true);
 
@@ -54,8 +57,8 @@ public static class Http11Encoder
         if (request.Content != null)
         {
             // Ensure Content-Length is set for content with known length
-            // This is required for HTTP/1.1 requests with bodies
-            if (request.Content.Headers.ContentLength == null)
+            // This is required for HTTP/1.1 requests with bodies (unless chunked)
+            if (!isChunked && request.Content.Headers.ContentLength == null)
             {
                 using var stream = request.Content.ReadAsStream();
                 if (stream.CanSeek)
@@ -64,7 +67,7 @@ public static class Http11Encoder
                 }
             }
 
-            bytesWritten += WriteHeaders(request.Content.Headers, ref buffer, skipHost: false);
+            bytesWritten += WriteContentHeaders(request.Content.Headers, ref buffer, isChunked);
         }
 
         // 5. Connection header (if not already set, default to keep-alive)
@@ -76,7 +79,14 @@ public static class Http11Encoder
         // 7. Body (if present)
         if (request.Content != null)
         {
-            bytesWritten += WriteBody(request.Content, ref buffer);
+            if (isChunked)
+            {
+                bytesWritten += WriteChunkedBody(request.Content, ref buffer);
+            }
+            else
+            {
+                bytesWritten += WriteBody(request.Content, ref buffer);
+            }
         }
 
         return bytesWritten;
@@ -231,6 +241,24 @@ public static class Http11Encoder
         return bytesWritten;
     }
 
+    private static int WriteContentHeaders(HttpContentHeaders headers, ref Span<byte> buffer, bool isChunked)
+    {
+        var bytesWritten = 0;
+
+        foreach (var header in headers)
+        {
+            // RFC 7230 Section 3.3.2: Content-Length MUST NOT be sent when Transfer-Encoding is present
+            if (isChunked && header.Key.Equals("Content-Length", StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            bytesWritten += WriteHeader(ref buffer, header.Key, header.Value);
+        }
+
+        return bytesWritten;
+    }
+
     private static int WriteConnectionHeaderIfNeeded(HttpRequestHeaders headers, ref Span<byte> buffer)
     {
         var bytesWritten = 0;
@@ -267,6 +295,19 @@ public static class Http11Encoder
     private static int WriteBody(HttpContent content, ref Span<byte> buffer)
     {
         using var stream = content.ReadAsStream();
+
+        // If Content-Length is known, validate we have enough buffer space
+        if (content.Headers.ContentLength.HasValue)
+        {
+            var contentLength = content.Headers.ContentLength.Value;
+            if (buffer.Length < contentLength)
+            {
+                throw new ArgumentException(
+                    $"Buffer too small for body: need {contentLength} bytes, have {buffer.Length} bytes available",
+                    nameof(buffer));
+            }
+        }
+
         var total = 0;
 
         while (buffer.Length > 0)
@@ -280,6 +321,37 @@ public static class Http11Encoder
             buffer = buffer[read..];
             total += read;
         }
+
+        return total;
+    }
+
+    private static int WriteChunkedBody(HttpContent content, ref Span<byte> buffer)
+    {
+        using var stream = content.ReadAsStream();
+        var total = 0;
+        const int chunkSize = 8192; // 8KB chunks
+
+        var chunkBuffer = new byte[chunkSize];
+
+        while (true)
+        {
+            var read = stream.Read(chunkBuffer, 0, chunkSize);
+            if (read == 0)
+            {
+                break;
+            }
+
+            // Write chunk size in hex
+            total += WriteHex(ref buffer, read);
+            total += WriteCrlf(ref buffer);
+
+            // Write chunk data
+            total += WriteBytes(ref buffer, chunkBuffer.AsSpan(0, read));
+            total += WriteCrlf(ref buffer);
+        }
+
+        // Write final chunk: 0\r\n\r\n
+        total += WriteBytes(ref buffer, "0\r\n\r\n"u8);
 
         return total;
     }
@@ -341,6 +413,41 @@ public static class Http11Encoder
             temp[--pos] = (byte)('0' + value % 10);
             value /= 10;
         } while (value > 0);
+
+        var length = temp.Length - pos;
+        temp[pos..].CopyTo(buffer);
+        buffer = buffer[length..];
+
+        return length;
+    }
+
+    /// <summary>
+    /// Writes an integer as hexadecimal ASCII without heap allocation.
+    /// </summary>
+    private static int WriteHex(ref Span<byte> buffer, int value)
+    {
+        if (value < 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(value), "Value must be non-negative");
+        }
+
+        // Max int32 is 8 hex digits
+        Span<byte> temp = stackalloc byte[8];
+        var pos = temp.Length;
+
+        if (value == 0)
+        {
+            buffer[0] = (byte)'0';
+            buffer = buffer[1..];
+            return 1;
+        }
+
+        while (value > 0)
+        {
+            var digit = value % 16;
+            temp[--pos] = (byte)(digit < 10 ? '0' + digit : 'a' + (digit - 10));
+            value /= 16;
+        }
 
         var length = temp.Length - pos;
         temp[pos..].CopyTo(buffer);

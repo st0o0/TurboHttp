@@ -170,13 +170,13 @@
 
 - [x] `7230-enc-006` **P0** — No `Content-Length` for bodyless GET · `[DisplayName("7230-enc-006: No Content-Length for bodyless GET")]`
 - [x] `7230-enc-008` **P0** — `Content-Length` set for POST body · `[DisplayName("7230-enc-008: Content-Length set for POST body")]`
-- [ ] `7230-enc-009` **P1** — `Transfer-Encoding: chunked` + correct chunks · `[DisplayName("7230-enc-009: Chunked Transfer-Encoding for streamed body")]`
+- [x] `7230-enc-009` **P1** — `Transfer-Encoding: chunked` + correct chunks · `[DisplayName("7230-enc-009: Chunked Transfer-Encoding for streamed body")]`
 - [x] `enc3-body-001` **P0** `[T]` — POST/PUT/PATCH each get `Content-Length` (× 3) · `[DisplayName("enc3-body-001: {method} with body gets Content-Length [{method}]")]`
 - [x] `enc3-body-002` **P0** `[T]` — GET/HEAD/DELETE omit `Content-Length` (× 3) · `[DisplayName("enc3-body-002: {method} without body omits Content-Length [{method}]")]`
 - [x] `enc3-body-003` **P0** — `\r\n\r\n` separates headers from body · `[DisplayName("enc3-body-003: Empty line separates headers from body")]`
 - [x] `enc3-body-004` **P0** — Binary body with null bytes preserved · `[DisplayName("enc3-body-004: Binary body with null bytes preserved")]`
-- [ ] `enc3-body-005` **P1** — Chunked body ends with `0\r\n\r\n` · `[DisplayName("enc3-body-005: Chunked body terminated with final 0-chunk")]`
-- [ ] `enc3-body-006` **P0** — No `Content-Length` when chunked · `[DisplayName("enc3-body-006: Content-Length absent when Transfer-Encoding is chunked")]`
+- [x] `enc3-body-005` **P1** — Chunked body ends with `0\r\n\r\n` · `[DisplayName("enc3-body-005: Chunked body terminated with final 0-chunk")]`
+- [x] `enc3-body-006` **P0** — No `Content-Length` when chunked · `[DisplayName("enc3-body-006: Content-Length absent when Transfer-Encoding is chunked")]`
 
 ---
 

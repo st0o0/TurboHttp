@@ -505,8 +505,75 @@ public sealed class Http11EncoderTests
         Assert.Equal(binaryData, body);
     }
 
-    // Note: enc3-body-005, enc3-body-006, 7230-enc-009 are P1 chunked encoding tests
-    // Chunked encoding support is deferred as it requires streaming body logic
+    [Fact(DisplayName = "7230-enc-009: Chunked Transfer-Encoding for streamed body")]
+    public void Test_7230_enc_009_Chunked_Transfer_Encoding()
+    {
+        var content = new StringContent("Hello World");
+        var request = new HttpRequestMessage(HttpMethod.Post, "https://example.com/upload")
+        {
+            Content = content
+        };
+        request.Headers.TransferEncodingChunked = true;
+
+        using var owner = MemoryPool<byte>.Shared.Rent(4096);
+        var buffer = owner.Memory;
+        var written = Http11Encoder.Encode(request, ref buffer);
+        var bytes = buffer.Span[..(int)written].ToArray();
+        var result = Encoding.ASCII.GetString(bytes);
+
+        // Verify Transfer-Encoding: chunked is present
+        Assert.Contains("Transfer-Encoding: chunked\r\n", result);
+
+        // Find body start (after \r\n\r\n)
+        var separatorIdx = result.IndexOf("\r\n\r\n", StringComparison.Ordinal);
+        Assert.True(separatorIdx > 0);
+        var bodyPart = result[(separatorIdx + 4)..];
+
+        // Verify chunked encoding format: size in hex + CRLF + data + CRLF
+        // "Hello World" = 11 bytes = 0xb in hex
+        Assert.StartsWith("b\r\nHello World\r\n", bodyPart);
+    }
+
+    [Fact(DisplayName = "enc3-body-005: Chunked body terminated with final 0-chunk")]
+    public void Test_enc3_body_005_Chunked_Body_Terminator()
+    {
+        var content = new StringContent("Test");
+        var request = new HttpRequestMessage(HttpMethod.Post, "https://example.com/")
+        {
+            Content = content
+        };
+        request.Headers.TransferEncodingChunked = true;
+
+        using var owner = MemoryPool<byte>.Shared.Rent(4096);
+        var buffer = owner.Memory;
+        var written = Http11Encoder.Encode(request, ref buffer);
+        var bytes = buffer.Span[..(int)written].ToArray();
+        var result = Encoding.ASCII.GetString(bytes);
+
+        // Verify the message ends with the final chunk: 0\r\n\r\n
+        Assert.EndsWith("0\r\n\r\n", result);
+    }
+
+    [Fact(DisplayName = "enc3-body-006: Content-Length absent when Transfer-Encoding is chunked")]
+    public void Test_enc3_body_006_No_Content_Length_When_Chunked()
+    {
+        var content = new StringContent("Some data here");
+        var request = new HttpRequestMessage(HttpMethod.Post, "https://example.com/")
+        {
+            Content = content
+        };
+        request.Headers.TransferEncodingChunked = true;
+
+        using var owner = MemoryPool<byte>.Shared.Rent(4096);
+        var buffer = owner.Memory;
+        var written = Http11Encoder.Encode(request, ref buffer);
+        var bytes = buffer.Span[..(int)written].ToArray();
+        var result = Encoding.ASCII.GetString(bytes);
+
+        // RFC 7230 Section 3.3.2: Content-Length MUST NOT be sent when Transfer-Encoding is present
+        Assert.DoesNotContain("Content-Length:", result);
+        Assert.Contains("Transfer-Encoding: chunked\r\n", result);
+    }
 
     // ════════════════════════════════════════════════════════════════════════════
     // Helper Methods
