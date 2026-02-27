@@ -21,6 +21,9 @@ dotnet test ./src/TurboHttp.Tests/TurboHttp.Tests.csproj --filter "ClassName=Tur
 
 # Run specific test method
 dotnet test ./src/TurboHttp.Tests/TurboHttp.Tests.csproj --filter "FullyQualifiedName~HpackTests.Encode_Decode_RoundTrip"
+
+# Run benchmarks
+dotnet run --configuration Release ./src/TurboHttp.Benchmarks/TurboHttp.Benchmarks.csproj"
 ```
 
 ## Architecture

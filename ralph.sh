@@ -371,6 +371,7 @@ for ((i=1; i<=ITERATIONS; i++)); do
 
 6) Verify (must match chosen level):
    - Minimum: build + test (language-appropriate commands)
+   - Run Benchmarks without errors
    - If Level >= L3: run UI smoke/Playwright and check for console errors
    - Follow any additional quality gates from AGENTS.md/CLAUDE.md
 

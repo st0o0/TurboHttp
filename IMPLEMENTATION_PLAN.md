@@ -712,11 +712,11 @@
 ```
 ## Phase 11: Benchmarks
 File: src/TurboHttp.Benchmarks/
-- [ ] Create TurboHttp.Benchmarks.csproj + add to solution
-- [ ] Program.cs
-- [ ] EncoderBenchmarks.cs  (8 benchmarks)
-- [ ] DecoderBenchmarks.cs  (8 benchmarks)
-- [ ] HpackBenchmarks.cs    (9 benchmarks)
+- [x] Create TurboHttp.Benchmarks.csproj + add to solution
+- [x] Program.cs
+- [x] EncoderBenchmarks.cs  (8 benchmarks)
+- [x] DecoderBenchmarks.cs  (8 benchmarks)
+- [x] HpackBenchmarks.cs    (10 benchmarks)
 ```
 
 ---
