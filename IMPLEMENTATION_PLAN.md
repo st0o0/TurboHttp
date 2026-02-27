@@ -366,106 +366,106 @@
 
 ### Connection Preface (RFC 7540 §3.5)
 
-- [ ] `7540-3.5-002` **P0** — Invalid server preface → `PROTOCOL_ERROR` · `[DisplayName("7540-3.5-002: Invalid server preface causes PROTOCOL_ERROR")]`
-- [ ] `7540-3.5-004` **P0** — Missing SETTINGS after preface → error · `[DisplayName("7540-3.5-004: Missing SETTINGS after preface causes error")]`
+- [x] `7540-3.5-002` **P0** — Invalid server preface → `PROTOCOL_ERROR` · `[DisplayName("7540-3.5-002: Invalid server preface causes PROTOCOL_ERROR")]`
+- [x] `7540-3.5-004` **P0** — Missing SETTINGS after preface → error · `[DisplayName("7540-3.5-004: Missing SETTINGS after preface causes error")]`
 
 ### Frame Header (RFC 7540 §4.1)
 
-- [ ] `7540-4.1-001` **P0** — Valid 9-byte frame header decoded correctly · `[DisplayName("7540-4.1-001: Valid 9-byte frame header decoded correctly")]`
-- [ ] `7540-4.1-002` **P0** — 24-bit length field parsed (lengths > 65535) · `[DisplayName("7540-4.1-002: Frame length uses 24-bit field")]`
-- [ ] `7540-4.1-003` **P0** `[T]` — All frame types 0x00–0x09 dispatched (× 10) · `[DisplayName("7540-4.1-003: Frame type {type} dispatched to correct handler")]`
-- [ ] `7540-4.1-004` **P0** — Unknown frame type 0x0A ignored · `[DisplayName("7540-4.1-004: Unknown frame type 0x0A is ignored")]`
-- [ ] `7540-4.1-005` **P0** — R-bit masked out when reading stream ID · `[DisplayName("7540-4.1-005: R-bit masked out when reading stream ID")]`
-- [ ] `7540-4.1-006` **P0** — R-bit set → `PROTOCOL_ERROR` · `[DisplayName("7540-4.1-006: R-bit set in stream ID causes PROTOCOL_ERROR")]`
-- [ ] `7540-4.1-007` **P0** — Frame > MAX_FRAME_SIZE → `FRAME_SIZE_ERROR` · `[DisplayName("7540-4.1-007: Oversized frame causes FRAME_SIZE_ERROR")]`
+- [x] `7540-4.1-001` **P0** — Valid 9-byte frame header decoded correctly · `[DisplayName("7540-4.1-001: Valid 9-byte frame header decoded correctly")]`
+- [x] `7540-4.1-002` **P0** — 24-bit length field parsed (lengths > 65535) · `[DisplayName("7540-4.1-002: Frame length uses 24-bit field")]`
+- [x] `7540-4.1-003` **P0** `[T]` — All frame types 0x00–0x09 dispatched (× 10) · `[DisplayName("7540-4.1-003: Frame type {type} dispatched to correct handler")]`
+- [x] `7540-4.1-004` **P0** — Unknown frame type 0x0A ignored · `[DisplayName("7540-4.1-004: Unknown frame type 0x0A is ignored")]`
+- [x] `7540-4.1-005` **P0** — R-bit masked out when reading stream ID · `[DisplayName("7540-4.1-005: R-bit masked out when reading stream ID")]`
+- [x] `7540-4.1-006` **P0** — R-bit set → `PROTOCOL_ERROR` · `[DisplayName("7540-4.1-006: R-bit set in stream ID causes PROTOCOL_ERROR")]`
+- [x] `7540-4.1-007` **P0** — Frame > MAX_FRAME_SIZE → `FRAME_SIZE_ERROR` · `[DisplayName("7540-4.1-007: Oversized frame causes FRAME_SIZE_ERROR")]`
 
 ### All 14 HTTP/2 Error Codes (RFC 7540 §7)
 
-- [ ] `7540-err-000` **P0** — `NO_ERROR (0x0)` in GOAWAY decoded · `[DisplayName("7540-err-000: NO_ERROR (0x0) in GOAWAY decoded")]`
-- [ ] `7540-err-001` **P0** — `PROTOCOL_ERROR (0x1)` in RST_STREAM decoded · `[DisplayName("7540-err-001: PROTOCOL_ERROR (0x1) in RST_STREAM decoded")]`
-- [ ] `7540-err-002` **P0** — `INTERNAL_ERROR (0x2)` in GOAWAY decoded · `[DisplayName("7540-err-002: INTERNAL_ERROR (0x2) in GOAWAY decoded")]`
-- [ ] `7540-err-003` **P0** — `FLOW_CONTROL_ERROR (0x3)` in GOAWAY decoded · `[DisplayName("7540-err-003: FLOW_CONTROL_ERROR (0x3) in GOAWAY decoded")]`
-- [ ] `7540-err-004` **P0** — `SETTINGS_TIMEOUT (0x4)` in GOAWAY decoded · `[DisplayName("7540-err-004: SETTINGS_TIMEOUT (0x4) in GOAWAY decoded")]`
-- [ ] `7540-err-005` **P0** — `STREAM_CLOSED (0x5)` in RST_STREAM decoded · `[DisplayName("7540-err-005: STREAM_CLOSED (0x5) in RST_STREAM decoded")]`
-- [ ] `7540-err-006` **P0** — `FRAME_SIZE_ERROR (0x6)` decoded · `[DisplayName("7540-err-006: FRAME_SIZE_ERROR (0x6) decoded")]`
-- [ ] `7540-err-007` **P0** — `REFUSED_STREAM (0x7)` in RST_STREAM decoded · `[DisplayName("7540-err-007: REFUSED_STREAM (0x7) in RST_STREAM decoded")]`
-- [ ] `7540-err-008` **P0** — `CANCEL (0x8)` in RST_STREAM decoded · `[DisplayName("7540-err-008: CANCEL (0x8) in RST_STREAM decoded")]`
-- [ ] `7540-err-009` **P0** — `COMPRESSION_ERROR (0x9)` in GOAWAY decoded · `[DisplayName("7540-err-009: COMPRESSION_ERROR (0x9) in GOAWAY decoded")]`
-- [ ] `7540-err-00a` **P1** — `CONNECT_ERROR (0xa)` decoded · `[DisplayName("7540-err-00a: CONNECT_ERROR (0xa) in RST_STREAM decoded")]`
-- [ ] `7540-err-00b` **P1** — `ENHANCE_YOUR_CALM (0xb)` decoded · `[DisplayName("7540-err-00b: ENHANCE_YOUR_CALM (0xb) in GOAWAY decoded")]`
-- [ ] `7540-err-00c` **P1** — `INADEQUATE_SECURITY (0xc)` decoded · `[DisplayName("7540-err-00c: INADEQUATE_SECURITY (0xc) decoded")]`
-- [ ] `7540-err-00d` **P0** — `HTTP_1_1_REQUIRED (0xd)` in GOAWAY decoded · `[DisplayName("7540-err-00d: HTTP_1_1_REQUIRED (0xd) in GOAWAY decoded")]`
+- [x] `7540-err-000` **P0** — `NO_ERROR (0x0)` in GOAWAY decoded · `[DisplayName("7540-err-000: NO_ERROR (0x0) in GOAWAY decoded")]`
+- [x] `7540-err-001` **P0** — `PROTOCOL_ERROR (0x1)` in RST_STREAM decoded · `[DisplayName("7540-err-001: PROTOCOL_ERROR (0x1) in RST_STREAM decoded")]`
+- [x] `7540-err-002` **P0** — `INTERNAL_ERROR (0x2)` in GOAWAY decoded · `[DisplayName("7540-err-002: INTERNAL_ERROR (0x2) in GOAWAY decoded")]`
+- [x] `7540-err-003` **P0** — `FLOW_CONTROL_ERROR (0x3)` in GOAWAY decoded · `[DisplayName("7540-err-003: FLOW_CONTROL_ERROR (0x3) in GOAWAY decoded")]`
+- [x] `7540-err-004` **P0** — `SETTINGS_TIMEOUT (0x4)` in GOAWAY decoded · `[DisplayName("7540-err-004: SETTINGS_TIMEOUT (0x4) in GOAWAY decoded")]`
+- [x] `7540-err-005` **P0** — `STREAM_CLOSED (0x5)` in RST_STREAM decoded · `[DisplayName("7540-err-005: STREAM_CLOSED (0x5) in RST_STREAM decoded")]`
+- [x] `7540-err-006` **P0** — `FRAME_SIZE_ERROR (0x6)` decoded · `[DisplayName("7540-err-006: FRAME_SIZE_ERROR (0x6) decoded")]`
+- [x] `7540-err-007` **P0** — `REFUSED_STREAM (0x7)` in RST_STREAM decoded · `[DisplayName("7540-err-007: REFUSED_STREAM (0x7) in RST_STREAM decoded")]`
+- [x] `7540-err-008` **P0** — `CANCEL (0x8)` in RST_STREAM decoded · `[DisplayName("7540-err-008: CANCEL (0x8) in RST_STREAM decoded")]`
+- [x] `7540-err-009` **P0** — `COMPRESSION_ERROR (0x9)` in GOAWAY decoded · `[DisplayName("7540-err-009: COMPRESSION_ERROR (0x9) in GOAWAY decoded")]`
+- [x] `7540-err-00a` **P1** — `CONNECT_ERROR (0xa)` decoded · `[DisplayName("7540-err-00a: CONNECT_ERROR (0xa) in RST_STREAM decoded")]`
+- [x] `7540-err-00b` **P1** — `ENHANCE_YOUR_CALM (0xb)` decoded · `[DisplayName("7540-err-00b: ENHANCE_YOUR_CALM (0xb) in GOAWAY decoded")]`
+- [x] `7540-err-00c` **P1** — `INADEQUATE_SECURITY (0xc)` decoded · `[DisplayName("7540-err-00c: INADEQUATE_SECURITY (0xc) decoded")]`
+- [x] `7540-err-00d` **P0** — `HTTP_1_1_REQUIRED (0xd)` in GOAWAY decoded · `[DisplayName("7540-err-00d: HTTP_1_1_REQUIRED (0xd) in GOAWAY decoded")]`
 
 ### Stream States (RFC 7540 §5.1)
 
-- [ ] `7540-5.1-003` **P0** — END_STREAM on incoming DATA → half-closed remote · `[DisplayName("7540-5.1-003: END_STREAM on incoming DATA moves stream to half-closed remote")]`
-- [ ] `7540-5.1-004` **P0** — Both sides END_STREAM → stream fully closed · `[DisplayName("7540-5.1-004: Both sides END_STREAM closes stream")]`
-- [ ] `7540-5.1-005` **P1** — PUSH_PROMISE → reserved remote state · `[DisplayName("7540-5.1-005: PUSH_PROMISE moves pushed stream to reserved remote")]`
-- [ ] `7540-5.1-006` **P0** — DATA on closed stream → `STREAM_CLOSED` · `[DisplayName("7540-5.1-006: DATA on closed stream causes STREAM_CLOSED error")]`
-- [ ] `7540-5.1-007` **P0** — Reusing closed stream ID → `PROTOCOL_ERROR` · `[DisplayName("7540-5.1-007: Reusing closed stream ID causes PROTOCOL_ERROR")]`
-- [ ] `7540-5.1-008` **P0** — Even stream ID from client → `PROTOCOL_ERROR` · `[DisplayName("7540-5.1-008: Client even stream ID causes PROTOCOL_ERROR")]`
+- [x] `7540-5.1-003` **P0** — END_STREAM on incoming DATA → half-closed remote · `[DisplayName("7540-5.1-003: END_STREAM on incoming DATA moves stream to half-closed remote")]`
+- [x] `7540-5.1-004` **P0** — Both sides END_STREAM → stream fully closed · `[DisplayName("7540-5.1-004: Both sides END_STREAM closes stream")]`
+- [x] `7540-5.1-005` **P1** — PUSH_PROMISE → reserved remote state · `[DisplayName("7540-5.1-005: PUSH_PROMISE moves pushed stream to reserved remote")]`
+- [x] `7540-5.1-006` **P0** — DATA on closed stream → `STREAM_CLOSED` · `[DisplayName("7540-5.1-006: DATA on closed stream causes STREAM_CLOSED error")]`
+- [x] `7540-5.1-007` **P0** — Reusing closed stream ID → `PROTOCOL_ERROR` · `[DisplayName("7540-5.1-007: Reusing closed stream ID causes PROTOCOL_ERROR")]`
+- [x] `7540-5.1-008` **P0** — Even stream ID from client → `PROTOCOL_ERROR` · `[DisplayName("7540-5.1-008: Client even stream ID causes PROTOCOL_ERROR")]`
 
 ### Flow Control — Decoder Side (RFC 7540 §5.2)
 
-- [ ] `7540-5.2-001dec` **P0** — New stream initial window = 65535 · `[DisplayName("7540-5.2-dec-001: New stream initial window is 65535")]`
-- [ ] `7540-5.2-002dec` **P0** — WINDOW_UPDATE decoded, window updated · `[DisplayName("7540-5.2-dec-002: WINDOW_UPDATE decoded and window updated")]`
-- [ ] `7540-5.2-003dec` **P0** — Peer DATA beyond window → `FLOW_CONTROL_ERROR` · `[DisplayName("7540-5.2-dec-003: Peer DATA beyond window causes FLOW_CONTROL_ERROR")]`
-- [ ] `7540-5.2-004dec` **P0** — WINDOW_UPDATE overflow → `FLOW_CONTROL_ERROR` · `[DisplayName("7540-5.2-dec-004: WINDOW_UPDATE overflow causes FLOW_CONTROL_ERROR")]`
-- [ ] `7540-5.2-008dec` **P0** — WINDOW_UPDATE increment=0 → `PROTOCOL_ERROR` · `[DisplayName("7540-5.2-dec-008: WINDOW_UPDATE increment=0 causes PROTOCOL_ERROR")]`
+- [x] `7540-5.2-001dec` **P0** — New stream initial window = 65535 · `[DisplayName("7540-5.2-dec-001: New stream initial window is 65535")]`
+- [x] `7540-5.2-002dec` **P0** — WINDOW_UPDATE decoded, window updated · `[DisplayName("7540-5.2-dec-002: WINDOW_UPDATE decoded and window updated")]`
+- [x] `7540-5.2-003dec` **P0** — Peer DATA beyond window → `FLOW_CONTROL_ERROR` · `[DisplayName("7540-5.2-dec-003: Peer DATA beyond window causes FLOW_CONTROL_ERROR")]`
+- [x] `7540-5.2-004dec` **P0** — WINDOW_UPDATE overflow → `FLOW_CONTROL_ERROR` · `[DisplayName("7540-5.2-dec-004: WINDOW_UPDATE overflow causes FLOW_CONTROL_ERROR")]`
+- [x] `7540-5.2-008dec` **P0** — WINDOW_UPDATE increment=0 → `PROTOCOL_ERROR` · `[DisplayName("7540-5.2-dec-008: WINDOW_UPDATE increment=0 causes PROTOCOL_ERROR")]`
 
 ### DATA Frame (RFC 7540 §6.1)
 
-- [ ] `7540-6.1-001` **P0** — DATA frame payload decoded correctly · `[DisplayName("7540-6.1-001: DATA frame payload decoded correctly")]`
-- [ ] `7540-6.1-002` **P0** — END_STREAM on DATA marks stream complete · `[DisplayName("7540-6.1-002: END_STREAM on DATA marks stream closed")]`
-- [ ] `7540-6.1-003` **P1** — PADDED DATA: padding stripped · `[DisplayName("7540-6.1-003: Padded DATA frame padding stripped")]`
-- [ ] `7540-6.1-004` **P0** — DATA on stream 0 → `PROTOCOL_ERROR` · `[DisplayName("7540-6.1-004: DATA on stream 0 is PROTOCOL_ERROR")]`
-- [ ] `7540-6.1-005` **P0** — DATA on closed stream → `STREAM_CLOSED` · `[DisplayName("7540-6.1-005: DATA on closed stream causes STREAM_CLOSED")]`
-- [ ] `7540-6.1-006` **P0** — Empty DATA + END_STREAM: empty body, response complete · `[DisplayName("7540-6.1-006: Empty DATA frame with END_STREAM valid")]`
+- [x] `7540-6.1-001` **P0** — DATA frame payload decoded correctly · `[DisplayName("7540-6.1-001: DATA frame payload decoded correctly")]`
+- [x] `7540-6.1-002` **P0** — END_STREAM on DATA marks stream complete · `[DisplayName("7540-6.1-002: END_STREAM on DATA marks stream closed")]`
+- [x] `7540-6.1-003` **P1** — PADDED DATA: padding stripped · `[DisplayName("7540-6.1-003: Padded DATA frame padding stripped")]`
+- [x] `7540-6.1-004` **P0** — DATA on stream 0 → `PROTOCOL_ERROR` · `[DisplayName("7540-6.1-004: DATA on stream 0 is PROTOCOL_ERROR")]`
+- [x] `7540-6.1-005` **P0** — DATA on closed stream → `STREAM_CLOSED` · `[DisplayName("7540-6.1-005: DATA on closed stream causes STREAM_CLOSED")]`
+- [x] `7540-6.1-006` **P0** — Empty DATA + END_STREAM: empty body, response complete · `[DisplayName("7540-6.1-006: Empty DATA frame with END_STREAM valid")]`
 
 ### HEADERS Frame (RFC 7540 §6.2)
 
-- [ ] `7540-6.2-001` **P0** — HEADERS frame decoded into response headers · `[DisplayName("7540-6.2-001: HEADERS frame decoded into response headers")]`
-- [ ] `7540-6.2-002` **P0** — END_STREAM on HEADERS closes stream immediately · `[DisplayName("7540-6.2-002: END_STREAM on HEADERS closes stream immediately")]`
-- [ ] `7540-6.2-003` **P0** — END_HEADERS marks header block complete · `[DisplayName("7540-6.2-003: END_HEADERS on HEADERS marks complete block")]`
-- [ ] `7540-6.2-004` **P1** — PADDED HEADERS: padding stripped · `[DisplayName("7540-6.2-004: Padded HEADERS padding stripped")]`
-- [ ] `7540-6.2-005` **P1** — PRIORITY flag consumed correctly · `[DisplayName("7540-6.2-005: PRIORITY flag in HEADERS consumed correctly")]`
-- [ ] `7540-6.2-006` **P0** — HEADERS without END_HEADERS waits for CONTINUATION · `[DisplayName("7540-6.2-006: HEADERS without END_HEADERS waits for CONTINUATION")]`
-- [ ] `7540-6.2-007` **P0** — HEADERS on stream 0 → `PROTOCOL_ERROR` · `[DisplayName("7540-6.2-007: HEADERS on stream 0 is PROTOCOL_ERROR")]`
+- [x] `7540-6.2-001` **P0** — HEADERS frame decoded into response headers · `[DisplayName("7540-6.2-001: HEADERS frame decoded into response headers")]`
+- [x] `7540-6.2-002` **P0** — END_STREAM on HEADERS closes stream immediately · `[DisplayName("7540-6.2-002: END_STREAM on HEADERS closes stream immediately")]`
+- [x] `7540-6.2-003` **P0** — END_HEADERS marks header block complete · `[DisplayName("7540-6.2-003: END_HEADERS on HEADERS marks complete block")]`
+- [x] `7540-6.2-004` **P1** — PADDED HEADERS: padding stripped · `[DisplayName("7540-6.2-004: Padded HEADERS padding stripped")]`
+- [x] `7540-6.2-005` **P1** — PRIORITY flag consumed correctly · `[DisplayName("7540-6.2-005: PRIORITY flag in HEADERS consumed correctly")]`
+- [x] `7540-6.2-006` **P0** — HEADERS without END_HEADERS waits for CONTINUATION · `[DisplayName("7540-6.2-006: HEADERS without END_HEADERS waits for CONTINUATION")]`
+- [x] `7540-6.2-007` **P0** — HEADERS on stream 0 → `PROTOCOL_ERROR` · `[DisplayName("7540-6.2-007: HEADERS on stream 0 is PROTOCOL_ERROR")]`
 
 ### CONTINUATION Frame (RFC 7540 §6.9)
 
-- [ ] `7540-6.9-001` **P0** — CONTINUATION appended to HEADERS block · `[DisplayName("7540-6.9-001: CONTINUATION appended to HEADERS block")]`
-- [ ] `7540-6.9-002dec` **P0** — END_HEADERS on final CONTINUATION completes block · `[DisplayName("7540-6.9-dec-002: END_HEADERS on final CONTINUATION completes block")]`
-- [ ] `7540-6.9-003` **P0** — Multiple CONTINUATION frames all merged · `[DisplayName("7540-6.9-003: Multiple CONTINUATION frames all merged")]`
-- [ ] `7540-6.9-004` **P0** — CONTINUATION on wrong stream → `PROTOCOL_ERROR` · `[DisplayName("7540-6.9-004: CONTINUATION on wrong stream is PROTOCOL_ERROR")]`
-- [ ] `7540-6.9-005` **P0** — Non-CONTINUATION after HEADERS → `PROTOCOL_ERROR` · `[DisplayName("7540-6.9-005: Non-CONTINUATION after HEADERS is PROTOCOL_ERROR")]`
-- [ ] `7540-6.9-006` **P0** — CONTINUATION on stream 0 → `PROTOCOL_ERROR` · `[DisplayName("7540-6.9-006: CONTINUATION on stream 0 is PROTOCOL_ERROR")]`
-- [ ] `dec6-cont-001` **P0** — CONTINUATION without preceding HEADERS → `PROTOCOL_ERROR` · `[DisplayName("dec6-cont-001: CONTINUATION without HEADERS is PROTOCOL_ERROR")]`
+- [x] `7540-6.9-001` **P0** — CONTINUATION appended to HEADERS block · `[DisplayName("7540-6.9-001: CONTINUATION appended to HEADERS block")]`
+- [x] `7540-6.9-002dec` **P0** — END_HEADERS on final CONTINUATION completes block · `[DisplayName("7540-6.9-dec-002: END_HEADERS on final CONTINUATION completes block")]`
+- [x] `7540-6.9-003` **P0** — Multiple CONTINUATION frames all merged · `[DisplayName("7540-6.9-003: Multiple CONTINUATION frames all merged")]`
+- [x] `7540-6.9-004` **P0** — CONTINUATION on wrong stream → `PROTOCOL_ERROR` · `[DisplayName("7540-6.9-004: CONTINUATION on wrong stream is PROTOCOL_ERROR")]`
+- [x] `7540-6.9-005` **P0** — Non-CONTINUATION after HEADERS → `PROTOCOL_ERROR` · `[DisplayName("7540-6.9-005: Non-CONTINUATION after HEADERS is PROTOCOL_ERROR")]`
+- [x] `7540-6.9-006` **P0** — CONTINUATION on stream 0 → `PROTOCOL_ERROR` · `[DisplayName("7540-6.9-006: CONTINUATION on stream 0 is PROTOCOL_ERROR")]`
+- [x] `dec6-cont-001` **P0** — CONTINUATION without preceding HEADERS → `PROTOCOL_ERROR` · `[DisplayName("dec6-cont-001: CONTINUATION without HEADERS is PROTOCOL_ERROR")]`
 
 ### SETTINGS, PING, GOAWAY, RST_STREAM
 
-- [ ] `7540-set-001` **P0** — Server SETTINGS decoded (`HasNewSettings = true`) · `[DisplayName("RFC 7540: Server SETTINGS decoded")]`
-- [ ] `7540-set-002` **P0** — SETTINGS ACK generated after SETTINGS received · `[DisplayName("RFC 7540: SETTINGS ACK generated after SETTINGS")]`
-- [ ] `7540-set-003` **P0** — MAX_FRAME_SIZE applied from SETTINGS · `[DisplayName("RFC 7540: MAX_FRAME_SIZE applied from SETTINGS")]`
-- [ ] `dec6-set-001` **P0** `[T]` — All 6 SETTINGS parameters decoded (× 6) · `[DisplayName("dec6-set-001: SETTINGS parameter {param} decoded")]`
-- [ ] `dec6-set-002` **P0** — SETTINGS ACK with payload → `FRAME_SIZE_ERROR` · `[DisplayName("dec6-set-002: SETTINGS ACK with non-empty payload is FRAME_SIZE_ERROR")]`
-- [ ] `dec6-set-003` **P1** — Unknown SETTINGS ID accepted and ignored · `[DisplayName("dec6-set-003: Unknown SETTINGS parameter ID accepted and ignored")]`
-- [ ] `7540-ping-001` **P1** — PING request from server decoded · `[DisplayName("RFC 7540: PING request from server decoded")]`
-- [ ] `7540-ping-002` **P1** — PING ACK produced for server PING · `[DisplayName("RFC 7540: PING ACK produced for server PING")]`
-- [ ] `dec6-ping-001` **P1** — PING ACK carries same 8 payload bytes · `[DisplayName("dec6-ping-001: PING ACK carries same 8 payload bytes as request")]`
-- [ ] `7540-goaway-001` **P0** — GOAWAY decoded with last stream ID + error code · `[DisplayName("RFC 7540: GOAWAY with last stream ID and error code decoded")]`
-- [ ] `7540-goaway-002` **P0** — No new streams accepted after GOAWAY · `[DisplayName("RFC 7540: No new requests after GOAWAY")]`
-- [ ] `dec6-goaway-001` **P1** — GOAWAY debug data bytes accessible · `[DisplayName("dec6-goaway-001: GOAWAY debug data bytes accessible")]`
-- [ ] `7540-rst-001` **P0** — RST_STREAM decoded (`RstStreams` entry present) · `[DisplayName("RFC 7540: RST_STREAM decoded")]`
-- [ ] `7540-rst-002` **P0** — Stream closed after RST_STREAM · `[DisplayName("RFC 7540: Stream closed after RST_STREAM")]`
+- [x] `7540-set-001` **P0** — Server SETTINGS decoded (`HasNewSettings = true`) · `[DisplayName("RFC 7540: Server SETTINGS decoded")]`
+- [x] `7540-set-002` **P0** — SETTINGS ACK generated after SETTINGS received · `[DisplayName("RFC 7540: SETTINGS ACK generated after SETTINGS")]`
+- [x] `7540-set-003` **P0** — MAX_FRAME_SIZE applied from SETTINGS · `[DisplayName("RFC 7540: MAX_FRAME_SIZE applied from SETTINGS")]`
+- [x] `dec6-set-001` **P0** `[T]` — All 6 SETTINGS parameters decoded (× 6) · `[DisplayName("dec6-set-001: SETTINGS parameter {param} decoded")]`
+- [x] `dec6-set-002` **P0** — SETTINGS ACK with payload → `FRAME_SIZE_ERROR` · `[DisplayName("dec6-set-002: SETTINGS ACK with non-empty payload is FRAME_SIZE_ERROR")]`
+- [x] `dec6-set-003` **P1** — Unknown SETTINGS ID accepted and ignored · `[DisplayName("dec6-set-003: Unknown SETTINGS parameter ID accepted and ignored")]`
+- [x] `7540-ping-001` **P1** — PING request from server decoded · `[DisplayName("RFC 7540: PING request from server decoded")]`
+- [x] `7540-ping-002` **P1** — PING ACK produced for server PING · `[DisplayName("RFC 7540: PING ACK produced for server PING")]`
+- [x] `dec6-ping-001` **P1** — PING ACK carries same 8 payload bytes · `[DisplayName("dec6-ping-001: PING ACK carries same 8 payload bytes as request")]`
+- [x] `7540-goaway-001` **P0** — GOAWAY decoded with last stream ID + error code · `[DisplayName("RFC 7540: GOAWAY with last stream ID and error code decoded")]`
+- [x] `7540-goaway-002` **P0** — No new streams accepted after GOAWAY · `[DisplayName("RFC 7540: No new requests after GOAWAY")]`
+- [x] `dec6-goaway-001` **P1** — GOAWAY debug data bytes accessible · `[DisplayName("dec6-goaway-001: GOAWAY debug data bytes accessible")]`
+- [x] `7540-rst-001` **P0** — RST_STREAM decoded (`RstStreams` entry present) · `[DisplayName("RFC 7540: RST_STREAM decoded")]`
+- [x] `7540-rst-002` **P0** — Stream closed after RST_STREAM · `[DisplayName("RFC 7540: Stream closed after RST_STREAM")]`
 
 ### TCP Fragmentation (HTTP/2)
 
-- [ ] `dec6-frag-001` **P0** — Frame header split at byte 1 reassembled · `[DisplayName("dec6-frag-001: Frame header split at byte 1 reassembled")]`
-- [ ] `dec6-frag-002` **P0** — Frame header split at byte 5 reassembled · `[DisplayName("dec6-frag-002: Frame header split at byte 5 reassembled")]`
-- [ ] `dec6-frag-003` **P0** — DATA payload split across two reads · `[DisplayName("dec6-frag-003: DATA frame payload split across two reads")]`
-- [ ] `dec6-frag-004` **P0** — HPACK block split across two reads · `[DisplayName("dec6-frag-004: HPACK block split across two reads")]`
-- [ ] `dec6-frag-005` **P1** — Two complete frames in single read both decoded · `[DisplayName("dec6-frag-005: Two complete frames in single read both decoded")]`
+- [x] `dec6-frag-001` **P0** — Frame header split at byte 1 reassembled · `[DisplayName("dec6-frag-001: Frame header split at byte 1 reassembled")]`
+- [x] `dec6-frag-002` **P0** — Frame header split at byte 5 reassembled · `[DisplayName("dec6-frag-002: Frame header split at byte 5 reassembled")]`
+- [x] `dec6-frag-003` **P0** — DATA payload split across two reads · `[DisplayName("dec6-frag-003: DATA frame payload split across two reads")]`
+- [x] `dec6-frag-004` **P0** — HPACK block split across two reads · `[DisplayName("dec6-frag-004: HPACK block split across two reads")]`
+- [x] `dec6-frag-005` **P1** — Two complete frames in single read both decoded · `[DisplayName("dec6-frag-005: Two complete frames in single read both decoded")]`
 
 ---
 

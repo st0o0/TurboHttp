@@ -14,11 +14,68 @@ public sealed class Http2Decoder
     private readonly HpackDecoder _hpack = new();
     private ReadOnlyMemory<byte> _remainder = ReadOnlyMemory<byte>.Empty;
     private readonly Dictionary<int, StreamState> _streams = new();
+    private readonly HashSet<int> _closedStreamIds = new();
+    private readonly HashSet<int> _promisedStreamIds = new();
 
     private int _continuationStreamId;
     private byte[]? _continuationBuffer;
     private int _continuationBufferLength;
     private bool _continuationEndStream;
+
+    // RFC 7540 §6.5.2: Default MAX_FRAME_SIZE is 2^14 (16384).
+    private int _maxFrameSize = 16384;
+
+    // RFC 7540 §5.2: Connection-level receive window (how much DATA server may send us).
+    private int _connectionReceiveWindow = 65535;
+
+    // RFC 7540 §5.2: Connection-level send window (updated by incoming WINDOW_UPDATE).
+    private long _connectionSendWindow = 65535;
+
+    // Set to true after we receive a GOAWAY frame; blocks new stream creation.
+    private bool _receivedGoAway;
+
+    /// <summary>Returns the current connection-level receive window.</summary>
+    public int GetConnectionReceiveWindow() => _connectionReceiveWindow;
+
+    /// <summary>Returns the current connection-level send window.</summary>
+    public long GetConnectionSendWindow() => _connectionSendWindow;
+
+    /// <summary>Returns the receive window for the given stream, or 65535 if the stream is unknown.</summary>
+    public int GetStreamReceiveWindow(int streamId) =>
+        _streams.TryGetValue(streamId, out var s) ? s.ReceiveWindow : 65535;
+
+    /// <summary>
+    /// For testing: sets the connection-level receive window so tests can trigger FLOW_CONTROL_ERROR
+    /// without needing to transmit gigabytes of data.
+    /// </summary>
+    public void SetConnectionReceiveWindow(int value) => _connectionReceiveWindow = value;
+
+    /// <summary>
+    /// RFC 7540 §3.5 — Validates that bytes from the server begin with a SETTINGS frame
+    /// (the mandatory server connection preface).
+    /// Returns false if bytes are incomplete (caller should buffer and retry).
+    /// Throws Http2Exception(PROTOCOL_ERROR) if the bytes contain a wrong frame type.
+    /// </summary>
+    public bool ValidateServerPreface(ReadOnlyMemory<byte> bytes)
+    {
+        if (bytes.Length < 9)
+        {
+            return false; // incomplete frame header — need more bytes
+        }
+
+        var span = bytes.Span;
+        var frameType = (FrameType)span[3];
+        var streamId = (int)(BinaryPrimitives.ReadUInt32BigEndian(span[5..]) & 0x7FFFFFFFu);
+
+        if (frameType != FrameType.Settings || streamId != 0)
+        {
+            throw new Http2Exception(
+                $"RFC 7540 §3.5: Server connection preface must be a SETTINGS frame on stream 0; got type={frameType}, streamId={streamId}.",
+                Http2ErrorCode.ProtocolError);
+        }
+
+        return true;
+    }
 
     public bool TryDecode(in ReadOnlyMemory<byte> incoming, out Http2DecodeResult result)
     {
@@ -29,6 +86,9 @@ public sealed class Http2Decoder
         var pingAcks = ImmutableList.CreateBuilder<byte[]>();
         var windowUpdates = ImmutableList.CreateBuilder<(int StreamId, int Increment)>();
         var rstStreams = ImmutableList.CreateBuilder<(int StreamId, Http2ErrorCode Error)>();
+        var settingsAcksToSend = ImmutableList.CreateBuilder<byte[]>();
+        var pingAcksToSend = ImmutableList.CreateBuilder<byte[]>();
+        var promisedStreamIds = ImmutableList.CreateBuilder<int>();
         GoAwayFrame? goAway = null;
 
         var working = Combine(_remainder, incoming);
@@ -55,7 +115,34 @@ public sealed class Http2Decoder
 
             var frameType = (FrameType)span[3];
             var flags = span[4];
-            var streamId = (int)(BinaryPrimitives.ReadUInt32BigEndian(span[5..]) & 0x7FFFFFFFu);
+
+            // RFC 7540 §4.1: The R-bit MUST remain unset when sending.
+            // Treat a set R-bit as a connection error (PROTOCOL_ERROR).
+            var rawStreamWord = BinaryPrimitives.ReadUInt32BigEndian(span[5..]);
+            if ((rawStreamWord & 0x80000000u) != 0)
+            {
+                throw new Http2Exception(
+                    "RFC 7540 §4.1: R-bit MUST be unset; a set R-bit is a PROTOCOL_ERROR.",
+                    Http2ErrorCode.ProtocolError);
+            }
+
+            var streamId = (int)(rawStreamWord & 0x7FFFFFFFu);
+
+            // RFC 7540 §4.3: A frame size that exceeds MAX_FRAME_SIZE is a FRAME_SIZE_ERROR.
+            if (payloadLength > _maxFrameSize)
+            {
+                throw new Http2Exception(
+                    $"RFC 7540 §4.3: Frame payload {payloadLength} exceeds MAX_FRAME_SIZE {_maxFrameSize}.",
+                    Http2ErrorCode.FrameSizeError);
+            }
+
+            // RFC 7540 §6.10: After a HEADERS without END_HEADERS, only CONTINUATION is allowed.
+            if (_continuationBuffer != null && frameType != FrameType.Continuation)
+            {
+                throw new Http2Exception(
+                    $"RFC 7540 §6.10: Expected CONTINUATION frame but received {frameType} while awaiting header block completion.",
+                    Http2ErrorCode.ProtocolError);
+            }
 
             var payload = working.Slice(9, payloadLength);
             working = working[(9 + payloadLength)..];
@@ -76,34 +163,15 @@ public sealed class Http2Decoder
                     break;
 
                 case FrameType.Settings:
-                    if ((flags & (byte)SettingsFlags.Ack) == 0)
-                    {
-                        var settings = ParseSettings(payload.Span);
-                        settingsList.Add(settings);
-                        controlFrames.Add(new SettingsFrame(settings));
-                    }
-
+                    HandleSettings(flags, payload, payloadLength, settingsList, controlFrames, settingsAcksToSend);
                     break;
 
                 case FrameType.Ping:
-                    if ((flags & (byte)PingFlags.Ack) != 0)
-                    {
-                        pingAcks.Add(payload.ToArray());
-                    }
-                    else
-                    {
-                        controlFrames.Add(new PingFrame(payload.Span.ToArray(), isAck: false));
-                    }
-
+                    HandlePing(flags, payload, controlFrames, pingAcks, pingAcksToSend);
                     break;
 
                 case FrameType.WindowUpdate:
-                    if (payload.Length >= 4)
-                    {
-                        var increment = (int)(BinaryPrimitives.ReadUInt32BigEndian(payload.Span) & 0x7FFFFFFFu);
-                        windowUpdates.Add((streamId, increment));
-                    }
-
+                    HandleWindowUpdate(payload, streamId, windowUpdates);
                     break;
 
                 case FrameType.RstStream:
@@ -112,16 +180,25 @@ public sealed class Http2Decoder
                         var error = (Http2ErrorCode)BinaryPrimitives.ReadUInt32BigEndian(payload.Span);
                         rstStreams.Add((streamId, error));
                         _streams.Remove(streamId);
+                        _closedStreamIds.Add(streamId);
                     }
 
                     break;
 
                 case FrameType.GoAway:
                     goAway = ParseGoAway(payload);
+                    _receivedGoAway = true;
                     break;
 
                 case FrameType.PushPromise:
+                    HandlePushPromise(payload, flags, streamId, promisedStreamIds);
+                    break;
+
                 case FrameType.Priority:
+                    break;
+
+                default:
+                    // RFC 7540 §4.1: Unknown frame types are ignored.
                     break;
             }
         }
@@ -135,7 +212,10 @@ public sealed class Http2Decoder
             pingAcks.ToImmutable(),
             windowUpdates.ToImmutable(),
             rstStreams.ToImmutable(),
-            goAway);
+            goAway,
+            settingsAcksToSend.ToImmutable(),
+            pingAcksToSend.ToImmutable(),
+            promisedStreamIds.ToImmutable());
         return true;
     }
 
@@ -143,9 +223,15 @@ public sealed class Http2Decoder
     {
         _remainder = ReadOnlyMemory<byte>.Empty;
         _streams.Clear();
+        _closedStreamIds.Clear();
+        _promisedStreamIds.Clear();
         _continuationStreamId = 0;
         _continuationBuffer = null;
         _continuationBufferLength = 0;
+        _receivedGoAway = false;
+        _maxFrameSize = 16384;
+        _connectionReceiveWindow = 65535;
+        _connectionSendWindow = 65535;
     }
 
     // ========================================================================
@@ -158,24 +244,55 @@ public sealed class Http2Decoder
         ImmutableList<(int, HttpResponseMessage)>.Builder responses)
     {
         // RFC 7540 §6.1: DATA frames MUST be associated with a stream.
-        // Stream identifier 0x0 MUST be treated as a connection error (PROTOCOL_ERROR).
         if (streamId == 0)
+        {
             throw new Http2Exception(
                 "RFC 7540 §6.1: DATA frame received on stream 0.",
                 Http2ErrorCode.ProtocolError);
+        }
+
+        // RFC 7540 §6.1 / §5.1: DATA on a closed stream is a STREAM_CLOSED error.
+        if (_closedStreamIds.Contains(streamId))
+        {
+            throw new Http2Exception(
+                $"RFC 7540 §6.1: DATA received on closed stream {streamId}.",
+                Http2ErrorCode.StreamClosed);
+        }
+
+        var data = StripPadding(payload, flags, padded: (flags & 0x8) != 0);
+
+        // RFC 7540 §5.2: Enforce connection-level receive window.
+        if (data.Length > _connectionReceiveWindow)
+        {
+            throw new Http2Exception(
+                $"RFC 7540 §5.2: Peer sent {data.Length} bytes but connection receive window is {_connectionReceiveWindow}.",
+                Http2ErrorCode.FlowControlError);
+        }
 
         if (!_streams.TryGetValue(streamId, out var state))
         {
             return;
         }
 
-        var data = StripPadding(payload, flags, padded: (flags & 0x8) != 0);
+        // RFC 7540 §5.2: Enforce stream-level receive window.
+        if (data.Length > state.ReceiveWindow)
+        {
+            throw new Http2Exception(
+                $"RFC 7540 §5.2: Peer sent {data.Length} bytes but stream {streamId} receive window is {state.ReceiveWindow}.",
+                Http2ErrorCode.FlowControlError);
+        }
+
+        // Deduct from receive windows.
+        _connectionReceiveWindow -= data.Length;
+        state.DeductReceiveWindow(data.Length);
+
         state.AppendBody(data.Span);
 
         if ((flags & (byte)DataFlags.EndStream) != 0)
         {
             var response = state.BuildResponse();
             _streams.Remove(streamId);
+            _closedStreamIds.Add(streamId);
             responses.Add((streamId, response));
         }
     }
@@ -187,11 +304,36 @@ public sealed class Http2Decoder
         ImmutableList<(int, HttpResponseMessage)>.Builder responses)
     {
         // RFC 7540 §6.2: HEADERS frames MUST be associated with a stream.
-        // Stream identifier 0x0 MUST be treated as a connection error (PROTOCOL_ERROR).
         if (streamId == 0)
+        {
             throw new Http2Exception(
                 "RFC 7540 §6.2: HEADERS frame received on stream 0.",
                 Http2ErrorCode.ProtocolError);
+        }
+
+        // RFC 7540 §5.1: Reusing a previously closed stream ID is PROTOCOL_ERROR.
+        if (_closedStreamIds.Contains(streamId))
+        {
+            throw new Http2Exception(
+                $"RFC 7540 §5.1: HEADERS received on closed stream {streamId}; reusing a closed stream ID is PROTOCOL_ERROR.",
+                Http2ErrorCode.ProtocolError);
+        }
+
+        // RFC 7540 §5.1.1: Server-initiated (even) stream IDs must be pre-announced via PUSH_PROMISE.
+        if (streamId % 2 == 0 && !_promisedStreamIds.Contains(streamId))
+        {
+            throw new Http2Exception(
+                $"RFC 7540 §5.1.1: HEADERS on even stream {streamId} without preceding PUSH_PROMISE is PROTOCOL_ERROR.",
+                Http2ErrorCode.ProtocolError);
+        }
+
+        // RFC 7540: No new streams accepted after GOAWAY.
+        if (_receivedGoAway && !_streams.ContainsKey(streamId))
+        {
+            throw new Http2Exception(
+                $"RFC 7540 §6.8: No new streams accepted after GOAWAY; stream {streamId} rejected.",
+                Http2ErrorCode.ProtocolError);
+        }
 
         var data = payload;
 
@@ -222,7 +364,7 @@ public sealed class Http2Decoder
                     ArrayPool<byte>.Shared.Return(_continuationBuffer);
                 }
 
-                _continuationBuffer = ArrayPool<byte>.Shared.Rent(data.Length);
+                _continuationBuffer = ArrayPool<byte>.Shared.Rent(Math.Max(data.Length, 64));
             }
 
             data.Span.CopyTo(_continuationBuffer);
@@ -237,19 +379,21 @@ public sealed class Http2Decoder
         ImmutableList<(int, HttpResponseMessage)>.Builder responses)
     {
         // RFC 7540 §6.10: CONTINUATION frames MUST be associated with a stream.
-        // Stream identifier 0x0 MUST be treated as a connection error (PROTOCOL_ERROR).
         if (streamId == 0)
+        {
             throw new Http2Exception(
                 "RFC 7540 §6.10: CONTINUATION frame received on stream 0.",
                 Http2ErrorCode.ProtocolError);
+        }
 
         // RFC 7540 §6.10: A CONTINUATION frame MUST follow a HEADERS or PUSH_PROMISE
-        // frame on the same stream. Any other frame type or a different stream ID is
-        // a connection error (PROTOCOL_ERROR).
+        // frame on the same stream.
         if (_continuationBuffer == null || streamId != _continuationStreamId)
+        {
             throw new Http2Exception(
                 $"RFC 7540 §6.10: CONTINUATION on stream {streamId} but expected stream {_continuationStreamId}.",
                 Http2ErrorCode.ProtocolError);
+        }
 
         var newSize = _continuationBufferLength + payload.Length;
 
@@ -278,6 +422,119 @@ public sealed class Http2Decoder
         }
     }
 
+    private void HandleSettings(
+        byte flags,
+        ReadOnlyMemory<byte> payload,
+        int payloadLength,
+        ImmutableList<IReadOnlyList<(SettingsParameter, uint)>>.Builder settingsList,
+        ImmutableList<Http2Frame>.Builder controlFrames,
+        ImmutableList<byte[]>.Builder settingsAcksToSend)
+    {
+        if ((flags & (byte)SettingsFlags.Ack) != 0)
+        {
+            // RFC 7540 §6.5: A SETTINGS ACK frame MUST have an empty payload.
+            if (payloadLength > 0)
+            {
+                throw new Http2Exception(
+                    "RFC 7540 §6.5: SETTINGS frame with ACK flag MUST have empty payload.",
+                    Http2ErrorCode.FrameSizeError);
+            }
+        }
+        else
+        {
+            var settings = ParseSettings(payload.Span);
+            settingsList.Add(settings);
+            controlFrames.Add(new SettingsFrame(settings));
+            ApplySettings(settings);
+            settingsAcksToSend.Add(SettingsFrame.SettingsAck());
+        }
+    }
+
+    private static void HandlePing(
+        byte flags,
+        ReadOnlyMemory<byte> payload,
+        ImmutableList<Http2Frame>.Builder controlFrames,
+        ImmutableList<byte[]>.Builder pingAcks,
+        ImmutableList<byte[]>.Builder pingAcksToSend)
+    {
+        if ((flags & (byte)PingFlags.Ack) != 0)
+        {
+            pingAcks.Add(payload.ToArray());
+        }
+        else
+        {
+            controlFrames.Add(new PingFrame(payload.Span.ToArray(), isAck: false));
+            // RFC 7540 §6.7: Receiver of a PING MUST send a PING ACK with the same data.
+            pingAcksToSend.Add(new PingFrame(payload.Span.ToArray(), isAck: true).Serialize());
+        }
+    }
+
+    private void HandleWindowUpdate(
+        ReadOnlyMemory<byte> payload,
+        int streamId,
+        ImmutableList<(int StreamId, int Increment)>.Builder windowUpdates)
+    {
+        if (payload.Length < 4) return;
+
+        var raw = BinaryPrimitives.ReadUInt32BigEndian(payload.Span);
+        var increment = (int)(raw & 0x7FFFFFFFu);
+
+        // RFC 7540 §6.9: An increment of 0 MUST be treated as PROTOCOL_ERROR.
+        if (increment == 0)
+        {
+            throw new Http2Exception(
+                "RFC 7540 §6.9: WINDOW_UPDATE increment of 0 is a PROTOCOL_ERROR.",
+                Http2ErrorCode.ProtocolError);
+        }
+
+        // RFC 7540 §6.9.1: A sender MUST NOT allow a flow-control window to exceed 2^31-1.
+        // Overflow is a FLOW_CONTROL_ERROR on the connection or stream.
+        checked
+        {
+            try
+            {
+                if (streamId == 0)
+                {
+                    var newWindow = _connectionSendWindow + increment;
+                    if (newWindow > 0x7FFFFFFF)
+                    {
+                        throw new Http2Exception(
+                            $"RFC 7540 §6.9.1: WINDOW_UPDATE would overflow connection send window ({_connectionSendWindow} + {increment}).",
+                            Http2ErrorCode.FlowControlError);
+                    }
+
+                    _connectionSendWindow = newWindow;
+                }
+            }
+            catch (OverflowException)
+            {
+                throw new Http2Exception(
+                    "RFC 7540 §6.9.1: WINDOW_UPDATE overflow on connection send window.",
+                    Http2ErrorCode.FlowControlError);
+            }
+        }
+
+        windowUpdates.Add((streamId, increment));
+    }
+
+    private void HandlePushPromise(
+        ReadOnlyMemory<byte> payload,
+        byte flags,
+        int streamId,
+        ImmutableList<int>.Builder promisedStreamIds)
+    {
+        if (payload.Length < 4) return;
+
+        // Strip padding if PADDED flag is set (0x8).
+        var data = (flags & 0x8) != 0 ? StripPadding(payload, flags, padded: true) : payload;
+
+        if (data.Length < 4) return;
+
+        var promisedStreamId = (int)(BinaryPrimitives.ReadUInt32BigEndian(data.Span) & 0x7FFFFFFFu);
+        _promisedStreamIds.Add(promisedStreamId);
+        promisedStreamIds.Add(promisedStreamId);
+    }
+
     private void ProcessCompleteHeaders(
         ReadOnlySpan<byte> headerBlock,
         byte flags,
@@ -290,11 +547,23 @@ public sealed class Http2Decoder
 
         if (endStream)
         {
+            _closedStreamIds.Add(streamId);
             responses.Add((streamId, state.BuildResponse()));
         }
         else
         {
             _streams[streamId] = state;
+        }
+    }
+
+    private void ApplySettings(IReadOnlyList<(SettingsParameter, uint)> settings)
+    {
+        foreach (var (param, value) in settings)
+        {
+            if (param == SettingsParameter.MaxFrameSize)
+            {
+                _maxFrameSize = (int)value;
+            }
         }
     }
 
@@ -346,6 +615,14 @@ public sealed class Http2Decoder
     {
         private byte[]? _bodyBuffer;
         private int _bodyLength;
+
+        // RFC 7540 §5.2: Initial stream receive window size (may differ from connection default).
+        public int ReceiveWindow { get; private set; } = 65535;
+
+        public void DeductReceiveWindow(int bytes)
+        {
+            ReceiveWindow = Math.Max(0, ReceiveWindow - bytes);
+        }
 
         public void AppendBody(ReadOnlySpan<byte> data)
         {

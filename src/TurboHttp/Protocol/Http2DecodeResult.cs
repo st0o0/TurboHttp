@@ -22,6 +22,15 @@ public sealed class Http2DecodeResult
 
     public ImmutableList<Http2Frame> ControlFrames { get; }
 
+    /// <summary>SETTINGS ACK frames the client must send back to the server.</summary>
+    public ImmutableList<byte[]> SettingsAcksToSend { get; }
+
+    /// <summary>PING ACK frames the client must send back to the server.</summary>
+    public ImmutableList<byte[]> PingAcksToSend { get; }
+
+    /// <summary>Stream IDs promised by the server via PUSH_PROMISE.</summary>
+    public ImmutableList<int> PromisedStreamIds { get; }
+
     public bool HasResponses => !Responses.IsEmpty;
     public bool HasGoAway => GoAway is not null;
     public bool HasNewSettings => !ReceivedSettings.IsEmpty;
@@ -34,7 +43,10 @@ public sealed class Http2DecodeResult
         ImmutableList<byte[]> pingAcks,
         ImmutableList<(int, int)> windowUpdates,
         ImmutableList<(int, Http2ErrorCode)> rstStreams,
-        GoAwayFrame? goAway)
+        GoAwayFrame? goAway,
+        ImmutableList<byte[]> settingsAcksToSend,
+        ImmutableList<byte[]> pingAcksToSend,
+        ImmutableList<int> promisedStreamIds)
     {
         Responses = responses;
         ControlFrames = controlFrames;
@@ -43,6 +55,9 @@ public sealed class Http2DecodeResult
         WindowUpdates = windowUpdates;
         RstStreams = rstStreams;
         GoAway = goAway;
+        SettingsAcksToSend = settingsAcksToSend;
+        PingAcksToSend = pingAcksToSend;
+        PromisedStreamIds = promisedStreamIds;
 
         var pings = ImmutableList.CreateBuilder<byte[]>();
         foreach (var f in controlFrames)
@@ -63,5 +78,8 @@ public sealed class Http2DecodeResult
         ImmutableList<byte[]>.Empty,
         ImmutableList<(int, int)>.Empty,
         ImmutableList<(int, Http2ErrorCode)>.Empty,
-        null);
+        null,
+        ImmutableList<byte[]>.Empty,
+        ImmutableList<byte[]>.Empty,
+        ImmutableList<int>.Empty);
 }
