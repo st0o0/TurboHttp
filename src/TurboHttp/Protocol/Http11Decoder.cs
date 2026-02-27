@@ -131,6 +131,91 @@ public sealed class Http11Decoder : IDisposable
     }
 
     /// <summary>
+    /// Attempts to decode HTTP/1.1 responses from incoming data where the original
+    /// request was a HEAD request. Parses headers only and always returns an empty body,
+    /// regardless of any <c>Content-Length</c> value in the response headers.
+    /// </summary>
+    /// <remarks>
+    /// RFC 9112 §6.3: Any response to a HEAD request is terminated by the first empty
+    /// line after the header fields and cannot contain a message body.
+    /// </remarks>
+    public bool TryDecodeHead(ReadOnlyMemory<byte> incomingData, out ImmutableList<HttpResponseMessage> responses)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+
+        var builder = ImmutableList.CreateBuilder<HttpResponseMessage>();
+        responses = ImmutableList<HttpResponseMessage>.Empty;
+
+        ReadOnlySpan<byte> working;
+        byte[]? combinedBuffer = null;
+        var combinedLength = 0;
+
+        if (_remainderLength > 0)
+        {
+            combinedLength = _remainderLength + incomingData.Length;
+            combinedBuffer = ArrayPool<byte>.Shared.Rent(combinedLength);
+
+            _remainderBuffer.AsSpan(0, _remainderLength).CopyTo(combinedBuffer);
+            incomingData.Span.CopyTo(combinedBuffer.AsSpan(_remainderLength));
+
+            working = combinedBuffer.AsSpan(0, combinedLength);
+            ClearRemainder();
+        }
+        else
+        {
+            working = incomingData.Span;
+            combinedLength = incomingData.Length;
+        }
+
+        try
+        {
+            var consumed = 0;
+
+            while (consumed < working.Length)
+            {
+                var result = TryParseOneNoBody(working[consumed..], out var response, out var bytesConsumed);
+
+                if (result.Success)
+                {
+                    consumed += bytesConsumed;
+
+                    if ((int)response!.StatusCode >= 100 && (int)response.StatusCode < 200)
+                    {
+                        continue;
+                    }
+
+                    builder.Add(response);
+                    continue;
+                }
+
+                if (result.Error == HttpDecodeError.NeedMoreData)
+                {
+                    StoreRemainder(working[consumed..]);
+                    break;
+                }
+
+                ClearRemainder();
+                throw new HttpDecoderException(result.Error!.Value);
+            }
+        }
+        finally
+        {
+            if (combinedBuffer != null)
+            {
+                ArrayPool<byte>.Shared.Return(combinedBuffer);
+            }
+        }
+
+        if (builder.Count > 0)
+        {
+            responses = builder.ToImmutable();
+            return true;
+        }
+
+        return false;
+    }
+
+    /// <summary>
     /// Resets decoder state for reuse on a new connection.
     /// </summary>
     public void Reset()
@@ -208,6 +293,74 @@ public sealed class Http11Decoder : IDisposable
     }
 
     // ── Response Parsing ────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Parses one response but always returns an empty body (used for HEAD responses).
+    /// </summary>
+    private HttpDecodeResult TryParseOneNoBody(ReadOnlySpan<byte> buffer, out HttpResponseMessage? response, out int consumed)
+    {
+        response = null;
+        consumed = 0;
+
+        var headerEnd = FindCrlfCrlf(buffer);
+        if (headerEnd < 0)
+        {
+            return HttpDecodeResult.Incomplete();
+        }
+
+        if (headerEnd > _maxHeaderSize)
+        {
+            return HttpDecodeResult.Fail(HttpDecodeError.LineTooLong);
+        }
+
+        var headerSection = buffer[..(headerEnd + 2)];
+
+        var statusLineEnd = FindCrlf(headerSection, 0);
+        if (statusLineEnd < 0)
+        {
+            return HttpDecodeResult.Fail(HttpDecodeError.InvalidStatusLine);
+        }
+
+        var statusLine = headerSection[..statusLineEnd];
+        if (!TryParseStatusLine(statusLine, out var statusCode, out var reasonPhrase))
+        {
+            return HttpDecodeResult.Fail(HttpDecodeError.InvalidStatusLine);
+        }
+
+        var headersData = headerSection[(statusLineEnd + 2)..];
+        var headers = ParseHeaders(headersData);
+
+        response = new HttpResponseMessage
+        {
+            StatusCode = (System.Net.HttpStatusCode)statusCode,
+            ReasonPhrase = reasonPhrase,
+            Version = new Version(1, 1)
+        };
+
+        foreach (var (name, values) in headers)
+        {
+            foreach (var value in values)
+            {
+                response.Headers.TryAddWithoutValidation(name, value);
+            }
+        }
+
+        // Always return empty body for HEAD responses (RFC 9112 §6.3)
+        var emptyContent = new ByteArrayContent([]);
+        foreach (var (name, values) in headers)
+        {
+            if (!IsContentHeader(name)) continue;
+            foreach (var value in values)
+            {
+                emptyContent.Headers.TryAddWithoutValidation(name, value);
+            }
+        }
+
+        response.Content = emptyContent;
+        consumed = headerEnd + 4; // Skip past \r\n\r\n
+        return HttpDecodeResult.Ok();
+    }
+
     private HttpDecodeResult TryParseOne(ReadOnlySpan<byte> buffer, out HttpResponseMessage? response, out int consumed)
     {
         response = null;

@@ -787,63 +787,63 @@ File: src/TurboHttp.Benchmarks/
 ### Test Classes
 
 **`Http11BasicTests.cs`** (~25 tests)
-- [ ] GET, POST, HEAD, PUT, DELETE, PATCH, OPTIONS (7 verbs × basic scenario)
-- [ ] GET /hello Host header required
-- [ ] GET /hello multiple status codes: 200..503 (8 codes)
-- [ ] GET /large/1, /large/64, /large/512 KB
-- [ ] GET /content/text%2Fplain, /content/application%2Fjson, /content/application%2Foctet-stream
+- [x] GET, POST, HEAD, PUT, DELETE, PATCH, OPTIONS (7 verbs × basic scenario)
+- [x] GET /hello Host header required
+- [x] GET /hello multiple status codes: 200..503 (8 codes)
+- [x] GET /large/1, /large/64, /large/512 KB
+- [x] GET /content/text%2Fplain, /content/application%2Fjson, /content/application%2Foctet-stream
 
 **`Http11KeepAliveTests.cs`** (~20 tests)
-- [ ] 2 sequential requests on same connection
-- [ ] 5 sequential requests on same connection
-- [ ] 10 sequential requests on same connection
-- [ ] Server Connection:close terminates reuse
-- [ ] Request with Connection:close header
-- [ ] Mixed keep-alive + close on same socket
-- [ ] Decoder resets cleanly between requests
-- [ ] Keep-alive with varying body sizes
-- [ ] Keep-alive: GET then POST then GET
-- [ ] Pipeline depth 2: two requests in flight
-- [ ] Pipeline depth 5
-- [ ] Pipeline with mixed verbs
-- [ ] Responses arrive in request order
-- [ ] Keep-alive timeout (slow server → close)
+- [x] 2 sequential requests on same connection
+- [x] 5 sequential requests on same connection
+- [x] 10 sequential requests on same connection
+- [x] Server Connection:close terminates reuse
+- [x] Request with Connection:close header
+- [x] Mixed keep-alive + close on same socket
+- [x] Decoder resets cleanly between requests
+- [x] Keep-alive with varying body sizes
+- [x] Keep-alive: GET then POST then GET
+- [x] Pipeline depth 2: two requests in flight
+- [x] Pipeline depth 5
+- [x] Pipeline with mixed verbs
+- [x] Responses arrive in request order
+- [x] Keep-alive timeout (slow server → close)
 
 **`Http11ChunkedTests.cs`** (~25 tests)
-- [ ] GET /chunked/1 → 1 KB chunked
-- [ ] GET /chunked/64 → 64 KB chunked
-- [ ] GET /chunked/512 → 512 KB chunked
-- [ ] Chunk count: 1 chunk / 4 chunks / 32 chunks
-- [ ] Chunk sizes: 1 byte, 128 bytes, 4 KB, 16 KB
-- [ ] Chunked body round-trip (POST /echo/chunked)
-- [ ] Chunked with trailer headers
-- [ ] Chunked then keep-alive (next request on same connection)
-- [ ] Chunked with empty last chunk only (valid zero-body)
-- [ ] Chunked body matches Content-MD5
-- [ ] Chunked response to HEAD is empty
-- [ ] Decode chunked across multiple TCP reads (fragmentation)
-- [ ] Last-chunk `0\r\n\r\n` immediately after data
+- [x] GET /chunked/1 → 1 KB chunked
+- [x] GET /chunked/64 → 64 KB chunked
+- [x] GET /chunked/512 → 512 KB chunked
+- [x] Chunk count: 1 chunk / 4 chunks / 32 chunks
+- [x] Chunk sizes: 1 byte, 128 bytes, 4 KB, 16 KB
+- [x] Chunked body round-trip (POST /echo/chunked)
+- [x] Chunked with trailer headers
+- [x] Chunked then keep-alive (next request on same connection)
+- [x] Chunked with empty last chunk only (valid zero-body)
+- [x] Chunked body matches Content-MD5
+- [x] Chunked response to HEAD is empty
+- [x] Decode chunked across multiple TCP reads (fragmentation)
+- [x] Last-chunk `0\r\n\r\n` immediately after data
 
 **`Http11HeaderTests.cs`** (~20 tests)
-- [ ] 20 custom headers round-trip
-- [ ] Duplicate header names (List-append semantics)
-- [ ] Content-Type with charset parameter
-- [ ] Multi-value Accept header
-- [ ] Authorization header preserved
-- [ ] Cookie header preserved
-- [ ] Response Date header parses as RFC 7231 date
-- [ ] ETag / If-None-Match conditional 304
-- [ ] Cache-Control directives
-- [ ] X-* custom headers echoed
-- [ ] Very long header value (8 KB)
-- [ ] Header name case folding
-- [ ] Folded header value (obs-fold) rejected
+- [x] 20 custom headers round-trip
+- [x] Duplicate header names (List-append semantics)
+- [x] Content-Type with charset parameter
+- [x] Multi-value Accept header
+- [x] Authorization header preserved
+- [x] Cookie header preserved
+- [x] Response Date header parses as RFC 7231 date
+- [x] ETag / If-None-Match conditional 304
+- [x] Cache-Control directives
+- [x] X-* custom headers echoed
+- [x] Very long header value (8 KB)
+- [x] Header name case folding
+- [x] Folded header value (obs-fold) rejected
 
 **`Http11StatusAndErrorTests.cs`** (~20 tests)
-- [ ] All 2xx: 200, 201, 202, 204, 206
-- [ ] All 3xx: 301, 302, 303, 307, 308
-- [ ] All 4xx: 400, 401, 403, 404, 405, 408, 409, 410, 413, 429
-- [ ] All 5xx: 500, 501, 502, 503, 504
+- [x] All 2xx: 200, 201, 202, 204, 206
+- [x] All 3xx: 301, 302, 303, 307, 308
+- [x] All 4xx: 400, 401, 403, 404, 405, 408, 409, 410, 413, 429
+- [x] All 5xx: 500, 501, 502, 503, 504
 
 ---
 

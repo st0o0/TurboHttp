@@ -5,13 +5,14 @@ using Microsoft.AspNetCore.Hosting.Server.Features;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using System.Security.Cryptography;
 
 namespace TurboHttp.IntegrationTests.Shared;
 
 /// <summary>
-/// Shared Kestrel fixture for HTTP/1.0 integration tests.
+/// Shared Kestrel fixture for HTTP/1.0 and HTTP/1.1 integration tests.
 /// Starts a real in-process Kestrel server on a random port and registers
-/// all routes used by Phase 12 tests.
+/// all routes used by Phase 12 and Phase 13 tests.
 /// </summary>
 public sealed class KestrelFixture : IAsyncLifetime
 {
@@ -98,10 +99,40 @@ public sealed class KestrelFixture : IAsyncLifetime
         // GET /methods → 200, body = request method
         app.MapGet("/methods", (HttpContext ctx) => Results.Content(ctx.Request.Method, "text/plain"));
 
+        // GET|POST|PUT|DELETE|PATCH|OPTIONS|HEAD /any → 200, body = method name
+        // Used by HTTP/1.1 verb tests
+        app.MapMethods("/any",
+            ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS", "HEAD"],
+            (HttpContext ctx) => Results.Content(ctx.Request.Method, "text/plain"));
+
         // ── Body ──────────────────────────────────────────────────────────────
 
         // POST /echo → 200, echoes request body verbatim with same Content-Type
         app.MapPost("/echo", async (HttpContext ctx) =>
+        {
+            using var ms = new MemoryStream();
+            await ctx.Request.Body.CopyToAsync(ms);
+            var body = ms.ToArray();
+            var contentType = ctx.Request.ContentType ?? "application/octet-stream";
+            ctx.Response.ContentType = contentType;
+            ctx.Response.ContentLength = body.Length;
+            await ctx.Response.Body.WriteAsync(body);
+        });
+
+        // PUT /echo → 200, echoes request body (same handler as POST)
+        app.MapPut("/echo", async (HttpContext ctx) =>
+        {
+            using var ms = new MemoryStream();
+            await ctx.Request.Body.CopyToAsync(ms);
+            var body = ms.ToArray();
+            var contentType = ctx.Request.ContentType ?? "application/octet-stream";
+            ctx.Response.ContentType = contentType;
+            ctx.Response.ContentLength = body.Length;
+            await ctx.Response.Body.WriteAsync(body);
+        });
+
+        // PATCH /echo → 200, echoes request body
+        app.MapMethods("/echo", ["PATCH"], async (HttpContext ctx) =>
         {
             using var ms = new MemoryStream();
             await ctx.Request.Body.CopyToAsync(ms);
@@ -159,6 +190,152 @@ public sealed class KestrelFixture : IAsyncLifetime
             ctx.Response.Headers.Append("X-Value", "beta");
             ctx.Response.ContentLength = 0;
             return Results.Empty;
+        });
+
+        // ── HTTP/1.1 Chunked ──────────────────────────────────────────────────
+
+        // GET|HEAD /chunked/{kb} → chunked response, kb*1024 bytes of 'A'
+        // StartAsync() commits the response headers before body, forcing chunked for HTTP/1.1
+        app.MapMethods("/chunked/{kb:int}", ["GET", "HEAD"], async (HttpContext ctx, int kb) =>
+        {
+            ctx.Response.ContentType = "application/octet-stream";
+            // Start headers without Content-Length → Kestrel uses Transfer-Encoding: chunked
+            await ctx.Response.StartAsync();
+            if (ctx.Request.Method == "HEAD")
+            {
+                return;
+            }
+
+            const int chunkSize = 8192;
+            var chunk = new byte[chunkSize];
+            Array.Fill(chunk, (byte)'A');
+            var remaining = kb * 1024;
+            while (remaining > 0)
+            {
+                var toWrite = Math.Min(remaining, chunkSize);
+                await ctx.Response.Body.WriteAsync(chunk.AsMemory(0, toWrite));
+                await ctx.Response.Body.FlushAsync();
+                remaining -= toWrite;
+            }
+        });
+
+        // GET /chunked/exact/{count}/{chunkBytes} → exactly `count` chunks of `chunkBytes` bytes
+        // StartAsync() forces chunked encoding before writing body
+        app.MapGet("/chunked/exact/{count:int}/{chunkBytes:int}", async (HttpContext ctx, int count, int chunkBytes) =>
+        {
+            ctx.Response.ContentType = "application/octet-stream";
+            await ctx.Response.StartAsync();
+            var chunk = new byte[chunkBytes];
+            Array.Fill(chunk, (byte)'B');
+            for (var i = 0; i < count; i++)
+            {
+                await ctx.Response.Body.WriteAsync(chunk);
+                await ctx.Response.Body.FlushAsync();
+            }
+        });
+
+        // POST /echo/chunked → echoes request body as chunked response (no Content-Length)
+        app.MapPost("/echo/chunked", async (HttpContext ctx) =>
+        {
+            using var ms = new MemoryStream();
+            await ctx.Request.Body.CopyToAsync(ms);
+            var body = ms.ToArray();
+            ctx.Response.ContentType = ctx.Request.ContentType ?? "application/octet-stream";
+            // StartAsync() commits headers before body, forcing chunked encoding
+            await ctx.Response.StartAsync();
+            await ctx.Response.Body.WriteAsync(body);
+        });
+
+        // GET /chunked/trailer → chunked response; body includes "chunked-with-trailer"
+        // Trailers are sent as trailing headers after the last chunk
+        app.MapGet("/chunked/trailer", async (HttpContext ctx) =>
+        {
+            ctx.Response.ContentType = "text/plain";
+            await ctx.Response.StartAsync();
+            var body = "chunked-with-trailer"u8.ToArray();
+            await ctx.Response.Body.WriteAsync(body);
+            await ctx.Response.Body.FlushAsync();
+            // Append trailer after body (requires HTTP/1.1 chunked + trailer support)
+            if (ctx.Features.Get<Microsoft.AspNetCore.Http.Features.IHttpResponseTrailersFeature>() is
+                { } trailersFeature)
+            {
+                trailersFeature.Trailers["X-Checksum"] = "abc123";
+            }
+        });
+
+        // GET /chunked/md5 → chunked response with Content-MD5 header in response headers
+        app.MapGet("/chunked/md5", async (HttpContext ctx) =>
+        {
+            ctx.Response.ContentType = "text/plain";
+            var body = "checksum-body"u8.ToArray();
+            var md5 = Convert.ToBase64String(MD5.HashData(body));
+            ctx.Response.Headers["Content-MD5"] = md5;
+            await ctx.Response.StartAsync();
+            await ctx.Response.Body.WriteAsync(body);
+        });
+
+        // ── HTTP/1.1 Connection management ────────────────────────────────────
+
+        // GET /close → returns Connection: close header
+        app.MapGet("/close", async (HttpContext ctx) =>
+        {
+            ctx.Response.Headers["Connection"] = "close";
+            ctx.Response.ContentType = "text/plain";
+            var body = "closing"u8.ToArray();
+            ctx.Response.ContentLength = body.Length;
+            await ctx.Response.Body.WriteAsync(body);
+        });
+
+        // ── HTTP/1.1 Caching / ETag ───────────────────────────────────────────
+
+        // GET /etag → resource with ETag support for conditional requests
+        app.MapGet("/etag", async (HttpContext ctx) =>
+        {
+            const string etag = "\"v1\"";
+            if (ctx.Request.Headers["If-None-Match"] == etag)
+            {
+                ctx.Response.StatusCode = 304;
+                ctx.Response.Headers["ETag"] = etag;
+                return;
+            }
+
+            ctx.Response.Headers["ETag"] = etag;
+            ctx.Response.ContentType = "text/plain";
+            var body = "etag-resource"u8.ToArray();
+            ctx.Response.ContentLength = body.Length;
+            await ctx.Response.Body.WriteAsync(body);
+        });
+
+        // GET /cache → response with Cache-Control, Last-Modified, Expires headers
+        app.MapGet("/cache", async (HttpContext ctx) =>
+        {
+            ctx.Response.Headers["Cache-Control"] = "max-age=3600, public";
+            ctx.Response.Headers["Last-Modified"] = DateTimeOffset.UtcNow.AddHours(-1).ToString("R");
+            ctx.Response.Headers["Expires"] = DateTimeOffset.UtcNow.AddHours(1).ToString("R");
+            ctx.Response.Headers["Pragma"] = "no-cache";
+            ctx.Response.ContentType = "text/plain";
+            var body = "cached-resource"u8.ToArray();
+            ctx.Response.ContentLength = body.Length;
+            await ctx.Response.Body.WriteAsync(body);
+        });
+
+        // GET /if-modified-since → supports If-Modified-Since conditional logic
+        var fixedLastModified = new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero);
+        app.MapGet("/if-modified-since", async (HttpContext ctx) =>
+        {
+            ctx.Response.Headers["Last-Modified"] = fixedLastModified.ToString("R");
+            if (ctx.Request.Headers.TryGetValue("If-Modified-Since", out var ims) &&
+                DateTimeOffset.TryParse(ims, out var imsDate) &&
+                imsDate >= fixedLastModified)
+            {
+                ctx.Response.StatusCode = 304;
+                return;
+            }
+
+            ctx.Response.ContentType = "text/plain";
+            var body = "fresh-resource"u8.ToArray();
+            ctx.Response.ContentLength = body.Length;
+            await ctx.Response.Body.WriteAsync(body);
         });
     }
 }
