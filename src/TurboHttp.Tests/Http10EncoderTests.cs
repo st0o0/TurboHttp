@@ -327,7 +327,7 @@ public sealed class Http10EncoderTests
     }
 
     [Fact]
-    public void Body_PostWithEmptyBody_ContentLengthIsZeroOrAbsent()
+    public void Body_PostWithEmptyBody_ContentLengthIsZero()
     {
         var request = new HttpRequestMessage(HttpMethod.Post, "http://example.com/")
         {
@@ -336,7 +336,10 @@ public sealed class Http10EncoderTests
 
         var (_, headerLines, body) = ParseRaw(request);
 
-        Assert.DoesNotContain(headerLines, h => h.StartsWith("Content-Length:", StringComparison.OrdinalIgnoreCase));
+        // POST with an empty body must emit Content-Length: 0 so that HTTP/1.0 servers
+        // do not wait for body data until connection-close (RFC 1945 §7.2).
+        var cl = headerLines.Single(h => h.StartsWith("Content-Length:", StringComparison.OrdinalIgnoreCase));
+        Assert.Equal("Content-Length: 0", cl);
         Assert.Empty(body);
     }
 

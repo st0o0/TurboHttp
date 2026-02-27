@@ -129,6 +129,15 @@ public static class Http10Encoder
         {
             headers.Remove("Content-Length");
             headers.Remove("Content-Type");
+
+            // For methods that carry a body (POST, PUT, PATCH), emit Content-Length: 0
+            // so the server knows the body is explicitly empty rather than having to
+            // read until connection-close (HTTP/1.0 §7.2).
+            var method = request.Method.Method;
+            if (method is "POST" or "PUT" or "PATCH")
+            {
+                headers["Content-Length"] = ["0"];
+            }
         }
     }
 

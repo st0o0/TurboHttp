@@ -731,49 +731,49 @@ File: src/TurboHttp.Benchmarks/
 ### Test Classes
 
 **`Http10BasicTests.cs`** (~25 tests)
-- [ ] GET /hello → 200, body "Hello World"
-- [ ] GET /hello — headers: Date present, Content-Length correct
-- [ ] GET /large/1 → 200, 1 KB body
-- [ ] GET /large/64 → 200, 64 KB body
-- [ ] GET /status/200, /201, /204, /301, /400, /404, /500
-- [ ] GET /ping → 200, body "pong"
-- [ ] GET /content/text%2Fhtml → Content-Type header parsed
-- [ ] GET /content/application%2Fjson → Content-Type correct
-- [ ] HEAD /hello → 200, no body, Content-Length present
-- [ ] GET /methods → body "GET"
+- [x] GET /hello → 200, body "Hello World"
+- [x] GET /hello — headers: Date present, Content-Length correct
+- [x] GET /large/1 → 200, 1 KB body
+- [x] GET /large/64 → 200, 64 KB body
+- [x] GET /status/200, /201, /204, /301, /400, /404, /500
+- [x] GET /ping → 200, body "pong"
+- [x] GET /content/text%2Fhtml → Content-Type header parsed
+- [x] GET /content/application%2Fjson → Content-Type correct
+- [x] HEAD /hello → 200, no body, Content-Length present
+- [x] GET /methods → body "GET"
 
 **`Http10BodyTests.cs`** (~20 tests)
-- [ ] POST /echo small body → 200, body echoed
-- [ ] POST /echo 1KB body → correct
-- [ ] POST /echo 64KB body → correct
-- [ ] POST /echo empty body → 200, empty body
-- [ ] POST /echo binary body (0x00..0xFF) → byte-accurate round-trip
-- [ ] POST /echo body with CRLF in it
-- [ ] POST /echo body with null bytes
-- [ ] Body Content-Length matches actual byte count (5 variations)
-- [ ] POST /echo Content-Type mirrored correctly
+- [x] POST /echo small body → 200, body echoed
+- [x] POST /echo 1KB body → correct
+- [x] POST /echo 64KB body → correct
+- [x] POST /echo empty body → 200, empty body
+- [x] POST /echo binary body (0x00..0xFF) → byte-accurate round-trip
+- [x] POST /echo body with CRLF in it
+- [x] POST /echo body with null bytes
+- [x] Body Content-Length matches actual byte count (5 variations)
+- [x] POST /echo Content-Type mirrored correctly
 
 **`Http10HeaderTests.cs`** (~20 tests)
-- [ ] GET /headers/echo with X-Test: value → echoed in response
-- [ ] GET /headers/echo multiple X-* headers → all echoed
-- [ ] GET /headers/echo header with Unicode value (Latin-1)
-- [ ] GET /auth without Authorization → 401
-- [ ] GET /auth with valid Authorization → 200
-- [ ] Response headers: Server, Date, Content-Type — presence/format
-- [ ] Custom response headers from /headers/set?Foo=Bar
-- [ ] Multiple values for same header name
-- [ ] Header names case-insensitive match
-- [ ] Content-Length vs actual body byte count
+- [x] GET /headers/echo with X-Test: value → echoed in response
+- [x] GET /headers/echo multiple X-* headers → all echoed
+- [x] GET /headers/echo header with Unicode value (Latin-1)
+- [x] GET /auth without Authorization → 401
+- [x] GET /auth with valid Authorization → 200
+- [x] Response headers: Server, Date, Content-Type — presence/format
+- [x] Custom response headers from /headers/set?Foo=Bar
+- [x] Multiple values for same header name
+- [x] Header names case-insensitive match
+- [x] Content-Length vs actual body byte count
 
 **`Http10StatusCodeTests.cs`** (~15 tests)
-- [ ] 200, 201, 204, 206, 301, 302, 400, 401, 403, 404, 405, 408, 500, 502, 503
+- [x] 200, 201, 204, 206, 301, 302, 400, 401, 403, 404, 405, 408, 500, 502, 503
 
 **`Http10ConnectionTests.cs`** (~10 tests)
-- [ ] Connection closes after response (HTTP/1.0 default)
-- [ ] Multiple sequential requests need separate connections
-- [ ] Server-sent Connection:close respected
-- [ ] TryDecodeEof on closed connection succeeds
-- [ ] Partial response → decoder returns Incomplete
+- [x] Connection closes after response (HTTP/1.0 default)
+- [x] Multiple sequential requests need separate connections
+- [x] Server-sent Connection:close respected
+- [x] TryDecodeEof on closed connection succeeds
+- [x] Partial response → decoder returns Incomplete
 
 ---
 
