@@ -402,21 +402,17 @@ public sealed class Http11DecoderTests
     // ── US-102: RFC 7230 §3.3 — Message Body edge cases ──────────────────────
 
     [Fact]
-    public async Task Decode_ConflictingHeaders_ChunkedTakesPrecedence()
+    public void Decode_ConflictingHeaders_BothTeAndCl_Rejected()
     {
-        // RFC 9112 §6.3: If Transfer-Encoding and Content-Length are both present,
-        // Transfer-Encoding takes precedence and Content-Length MUST be ignored.
+        // RFC 9112 §6.3 / Security: Both Transfer-Encoding and Content-Length present
+        // is treated as a protocol error to prevent HTTP request smuggling.
         const string chunkedBody = "5\r\nHello\r\n0\r\n\r\n";
         var raw = BuildRaw(200, "OK", chunkedBody,
             ("Transfer-Encoding", "chunked"),
             ("Content-Length", "999"));
 
-        var decoded = _decoder.TryDecode(raw, out var responses);
-
-        Assert.True(decoded);
-        Assert.Single(responses);
-        var result = await responses[0].Content.ReadAsStringAsync();
-        Assert.Equal("Hello", result);
+        var ex = Assert.Throws<HttpDecoderException>(() => _decoder.TryDecode(raw, out _));
+        Assert.Equal(HttpDecodeError.ChunkedWithContentLength, ex.DecodeError);
     }
 
     [Fact]
@@ -741,19 +737,17 @@ public sealed class Http11DecoderTests
         Assert.Equal("Hello World", result);
     }
 
-    [Fact(DisplayName = "7230-3.3-004: Transfer-Encoding chunked takes priority over CL")]
-    public async Task TransferEncoding_TakesPriority_OverContentLength()
+    [Fact(DisplayName = "7230-3.3-004: Transfer-Encoding + Content-Length conflict rejected")]
+    public void TransferEncoding_And_ContentLength_Conflict_Rejected()
     {
+        // RFC 9112 §6.3 / Security: TE+CL combination is rejected to prevent HTTP smuggling.
         const string chunkedBody = "5\r\nHello\r\n0\r\n\r\n";
         var raw = BuildRaw(200, "OK", chunkedBody,
             ("Transfer-Encoding", "chunked"),
             ("Content-Length", "999"));
 
-        var decoded = _decoder.TryDecode(raw, out var responses);
-
-        Assert.True(decoded);
-        var result = await responses[0].Content.ReadAsStringAsync();
-        Assert.Equal("Hello", result);
+        var ex = Assert.Throws<HttpDecoderException>(() => _decoder.TryDecode(raw, out _));
+        Assert.Equal(HttpDecodeError.ChunkedWithContentLength, ex.DecodeError);
     }
 
     [Fact(DisplayName = "7230-3.3-005: Multiple Content-Length values rejected")]

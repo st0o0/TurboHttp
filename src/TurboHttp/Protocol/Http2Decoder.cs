@@ -21,6 +21,11 @@ public sealed class Http2Decoder
     private byte[]? _continuationBuffer;
     private int _continuationBufferLength;
     private bool _continuationEndStream;
+    private int _continuationFrameCount;
+
+    // Security counters (reset per connection via Reset()).
+    private int _rstStreamCount;
+    private int _emptyDataFrameCount;
 
     // RFC 7540 §6.5.2: Default MAX_FRAME_SIZE is 2^14 (16384).
     private int _maxFrameSize = 16384;
@@ -181,6 +186,15 @@ public sealed class Http2Decoder
                         rstStreams.Add((streamId, error));
                         _streams.Remove(streamId);
                         _closedStreamIds.Add(streamId);
+
+                        // Security: rapid RST_STREAM cycling protection (mitigates CVE-2023-44487).
+                        _rstStreamCount++;
+                        if (_rstStreamCount > 100)
+                        {
+                            throw new Http2Exception(
+                                $"RFC 7540 security: Excessive RST_STREAM frames ({_rstStreamCount}) — possible rapid-reset attack (CVE-2023-44487).",
+                                Http2ErrorCode.ProtocolError);
+                        }
                     }
 
                     break;
@@ -228,10 +242,14 @@ public sealed class Http2Decoder
         _continuationStreamId = 0;
         _continuationBuffer = null;
         _continuationBufferLength = 0;
+        _continuationFrameCount = 0;
+        _continuationEndStream = false;
         _receivedGoAway = false;
         _maxFrameSize = 16384;
         _connectionReceiveWindow = 65535;
         _connectionSendWindow = 65535;
+        _rstStreamCount = 0;
+        _emptyDataFrameCount = 0;
     }
 
     // ========================================================================
@@ -260,6 +278,18 @@ public sealed class Http2Decoder
         }
 
         var data = StripPadding(payload, flags, padded: (flags & 0x8) != 0);
+
+        // Security: reject excessive zero-length DATA frames (slow-loris / amplification protection).
+        if (data.Length == 0)
+        {
+            _emptyDataFrameCount++;
+            if (_emptyDataFrameCount > 10000)
+            {
+                throw new Http2Exception(
+                    $"RFC 7540 security: Excessive zero-length DATA frames ({_emptyDataFrameCount}) — connection terminated.",
+                    Http2ErrorCode.ProtocolError);
+            }
+        }
 
         // RFC 7540 §5.2: Enforce connection-level receive window.
         if (data.Length > _connectionReceiveWindow)
@@ -356,6 +386,7 @@ public sealed class Http2Decoder
         {
             _continuationStreamId = streamId;
             _continuationBufferLength = data.Length;
+            _continuationFrameCount = 0;
 
             if (_continuationBuffer == null || _continuationBuffer.Length < data.Length)
             {
@@ -395,6 +426,15 @@ public sealed class Http2Decoder
                 Http2ErrorCode.ProtocolError);
         }
 
+        // Security: reject excessive CONTINUATION frames (header-block flood protection).
+        _continuationFrameCount++;
+        if (_continuationFrameCount >= 1000)
+        {
+            throw new Http2Exception(
+                $"RFC 7540 security: Excessive CONTINUATION frames ({_continuationFrameCount}) — possible header-block flood attack.",
+                Http2ErrorCode.ProtocolError);
+        }
+
         var newSize = _continuationBufferLength + payload.Length;
 
         if (newSize > _continuationBuffer.Length)
@@ -419,6 +459,7 @@ public sealed class Http2Decoder
             _continuationBuffer = null;
             _continuationBufferLength = 0;
             _continuationStreamId = 0;
+            _continuationFrameCount = 0;
         }
     }
 
@@ -560,9 +601,37 @@ public sealed class Http2Decoder
     {
         foreach (var (param, value) in settings)
         {
-            if (param == SettingsParameter.MaxFrameSize)
+            switch (param)
             {
-                _maxFrameSize = (int)value;
+                case SettingsParameter.MaxFrameSize:
+                    _maxFrameSize = (int)value;
+                    break;
+
+                case SettingsParameter.EnablePush:
+                    // RFC 7540 §6.5.2: SETTINGS_ENABLE_PUSH MUST be 0 or 1.
+                    if (value > 1)
+                    {
+                        throw new Http2Exception(
+                            $"RFC 7540 §6.5.2: SETTINGS_ENABLE_PUSH value {value} is invalid; only 0 or 1 are permitted.",
+                            Http2ErrorCode.ProtocolError);
+                    }
+
+                    break;
+
+                case SettingsParameter.InitialWindowSize:
+                    // RFC 7540 §6.5.2: Values above 2^31-1 MUST be treated as FLOW_CONTROL_ERROR.
+                    if (value > 0x7FFFFFFFu)
+                    {
+                        throw new Http2Exception(
+                            $"RFC 7540 §6.5.2: SETTINGS_INITIAL_WINDOW_SIZE value {value} exceeds maximum 2^31-1.",
+                            Http2ErrorCode.FlowControlError);
+                    }
+
+                    break;
+
+                default:
+                    // RFC 7540 §4.1 / §6.5: Unknown or unsupported SETTINGS identifiers MUST be ignored.
+                    break;
             }
         }
     }

@@ -130,6 +130,9 @@ public sealed class HpackDecoder
     // RFC 7541 §4.2: Maximum table size is negotiated via SETTINGS_HEADER_TABLE_SIZE
     private int _maxAllowedTableSize = 4096;
 
+    // Security: Maximum string literal length for header names and values (prevents resource exhaustion).
+    private int _maxStringLength = 65535;
+
     private readonly HpackDynamicTable _table = new();
 
     /// <summary>
@@ -142,6 +145,18 @@ public sealed class HpackDecoder
             throw new HpackException($"Invalid SETTINGS_HEADER_TABLE_SIZE: {size}");
 
         _maxAllowedTableSize = size;
+    }
+
+    /// <summary>
+    /// Sets the maximum allowed length for literal header name and value strings.
+    /// Strings exceeding this limit throw <see cref="HpackException"/> (COMPRESSION_ERROR).
+    /// </summary>
+    public void SetMaxStringLength(int maxLength)
+    {
+        if (maxLength < 0)
+            throw new HpackException($"Invalid max string length: {maxLength}");
+
+        _maxStringLength = maxLength;
     }
 
     /// <summary>
@@ -343,7 +358,7 @@ public sealed class HpackDecoder
     /// RFC 7541 §5.2 - String Literal Representation.
     /// Supports both Huffman-encoded and raw strings.
     /// </summary>
-    private static string ReadString(ReadOnlySpan<byte> data, ref int pos)
+    private string ReadString(ReadOnlySpan<byte> data, ref int pos)
     {
         if (pos >= data.Length)
         {
@@ -356,6 +371,14 @@ public sealed class HpackDecoder
         if (length < 0)
         {
             throw new HpackException($"RFC 7541 §5.2 violation: Invalid string length {length}.");
+        }
+
+        // Security: reject string literals that exceed the configured maximum length.
+        if (length > _maxStringLength)
+        {
+            throw new HpackException(
+                $"RFC 7541 §5.2 violation: String literal length {length} exceeds maximum {_maxStringLength} " +
+                $"— COMPRESSION_ERROR.");
         }
 
         if (pos + length > data.Length)

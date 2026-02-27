@@ -28,16 +28,19 @@ public sealed class Http11Decoder : IDisposable
 
     private readonly int _maxHeaderSize;
     private readonly int _maxBodySize;
+    private readonly int _maxHeaderCount;
 
     /// <summary>
     /// Creates a new HTTP/1.1 decoder with configurable limits.
     /// </summary>
-    /// <param name="maxHeaderSize">Maximum header section size (default: 8KB)</param>
-    /// <param name="maxBodySize">Maximum body size (default: 10MB)</param>
-    public Http11Decoder(int maxHeaderSize = 8192, int maxBodySize = 10_485_760)
+    /// <param name="maxHeaderSize">Maximum header section size in bytes (default: 8KB)</param>
+    /// <param name="maxBodySize">Maximum body size in bytes (default: 10MB)</param>
+    /// <param name="maxHeaderCount">Maximum number of header fields allowed (default: 100)</param>
+    public Http11Decoder(int maxHeaderSize = 8192, int maxBodySize = 10_485_760, int maxHeaderCount = 100)
     {
         _maxHeaderSize = maxHeaderSize;
         _maxBodySize = maxBodySize;
+        _maxHeaderCount = maxHeaderCount;
     }
 
     // ── Public API ──────────────────────────────────────────────────────────────
@@ -372,16 +375,24 @@ public sealed class Http11Decoder : IDisposable
 
     // ── Header Parsing ──────────────────────────────────────────────────────────
 
-    private static Dictionary<string, List<string>> ParseHeaders(ReadOnlySpan<byte> data)
+    private Dictionary<string, List<string>> ParseHeaders(ReadOnlySpan<byte> data)
     {
         var headers = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
         var pos = 0;
+        var fieldCount = 0;
 
         while (pos < data.Length)
         {
             var lineEnd = FindCrlf(data, pos);
             if (lineEnd < 0 || lineEnd == pos)
                 break;
+
+            // Security: enforce maximum header field count (prevents header flood attacks).
+            fieldCount++;
+            if (fieldCount > _maxHeaderCount)
+            {
+                throw new HttpDecoderException(HttpDecodeError.TooManyHeaders);
+            }
 
             var line = data[pos..lineEnd];
             var colonIdx = line.IndexOf((byte)':');
@@ -398,6 +409,12 @@ public sealed class Http11Decoder : IDisposable
 
             var nameStr = Encoding.ASCII.GetString(name);
             var valueStr = Encoding.ASCII.GetString(value);
+
+            // RFC 9112 §5.5: Header field values MUST NOT contain CR, LF, or NUL characters.
+            if (valueStr.IndexOfAny(['\r', '\n', '\0']) >= 0)
+            {
+                throw new HttpDecoderException(HttpDecodeError.InvalidFieldValue);
+            }
 
             if (!headers.TryGetValue(nameStr, out var values))
             {
@@ -423,8 +440,13 @@ public sealed class Http11Decoder : IDisposable
         if (!string.IsNullOrEmpty(transferEncoding) &&
             transferEncoding.Contains("chunked", StringComparison.OrdinalIgnoreCase))
         {
-            // RFC 9112 Section 6.3: If both present, Content-Length is ignored
-            // but some strict implementations may reject this
+            // RFC 9112 §6.3 / Security: Reject responses with both Transfer-Encoding and Content-Length
+            // to prevent HTTP request smuggling attacks.
+            if (contentLength.HasValue)
+            {
+                return (HttpDecodeResult.Fail(HttpDecodeError.ChunkedWithContentLength), null, 0, null);
+            }
+
             return ParseChunkedBody(data);
         }
 

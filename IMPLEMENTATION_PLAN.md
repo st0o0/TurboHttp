@@ -546,37 +546,37 @@
 
 ### HTTP/1.1 Input Limits
 
-- [ ] `sec-001a` **P0** — 100 headers accepted at default limit · `[DisplayName("SEC-001a: 100 headers accepted at default limit")]`
-- [ ] `sec-001b` **P0** — 101 headers rejected above default limit · `[DisplayName("SEC-001b: 101 headers rejected above default limit")]`
-- [ ] `sec-001c` **P1** — Custom header count limit respected · `[DisplayName("SEC-001c: Custom header count limit respected")]`
-- [ ] `sec-002a` **P0** — 8191-byte header block accepted · `[DisplayName("SEC-002a: Header block below 8KB limit accepted")]`
-- [ ] `sec-002b` **P0** — 8193-byte header block rejected · `[DisplayName("SEC-002b: Header block above 8KB limit rejected")]`
-- [ ] `sec-002c` **P0** — Single 9000-byte header value rejected · `[DisplayName("SEC-002c: Single header value exceeding limit rejected")]`
-- [ ] `sec-003a` **P0** — Body at 10 MB limit accepted · `[DisplayName("SEC-003a: Body at configurable limit accepted")]`
-- [ ] `sec-003b` **P0** — Body exceeding 10 MB rejected · `[DisplayName("SEC-003b: Body exceeding limit rejected")]`
-- [ ] `sec-003c` **P1** — Zero body limit rejects any body · `[DisplayName("SEC-003c: Zero body limit rejects any body")]`
+- [x] `sec-001a` **P0** — 100 headers accepted at default limit · `[DisplayName("SEC-001a: 100 headers accepted at default limit")]`
+- [x] `sec-001b` **P0** — 101 headers rejected above default limit · `[DisplayName("SEC-001b: 101 headers rejected above default limit")]`
+- [x] `sec-001c` **P1** — Custom header count limit respected · `[DisplayName("SEC-001c: Custom header count limit respected")]`
+- [x] `sec-002a` **P0** — 8191-byte header block accepted · `[DisplayName("SEC-002a: Header block below 8KB limit accepted")]`
+- [x] `sec-002b` **P0** — 8193-byte header block rejected · `[DisplayName("SEC-002b: Header block above 8KB limit rejected")]`
+- [x] `sec-002c` **P0** — Single 9000-byte header value rejected · `[DisplayName("SEC-002c: Single header value exceeding limit rejected")]`
+- [x] `sec-003a` **P0** — Body at 10 MB limit accepted · `[DisplayName("SEC-003a: Body at configurable limit accepted")]`
+- [x] `sec-003b` **P0** — Body exceeding 10 MB rejected · `[DisplayName("SEC-003b: Body exceeding limit rejected")]`
+- [x] `sec-003c` **P1** — Zero body limit rejects any body · `[DisplayName("SEC-003c: Zero body limit rejects any body")]`
 
 ### HTTP Smuggling
 
-- [ ] `sec-005a` **P0** — `Transfer-Encoding` + `Content-Length` conflict rejected · `[DisplayName("SEC-005a: Transfer-Encoding + Content-Length rejected")]`
-- [ ] `sec-005b` **P0** — CRLF injection in header value rejected → `InvalidFieldValue` · `[DisplayName("SEC-005b: CRLF injection in header value rejected")]`
-- [ ] `sec-005c` **P0** — NUL byte in decoded header value rejected → `InvalidFieldValue` · `[DisplayName("SEC-005c: NUL byte in decoded header value rejected")]`
+- [x] `sec-005a` **P0** — `Transfer-Encoding` + `Content-Length` conflict rejected · `[DisplayName("SEC-005a: Transfer-Encoding + Content-Length rejected")]`
+- [x] `sec-005b` **P0** — CRLF injection in header value rejected → `InvalidFieldValue` · `[DisplayName("SEC-005b: CRLF injection in header value rejected")]`
+- [x] `sec-005c` **P0** — NUL byte in decoded header value rejected → `InvalidFieldValue` · `[DisplayName("SEC-005c: NUL byte in decoded header value rejected")]`
 
 ### State Isolation
 
-- [ ] `sec-006a` **P0** — `Reset()` after partial headers restores clean state · `[DisplayName("SEC-006a: Reset() after partial headers restores clean state")]`
-- [ ] `sec-006b` **P0** — `Reset()` after partial body restores clean state · `[DisplayName("SEC-006b: Reset() after partial body restores clean state")]`
+- [x] `sec-006a` **P0** — `Reset()` after partial headers restores clean state · `[DisplayName("SEC-006a: Reset() after partial headers restores clean state")]`
+- [x] `sec-006b` **P0** — `Reset()` after partial body restores clean state · `[DisplayName("SEC-006b: Reset() after partial body restores clean state")]`
 
 ### HTTP/2 Security
 
-- [ ] `sec-h2-001` **P0** — HPACK literal name exceeding limit → `HpackException` · `[DisplayName("SEC-h2-001: HPACK literal name exceeding limit causes COMPRESSION_ERROR")]`
-- [ ] `sec-h2-002` **P0** — HPACK literal value exceeding limit → `HpackException` · `[DisplayName("SEC-h2-002: HPACK literal value exceeding limit causes COMPRESSION_ERROR")]`
-- [ ] `sec-h2-003` **P0** — Excessive CONTINUATION frames (1000) rejected · `[DisplayName("SEC-h2-003: Excessive CONTINUATION frames rejected")]`
-- [ ] `sec-h2-004` **P1** — 100 streams immediately RST'd triggers protection (CVE-2023-44487) · `[DisplayName("SEC-h2-004: Rapid RST_STREAM cycling triggers protection (CVE-2023-44487)")]`
-- [ ] `sec-h2-005` **P1** — 10000 zero-length DATA frames rejected · `[DisplayName("SEC-h2-005: Excessive zero-length DATA frames rejected")]`
-- [ ] `sec-h2-006` **P0** — `SETTINGS_ENABLE_PUSH` > 1 → `PROTOCOL_ERROR` · `[DisplayName("SEC-h2-006: SETTINGS_ENABLE_PUSH value >1 causes PROTOCOL_ERROR")]`
-- [ ] `sec-h2-007` **P0** — `SETTINGS_INITIAL_WINDOW_SIZE` > 2^31-1 → `FLOW_CONTROL_ERROR` · `[DisplayName("SEC-h2-007: SETTINGS_INITIAL_WINDOW_SIZE >2^31-1 causes FLOW_CONTROL_ERROR")]`
-- [ ] `sec-h2-008` **P1** — Unknown SETTINGS ID silently ignored · `[DisplayName("SEC-h2-008: Unknown SETTINGS ID silently ignored")]`
+- [x] `sec-h2-001` **P0** — HPACK literal name exceeding limit → `HpackException` · `[DisplayName("SEC-h2-001: HPACK literal name exceeding limit causes COMPRESSION_ERROR")]`
+- [x] `sec-h2-002` **P0** — HPACK literal value exceeding limit → `HpackException` · `[DisplayName("SEC-h2-002: HPACK literal value exceeding limit causes COMPRESSION_ERROR")]`
+- [x] `sec-h2-003` **P0** — Excessive CONTINUATION frames (1000) rejected · `[DisplayName("SEC-h2-003: Excessive CONTINUATION frames rejected")]`
+- [x] `sec-h2-004` **P1** — 100 streams immediately RST'd triggers protection (CVE-2023-44487) · `[DisplayName("SEC-h2-004: Rapid RST_STREAM cycling triggers protection (CVE-2023-44487)")]`
+- [x] `sec-h2-005` **P1** — 10000 zero-length DATA frames rejected · `[DisplayName("SEC-h2-005: Excessive zero-length DATA frames rejected")]`
+- [x] `sec-h2-006` **P0** — `SETTINGS_ENABLE_PUSH` > 1 → `PROTOCOL_ERROR` · `[DisplayName("SEC-h2-006: SETTINGS_ENABLE_PUSH value >1 causes PROTOCOL_ERROR")]`
+- [x] `sec-h2-007` **P0** — `SETTINGS_INITIAL_WINDOW_SIZE` > 2^31-1 → `FLOW_CONTROL_ERROR` · `[DisplayName("SEC-h2-007: SETTINGS_INITIAL_WINDOW_SIZE >2^31-1 causes FLOW_CONTROL_ERROR")]`
+- [x] `sec-h2-008` **P1** — Unknown SETTINGS ID silently ignored · `[DisplayName("SEC-h2-008: Unknown SETTINGS ID silently ignored")]`
 
 ---
 

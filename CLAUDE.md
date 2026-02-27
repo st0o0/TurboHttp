@@ -96,7 +96,6 @@ All frame types inherit from `Http2Frame` base class with:
 - Always use braces for control structures (even single-line statements)
 
 ### API Design
-- Maintain compatibility with JVM Akka while being .NET idiomatic
 - Use `Task<T>` instead of Future, `TimeSpan` instead of Duration
 - Extend-only design - don't modify existing public APIs
 - Preserve wire format compatibility for serialization

@@ -71,4 +71,7 @@ public enum HttpDecodeError
 
     /// <summary>RFC 9112 Section 7.1.3: Chunk data truncated.</summary>
     ChunkDataTruncated,
+
+    /// <summary>Security: Too many header fields in a single message (configurable limit exceeded).</summary>
+    TooManyHeaders,
 }
