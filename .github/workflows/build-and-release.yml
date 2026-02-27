@@ -106,7 +106,7 @@ jobs:
           fetch-depth: 1
 
       - name: Download package artifacts
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           name: nuget-packages
           path: ${{ env.PACKAGE_OUTPUT_DIRECTORY }}
