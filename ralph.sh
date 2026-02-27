@@ -346,7 +346,11 @@ for ((i=1; i<=ITERATIONS; i++)); do
 1. AGENTS.md and/or CLAUDE.md - Constitution (authority, constraints, quality bar, routing)
 2. PROJECT_CONTEXT.md - Current architecture and state (if present)
 3. TOOLING.md - Available tools/services (if present)
-4. $PLAN_FILE - Task breakdown
+4. learning.md - Lessons learned from previous iterations (LOCAL ONLY, if present)
+   - Extract constraints, recurring pitfalls, architectural decisions, and prior mistakes
+   - Identify anything that must influence the current implementation
+   - This file is strictly local and must NEVER be committed
+5. $PLAN_FILE - Task breakdown
 
 ## Instructions (ONE TASK ONLY)
 

@@ -26,7 +26,7 @@ public sealed class HpackDynamicTable
     // RFC 7541 §4.2 - Default max size: 4096 bytes
     private int _maxSize = 4096;
     private int _currentSize;
-    private readonly LinkedList<HpackHeader> _entries = new();
+    private readonly LinkedList<HpackHeader> _entries = [];
 
     /// <summary>Currently configured maximum table size in bytes.</summary>
     public int MaxSize => _maxSize;
@@ -78,7 +78,9 @@ public sealed class HpackDynamicTable
 
         var node = _entries.First;
         for (var i = 1; i < dynamicIndex; i++)
+        {
             node = node!.Next;
+        }
 
         return node!.Value;
     }
@@ -122,8 +124,8 @@ public sealed class HpackDynamicTable
 /// </summary>
 public sealed class HpackDecoder
 {
-    // RFC 7541 §5.1: Conservative maximum integer value = 2^28 to prevent overflow
-    private const int MaxIntegerValue = 1 << 28;
+    // RFC 7541 §5.1: Maximum integer value = int.MaxValue (2^31-1 = 2147483647)
+    private const int MaxIntegerValue = int.MaxValue;
 
     // RFC 7541 §4.2: Maximum table size is negotiated via SETTINGS_HEADER_TABLE_SIZE
     private int _maxAllowedTableSize = 4096;
@@ -181,16 +183,20 @@ public sealed class HpackDecoder
             {
                 // RFC 7541 §6.3: Size update after a header field is a protocol error
                 if (!tableSizeUpdateAllowed)
+                {
                     throw new HpackException(
                         "RFC 7541 §6.3 violation: Dynamic Table Size Update is not allowed after header fields.");
+                }
 
                 var newSize = ReadInteger(data, ref pos, 5);
 
                 // RFC 7541 §4.2: New size must not exceed SETTINGS_HEADER_TABLE_SIZE
                 if (newSize > _maxAllowedTableSize)
+                {
                     throw new HpackException(
                         $"RFC 7541 §4.2 violation: Table Size Update ({newSize}) exceeds " +
                         $"SETTINGS_HEADER_TABLE_SIZE ({_maxAllowedTableSize}).");
+                }
 
                 _table.SetMaxSize(newSize);
             }
@@ -234,7 +240,9 @@ public sealed class HpackDecoder
 
             // RFC 7541 §7.2: An empty header name is a protocol error
             if (string.IsNullOrEmpty(name))
+            {
                 throw new HpackException("RFC 7541 §7.2 violation: Empty header name is not allowed.");
+            }
         }
         else
         {
@@ -250,13 +258,17 @@ public sealed class HpackDecoder
     {
         // RFC 7541 §2.3.3: Index 0 is reserved and must never be used
         if (idx <= 0)
+        {
             throw new HpackException(
                 $"RFC 7541 §2.3.3 violation: Invalid index {idx}. Index 0 is reserved.");
+        }
 
         if (idx <= HpackStaticTable.StaticCount)
+        {
             return new HpackHeader(
                 HpackStaticTable.Entries[idx].Name,
                 HpackStaticTable.Entries[idx].Value);
+        }
 
         var dynIdx = idx - HpackStaticTable.StaticCount;
         return _table.GetEntry(dynIdx)
@@ -291,8 +303,9 @@ public sealed class HpackDecoder
             return value;
         }
 
-        // Multi-byte integer decoding
+        // Multi-byte integer decoding — use long to detect overflow before truncating to int
         var shift = 0;
+        long lvalue = value;
         while (true)
         {
             // RFC 7541 §5.1: Truncated integer is a protocol error
@@ -301,19 +314,19 @@ public sealed class HpackDecoder
                 throw new HpackException("RFC 7541 §5.1 violation: Integer is truncated (no stop bit found).");
             }
 
-            // Security: reject excessively long integer encodings before shift overflows
-            if (shift >= 28)
+            // Security: reject excessively long integer encodings before long shift overflows
+            if (shift >= 62)
             {
-                throw new HpackException("RFC 7541 §5.1 violation: Integer overflow - encoding exceeds 2^28.");
+                throw new HpackException("RFC 7541 §5.1 violation: Integer overflow - encoding length exceeded.");
             }
 
             var b = data[pos++];
-            value += (b & 0x7F) << shift;
+            lvalue += (long)(b & 0x7F) << shift;
             shift += 7;
 
-            if (value > MaxIntegerValue)
+            if (lvalue > MaxIntegerValue)
             {
-                throw new HpackException($"RFC 7541 §5.1 violation: Integer overflow - value {value} " +
+                throw new HpackException($"RFC 7541 §5.1 violation: Integer overflow - value {lvalue} " +
                                          $"exceeds maximum {MaxIntegerValue}.");
             }
 
@@ -323,7 +336,7 @@ public sealed class HpackDecoder
             }
         }
 
-        return value;
+        return (int)lvalue;
     }
 
     /// <summary>
@@ -375,8 +388,8 @@ public static class HpackStaticTable
     // Index 0 is intentionally empty (reserved, RFC 7541 §2.3.3)
     public static readonly (string Name, string Value)[] Entries =
     [
-        (string.Empty, string.Empty),                   // [0]  reserved
-        (":authority",                  string.Empty),  // [1]
+        (string.Empty, string.Empty),                    // [0]  reserved
+        (":authority",                  string.Empty),   // [1]
         (":method",                     "GET"),          // [2]
         (":method",                     "POST"),         // [3]
         (":path",                       "/"),            // [4]
@@ -390,53 +403,53 @@ public static class HpackStaticTable
         (":status",                     "400"),          // [12]
         (":status",                     "404"),          // [13]
         (":status",                     "500"),          // [14]
-        ("accept-charset",              string.Empty),  // [15]
+        ("accept-charset",              string.Empty),   // [15]
         ("accept-encoding",             "gzip, deflate"),// [16]
-        ("accept-language",             string.Empty),  // [17]
-        ("accept-ranges",               string.Empty),  // [18]
-        ("accept",                      string.Empty),  // [19]
-        ("access-control-allow-origin", string.Empty),  // [20]
-        ("age",                         string.Empty),  // [21]
-        ("allow",                       string.Empty),  // [22]
-        ("authorization",               string.Empty),  // [23]
-        ("cache-control",               string.Empty),  // [24]
-        ("content-disposition",         string.Empty),  // [25]
-        ("content-encoding",            string.Empty),  // [26]
-        ("content-language",            string.Empty),  // [27]
-        ("content-length",              string.Empty),  // [28]
-        ("content-location",            string.Empty),  // [29]
-        ("content-range",               string.Empty),  // [30]
-        ("content-type",                string.Empty),  // [31]
-        ("cookie",                      string.Empty),  // [32]
-        ("date",                        string.Empty),  // [33]
-        ("etag",                        string.Empty),  // [34]
-        ("expect",                      string.Empty),  // [35]
-        ("expires",                     string.Empty),  // [36]
-        ("from",                        string.Empty),  // [37]
-        ("host",                        string.Empty),  // [38]
-        ("if-match",                    string.Empty),  // [39]
-        ("if-modified-since",           string.Empty),  // [40]
-        ("if-none-match",               string.Empty),  // [41]
-        ("if-range",                    string.Empty),  // [42]
-        ("if-unmodified-since",         string.Empty),  // [43]
-        ("last-modified",               string.Empty),  // [44]
-        ("link",                        string.Empty),  // [45]
-        ("location",                    string.Empty),  // [46]
-        ("max-forwards",                string.Empty),  // [47]
-        ("proxy-authenticate",          string.Empty),  // [48]
-        ("proxy-authorization",         string.Empty),  // [49]
-        ("range",                       string.Empty),  // [50]
-        ("referer",                     string.Empty),  // [51]
-        ("refresh",                     string.Empty),  // [52]
-        ("retry-after",                 string.Empty),  // [53]
-        ("server",                      string.Empty),  // [54]
-        ("set-cookie",                  string.Empty),  // [55]
-        ("strict-transport-security",   string.Empty),  // [56]
-        ("transfer-encoding",           string.Empty),  // [57]
-        ("user-agent",                  string.Empty),  // [58]
-        ("vary",                        string.Empty),  // [59]
-        ("via",                         string.Empty),  // [60]
-        ("www-authenticate",            string.Empty) // [61]
+        ("accept-language",             string.Empty),   // [17]
+        ("accept-ranges",               string.Empty),   // [18]
+        ("accept",                      string.Empty),   // [19]
+        ("access-control-allow-origin", string.Empty),   // [20]
+        ("age",                         string.Empty),   // [21]
+        ("allow",                       string.Empty),   // [22]
+        ("authorization",               string.Empty),   // [23]
+        ("cache-control",               string.Empty),   // [24]
+        ("content-disposition",         string.Empty),   // [25]
+        ("content-encoding",            string.Empty),   // [26]
+        ("content-language",            string.Empty),   // [27]
+        ("content-length",              string.Empty),   // [28]
+        ("content-location",            string.Empty),   // [29]
+        ("content-range",               string.Empty),   // [30]
+        ("content-type",                string.Empty),   // [31]
+        ("cookie",                      string.Empty),   // [32]
+        ("date",                        string.Empty),   // [33]
+        ("etag",                        string.Empty),   // [34]
+        ("expect",                      string.Empty),   // [35]
+        ("expires",                     string.Empty),   // [36]
+        ("from",                        string.Empty),   // [37]
+        ("host",                        string.Empty),   // [38]
+        ("if-match",                    string.Empty),   // [39]
+        ("if-modified-since",           string.Empty),   // [40]
+        ("if-none-match",               string.Empty),   // [41]
+        ("if-range",                    string.Empty),   // [42]
+        ("if-unmodified-since",         string.Empty),   // [43]
+        ("last-modified",               string.Empty),   // [44]
+        ("link",                        string.Empty),   // [45]
+        ("location",                    string.Empty),   // [46]
+        ("max-forwards",                string.Empty),   // [47]
+        ("proxy-authenticate",          string.Empty),   // [48]
+        ("proxy-authorization",         string.Empty),   // [49]
+        ("range",                       string.Empty),   // [50]
+        ("referer",                     string.Empty),   // [51]
+        ("refresh",                     string.Empty),   // [52]
+        ("retry-after",                 string.Empty),   // [53]
+        ("server",                      string.Empty),   // [54]
+        ("set-cookie",                  string.Empty),   // [55]
+        ("strict-transport-security",   string.Empty),   // [56]
+        ("transfer-encoding",           string.Empty),   // [57]
+        ("user-agent",                  string.Empty),   // [58]
+        ("vary",                        string.Empty),   // [59]
+        ("via",                         string.Empty),   // [60]
+        ("www-authenticate",            string.Empty)    // [61]
     ];
 }
 

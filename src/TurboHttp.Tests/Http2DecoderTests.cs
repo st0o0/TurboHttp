@@ -427,27 +427,27 @@ public sealed class Http2DecoderTests
                 break;
             case FrameType.Priority:
                 // PRIORITY: 9-byte header + 5-byte payload (stream dep + weight)
-                frame = new byte[]
-                {
+                frame =
+                [
                     0x00, 0x00, 0x05, // length=5
                     0x02,             // PRIORITY
                     0x00,             // flags=0
                     0x00, 0x00, 0x00, 0x01, // stream=1
                     0x00, 0x00, 0x00, 0x01, // stream dependency
                     0x00              // weight
-                };
+                ];
                 break;
             default:
                 // DATA on stream 0, HEADERS on stream 0, CONTINUATION without headers,
                 // PUSH_PROMISE — all handled by throwing Http2Exception for invalid state.
-                frame = new byte[]
-                {
+                frame =
+                [
                     0x00, 0x00, 0x01,
                     typeCode,
                     0x00,
                     0x00, 0x00, 0x00, 0x00, // stream 0 — will trigger PROTOCOL_ERROR
                     0x00
-                };
+                ];
                 break;
         }
 
@@ -1387,7 +1387,7 @@ public sealed class Http2DecoderTests
     [Fact(DisplayName = "RFC 7540: GOAWAY with last stream ID and error code decoded")]
     public void GoAway_LastStreamIdAndErrorCode_Decoded()
     {
-        var frame = new GoAwayFrame(7, Http2ErrorCode.ProtocolError, Array.Empty<byte>()).Serialize();
+        var frame = new GoAwayFrame(7, Http2ErrorCode.ProtocolError, []).Serialize();
         var decoder = new Http2Decoder();
         decoder.TryDecode(frame, out var result);
 
@@ -1535,8 +1535,8 @@ public sealed class Http2DecoderTests
     [Fact(DisplayName = "dec6-frag-005: Two complete frames in single read both decoded")]
     public void Fragmentation_TwoFramesInSingleRead_BothDecoded()
     {
-        var ping1 = new PingFrame(new byte[] { 1, 1, 1, 1, 1, 1, 1, 1 }).Serialize();
-        var ping2 = new PingFrame(new byte[] { 2, 2, 2, 2, 2, 2, 2, 2 }).Serialize();
+        var ping1 = new PingFrame([1, 1, 1, 1, 1, 1, 1, 1]).Serialize();
+        var ping2 = new PingFrame([2, 2, 2, 2, 2, 2, 2, 2]).Serialize();
 
         var combined = ping1.Concat(ping2).ToArray();
 

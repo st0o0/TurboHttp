@@ -125,6 +125,36 @@ Quality gates (use when applicable)
 Specialist agents
 - dotnet-concurrency-specialist, dotnet-performance-analyst, dotnet-benchmark-designer, akka-net-specialist, docfx-specialist
 
+# C# Semantic Enforcement (csharp-lsp)
+
+This repository requires semantic analysis for all C# changes.
+
+Plugin:
+- csharp-lsp @ claude-plugins-official
+
+### When Mandatory
+
+Activate `csharp-lsp` when:
+- Modifying or creating *.cs files
+- Changing *.csproj or solution structure
+- Refactoring (rename, move, signature change)
+- Performing cross-file or cross-namespace changes
+- Modifying public APIs or protocol frame types
+
+### Required Before Commit
+
+For any C# modification:
+
+1. Inspect affected types and their references.
+2. Verify no downstream breakage.
+3. Check diagnostics.
+4. Ensure zero compile-time errors remain.
+
+If C# files were modified and semantic validation was not performed,
+the iteration is considered incomplete.
+
+Log usage of csharp-lsp in the Flight Recorder.
+
 ## RFC Compliance
 
 - **HTTP/1.0**: RFC 1945

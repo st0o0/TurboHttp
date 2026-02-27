@@ -475,68 +475,68 @@
 
 ### All 61 Static Table Entries (RFC 7541 Appendix A)
 
-- [ ] `7541-st-001` **P0** `[T]` — All 61 static table entries round-trip (indices 1–61 × 61) · `[DisplayName("7541-st-001: Static table entry {index} [{name}:{value}] round-trips as indexed representation")]`
+- [x] `7541-st-001` **P0** `[T]` — All 61 static table entries round-trip (indices 1–61 × 61) · `[DisplayName("7541-st-001: Static table entry {index} [{name}:{value}] round-trips as indexed representation")]`
 
 ### Sensitive Headers — NeverIndexed (RFC 7541 §7.1.3)
 
-- [ ] `7541-ni-001` **P0** `[T]` — Sensitive headers use `0x10` NeverIndexed prefix (authorization, cookie, set-cookie, proxy-authorization × 4) · `[DisplayName("7541-ni-001: {header} encoded with NeverIndexed byte pattern (0x10)")]`
-- [ ] `7541-ni-002` **P0** `[T]` — Sensitive headers do NOT grow the dynamic table (× 4) · `[DisplayName("7541-ni-002: {header} with NeverIndexed does not grow dynamic table")]`
-- [ ] `7541-ni-003` **P0** — Decoded authorization header preserves NeverIndex flag · `[DisplayName("7541-ni-003: Decoded authorization header preserves NeverIndex flag")]`
+- [x] `7541-ni-001` **P0** `[T]` — Sensitive headers use `0x10` NeverIndexed prefix (authorization, cookie, set-cookie, proxy-authorization × 4) · `[DisplayName("7541-ni-001: {header} encoded with NeverIndexed byte pattern (0x10)")]`
+- [x] `7541-ni-002` **P0** `[T]` — Sensitive headers do NOT grow the dynamic table (× 4) · `[DisplayName("7541-ni-002: {header} with NeverIndexed does not grow dynamic table")]`
+- [x] `7541-ni-003` **P0** — Decoded authorization header preserves NeverIndex flag · `[DisplayName("7541-ni-003: Decoded authorization header preserves NeverIndex flag")]`
 
 ### Dynamic Table (RFC 7541 §2.3)
 
-- [ ] `7541-2.3-001` **P0** — Incrementally indexed header added at dynamic index 62 · `[DisplayName("7541-2.3-001: Incrementally indexed header added at dynamic index 62")]`
-- [ ] `7541-2.3-002` **P0** — Oldest entry evicted when dynamic table is full · `[DisplayName("7541-2.3-002: Oldest entry evicted when dynamic table full")]`
-- [ ] `7541-2.3-003` **P0** — Dynamic table resized on `SETTINGS_HEADER_TABLE_SIZE` · `[DisplayName("7541-2.3-003: Dynamic table resized on SETTINGS_HEADER_TABLE_SIZE")]`
-- [ ] `7541-2.3-004` **P0** — Table size 0 evicts all entries · `[DisplayName("7541-2.3-004: Dynamic table size 0 evicts all entries")]`
-- [ ] `7541-2.3-005` **P0** — Table size exceeding maximum → `HpackException` · `[DisplayName("7541-2.3-005: Table size exceeding maximum causes COMPRESSION_ERROR")]`
-- [ ] `hpack-dt-001` **P0** — Entry size = name length + value length + 32 bytes · `[DisplayName("hpack-dt-001: Entry size counted as name + value + 32 overhead")]`
-- [ ] `hpack-dt-002` **P0** — Size update prefix emitted before first header after resize · `[DisplayName("hpack-dt-002: Size update prefix emitted when table resized")]`
-- [ ] `hpack-dt-003` **P0** — Three entries evicted in FIFO order · `[DisplayName("hpack-dt-003: Three entries evicted in FIFO order")]`
+- [x] `7541-2.3-001` **P0** — Incrementally indexed header added at dynamic index 62 · `[DisplayName("7541-2.3-001: Incrementally indexed header added at dynamic index 62")]`
+- [x] `7541-2.3-002` **P0** — Oldest entry evicted when dynamic table is full · `[DisplayName("7541-2.3-002: Oldest entry evicted when dynamic table full")]`
+- [x] `7541-2.3-003` **P0** — Dynamic table resized on `SETTINGS_HEADER_TABLE_SIZE` · `[DisplayName("7541-2.3-003: Dynamic table resized on SETTINGS_HEADER_TABLE_SIZE")]`
+- [x] `7541-2.3-004` **P0** — Table size 0 evicts all entries · `[DisplayName("7541-2.3-004: Dynamic table size 0 evicts all entries")]`
+- [x] `7541-2.3-005` **P0** — Table size exceeding maximum → `HpackException` · `[DisplayName("7541-2.3-005: Table size exceeding maximum causes COMPRESSION_ERROR")]`
+- [x] `hpack-dt-001` **P0** — Entry size = name length + value length + 32 bytes · `[DisplayName("hpack-dt-001: Entry size counted as name + value + 32 overhead")]`
+- [x] `hpack-dt-002` **P0** — Size update prefix emitted before first header after resize · `[DisplayName("hpack-dt-002: Size update prefix emitted when table resized")]`
+- [x] `hpack-dt-003` **P0** — Three entries evicted in FIFO order · `[DisplayName("hpack-dt-003: Three entries evicted in FIFO order")]`
 
 ### Integer Representation (RFC 7541 §5.1)
 
-- [ ] `7541-5.1-001` **P0** — Integer smaller than prefix limit encodes in one byte · `[DisplayName("7541-5.1-001: Integer smaller than prefix limit encodes in one byte")]`
-- [ ] `7541-5.1-002` **P0** — Integer at prefix limit requires continuation bytes · `[DisplayName("7541-5.1-002: Integer at prefix limit requires continuation bytes")]`
-- [ ] `7541-5.1-003` **P0** — Maximum integer 2147483647 round-trips exactly · `[DisplayName("7541-5.1-003: Maximum integer 2147483647 round-trips")]`
-- [ ] `7541-5.1-004` **P0** — Integer exceeding 2^31-1 → `HpackException` · `[DisplayName("7541-5.1-004: Integer exceeding 2^31-1 causes COMPRESSION_ERROR")]`
-- [ ] `hpack-int-001` **P0** `[T]` — Boundary values for 1–7 bit prefixes (× 7) · `[DisplayName("hpack-int-001: Integer encoding with {bits}-bit prefix")]`
+- [x] `7541-5.1-001` **P0** — Integer smaller than prefix limit encodes in one byte · `[DisplayName("7541-5.1-001: Integer smaller than prefix limit encodes in one byte")]`
+- [x] `7541-5.1-002` **P0** — Integer at prefix limit requires continuation bytes · `[DisplayName("7541-5.1-002: Integer at prefix limit requires continuation bytes")]`
+- [x] `7541-5.1-003` **P0** — Maximum integer 2147483647 round-trips exactly · `[DisplayName("7541-5.1-003: Maximum integer 2147483647 round-trips")]`
+- [x] `7541-5.1-004` **P0** — Integer exceeding 2^31-1 → `HpackException` · `[DisplayName("7541-5.1-004: Integer exceeding 2^31-1 causes COMPRESSION_ERROR")]`
+- [x] `hpack-int-001` **P0** `[T]` — Boundary values for 1–7 bit prefixes (× 7) · `[DisplayName("hpack-int-001: Integer encoding with {bits}-bit prefix")]`
 
 ### String Representation (RFC 7541 §5.2)
 
-- [ ] `7541-5.2-001` **P0** — Plain string literal (H=0) decoded · `[DisplayName("7541-5.2-001: Plain string literal decoded")]`
-- [ ] `7541-5.2-002` **P0** — Huffman-encoded string (H=1) decoded · `[DisplayName("7541-5.2-002: Huffman-encoded string decoded")]`
-- [ ] `7541-5.2-003` **P0** — Empty string literal decoded · `[DisplayName("7541-5.2-003: Empty string literal decoded")]`
-- [ ] `7541-5.2-004` **P1** — String larger than 8 KB decoded without truncation · `[DisplayName("7541-5.2-004: String larger than 8KB decoded")]`
-- [ ] `7541-5.2-005` **P0** — Malformed Huffman data → `HpackException` · `[DisplayName("7541-5.2-005: Malformed Huffman data causes COMPRESSION_ERROR")]`
-- [ ] `hpack-str-001` **P0** — Non-1 EOS padding bits → `HpackException` · `[DisplayName("hpack-str-001: Non-1 EOS padding bits cause COMPRESSION_ERROR")]`
-- [ ] `hpack-str-002` **P0** — EOS padding > 7 bits → `HpackException` · `[DisplayName("hpack-str-002: EOS padding > 7 bits causes COMPRESSION_ERROR")]`
+- [x] `7541-5.2-001` **P0** — Plain string literal (H=0) decoded · `[DisplayName("7541-5.2-001: Plain string literal decoded")]`
+- [x] `7541-5.2-002` **P0** — Huffman-encoded string (H=1) decoded · `[DisplayName("7541-5.2-002: Huffman-encoded string decoded")]`
+- [x] `7541-5.2-003` **P0** — Empty string literal decoded · `[DisplayName("7541-5.2-003: Empty string literal decoded")]`
+- [x] `7541-5.2-004` **P1** — String larger than 8 KB decoded without truncation · `[DisplayName("7541-5.2-004: String larger than 8KB decoded")]`
+- [x] `7541-5.2-005` **P0** — Malformed Huffman data → `HpackException` · `[DisplayName("7541-5.2-005: Malformed Huffman data causes COMPRESSION_ERROR")]`
+- [x] `hpack-str-001` **P0** — Non-1 EOS padding bits → `HpackException` · `[DisplayName("hpack-str-001: Non-1 EOS padding bits cause COMPRESSION_ERROR")]`
+- [x] `hpack-str-002` **P0** — EOS padding > 7 bits → `HpackException` · `[DisplayName("hpack-str-002: EOS padding > 7 bits causes COMPRESSION_ERROR")]`
 
 ### Indexed Header Field (RFC 7541 §6.1)
 
-- [ ] `7541-6.1-002` **P0** — Dynamic table entry at index 62+ retrieved · `[DisplayName("7541-6.1-002: Dynamic table entry at index 62+ retrieved")]`
-- [ ] `7541-6.1-003` **P0** — Out-of-range index → `HpackException` · `[DisplayName("7541-6.1-003: Index out of range causes COMPRESSION_ERROR")]`
-- [ ] `hpack-idx-001` **P0** — Index 0 is invalid → `HpackException` · `[DisplayName("hpack-idx-001: Index 0 is invalid per RFC 7541 §6.1")]`
+- [x] `7541-6.1-002` **P0** — Dynamic table entry at index 62+ retrieved · `[DisplayName("7541-6.1-002: Dynamic table entry at index 62+ retrieved")]`
+- [x] `7541-6.1-003` **P0** — Out-of-range index → `HpackException` · `[DisplayName("7541-6.1-003: Index out of range causes COMPRESSION_ERROR")]`
+- [x] `hpack-idx-001` **P0** — Index 0 is invalid → `HpackException` · `[DisplayName("hpack-idx-001: Index 0 is invalid per RFC 7541 §6.1")]`
 
 ### Literal Header Field (RFC 7541 §6.2)
 
-- [ ] `7541-6.2-001` **P0** — Incremental indexing: entry added at index 62 · `[DisplayName("7541-6.2-001: Incremental indexing adds entry to dynamic table")]`
-- [ ] `7541-6.2-002` **P0** — Without-indexing: NOT added to dynamic table · `[DisplayName("7541-6.2-002: Without-indexing literal not added to dynamic table")]`
-- [ ] `7541-6.2-003` **P0** — Never-indexed: NOT added, flag preserved · `[DisplayName("7541-6.2-003: NeverIndexed literal not added to table")]`
-- [ ] `7541-6.2-004` **P0** — Indexed name + literal value decoded · `[DisplayName("7541-6.2-004: Literal with indexed name and literal value decoded")]`
-- [ ] `7541-6.2-005` **P0** — Both name and value as literals decoded · `[DisplayName("7541-6.2-005: Literal with literal name and literal value decoded")]`
+- [x] `7541-6.2-001` **P0** — Incremental indexing: entry added at index 62 · `[DisplayName("7541-6.2-001: Incremental indexing adds entry to dynamic table")]`
+- [x] `7541-6.2-002` **P0** — Without-indexing: NOT added to dynamic table · `[DisplayName("7541-6.2-002: Without-indexing literal not added to dynamic table")]`
+- [x] `7541-6.2-003` **P0** — Never-indexed: NOT added, flag preserved · `[DisplayName("7541-6.2-003: NeverIndexed literal not added to table")]`
+- [x] `7541-6.2-004` **P0** — Indexed name + literal value decoded · `[DisplayName("7541-6.2-004: Literal with indexed name and literal value decoded")]`
+- [x] `7541-6.2-005` **P0** — Both name and value as literals decoded · `[DisplayName("7541-6.2-005: Literal with literal name and literal value decoded")]`
 
 ### Appendix C — Byte-Exact RFC Vectors
 
-- [ ] `7541-C.2-001` **P0** — Appendix C.2.1: first request, no Huffman · `[DisplayName("7541-C.2-001: RFC 7541 Appendix C.2.1 decode")]`
-- [ ] `7541-C.2-002` **P0** — Appendix C.2.2: dynamic table first referenced entry · `[DisplayName("7541-C.2-002: RFC 7541 Appendix C.2.2 decode (dynamic table)")]`
-- [ ] `7541-C.2-003` **P0** — Appendix C.2.3: third request, table state correct · `[DisplayName("7541-C.2-003: RFC 7541 Appendix C.2.3 decode")]`
-- [ ] `7541-C.3-001` **P0** — Appendix C.3: requests with Huffman encoding · `[DisplayName("7541-C.3-001: RFC 7541 Appendix C.3 decode with Huffman")]`
-- [ ] `7541-C.4-001` **P0** — Appendix C.4.1: response, no Huffman · `[DisplayName("7541-C.4-001: RFC 7541 Appendix C.4.1 decode")]`
-- [ ] `7541-C.4-002` **P0** — Appendix C.4.2: response, dynamic table reused · `[DisplayName("7541-C.4-002: RFC 7541 Appendix C.4.2 decode (dynamic table reused)")]`
-- [ ] `7541-C.4-003` **P0** — Appendix C.4.3: response, table state after C.4.2 · `[DisplayName("7541-C.4-003: RFC 7541 Appendix C.4.3 decode")]`
-- [ ] `7541-C.5-001` **P0** — Appendix C.5: responses with Huffman · `[DisplayName("7541-C.5-001: RFC 7541 Appendix C.5 decode with Huffman")]`
-- [ ] `7541-C.6-001` **P1** — Appendix C.6: large cookie responses · `[DisplayName("7541-C.6-001: RFC 7541 Appendix C.6 large cookie responses")]`
+- [x] `7541-C.2-001` **P0** — Appendix C.2.1: first request, no Huffman · `[DisplayName("7541-C.2-001: RFC 7541 Appendix C.2.1 decode")]`
+- [x] `7541-C.2-002` **P0** — Appendix C.2.2: dynamic table first referenced entry · `[DisplayName("7541-C.2-002: RFC 7541 Appendix C.2.2 decode (dynamic table)")]`
+- [x] `7541-C.2-003` **P0** — Appendix C.2.3: third request, table state correct · `[DisplayName("7541-C.2-003: RFC 7541 Appendix C.2.3 decode")]`
+- [x] `7541-C.3-001` **P0** — Appendix C.3: requests with Huffman encoding · `[DisplayName("7541-C.3-001: RFC 7541 Appendix C.3 decode with Huffman")]`
+- [x] `7541-C.4-001` **P0** — Appendix C.4.1: response, no Huffman · `[DisplayName("7541-C.4-001: RFC 7541 Appendix C.4.1 decode")]`
+- [x] `7541-C.4-002` **P0** — Appendix C.4.2: response, dynamic table reused · `[DisplayName("7541-C.4-002: RFC 7541 Appendix C.4.2 decode (dynamic table reused)")]`
+- [x] `7541-C.4-003` **P0** — Appendix C.4.3: response, table state after C.4.2 · `[DisplayName("7541-C.4-003: RFC 7541 Appendix C.4.3 decode")]`
+- [x] `7541-C.5-001` **P0** — Appendix C.5: responses with Huffman · `[DisplayName("7541-C.5-001: RFC 7541 Appendix C.5 decode with Huffman")]`
+- [x] `7541-C.6-001` **P1** — Appendix C.6: large cookie responses · `[DisplayName("7541-C.6-001: RFC 7541 Appendix C.6 large cookie responses")]`
 
 ---
 

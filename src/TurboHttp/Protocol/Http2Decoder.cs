@@ -578,7 +578,7 @@ public sealed class Http2Decoder
         return data.Slice(1, data.Length - 1 - padLength);
     }
 
-    private static IReadOnlyList<(SettingsParameter, uint)> ParseSettings(ReadOnlySpan<byte> payload)
+    private static List<(SettingsParameter, uint)> ParseSettings(ReadOnlySpan<byte> payload)
     {
         var result = new List<(SettingsParameter, uint)>(payload.Length / 6);
         for (var i = 0; i + 6 <= payload.Length; i += 6)
