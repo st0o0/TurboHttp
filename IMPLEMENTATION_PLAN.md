@@ -586,44 +586,45 @@
 
 ### HTTP/1.1 Round-Trip
 
-- [ ] `rt11-001` **P0** — GET → 200 OK round-trip · `[DisplayName("RT-11-001: HTTP/1.1 GET → 200 OK round-trip")]`
-- [ ] `rt11-002` **P0** — POST JSON → 201 Created round-trip · `[DisplayName("RT-11-002: HTTP/1.1 POST JSON → 201 Created round-trip")]`
-- [ ] `rt11-003` **P0** — PUT → 204 No Content round-trip · `[DisplayName("RT-11-003: HTTP/1.1 PUT → 204 No Content round-trip")]`
-- [ ] `rt11-004` **P0** — DELETE → 200 OK round-trip · `[DisplayName("RT-11-004: HTTP/1.1 DELETE → 200 OK round-trip")]`
-- [ ] `rt11-005` **P0** — PATCH → 200 OK round-trip · `[DisplayName("RT-11-005: HTTP/1.1 PATCH → 200 OK round-trip")]`
-- [ ] `rt11-006` **P1** — HEAD → Content-Length but no body · `[DisplayName("RT-11-006: HTTP/1.1 HEAD → Content-Length but no body")]`
-- [ ] `rt11-007` **P1** — OPTIONS → 200 with Allow header · `[DisplayName("RT-11-007: HTTP/1.1 OPTIONS → 200 with Allow header")]`
-- [ ] `rt11-008` **P0** — GET → 200 chunked response round-trip · `[DisplayName("RT-11-008: HTTP/1.1 GET → 200 chunked response round-trip")]`
-- [ ] `rt11-009` **P0** — GET → response with 5 chunks concatenated · `[DisplayName("RT-11-009: HTTP/1.1 GET → response with 5 chunks round-trip")]`
-- [ ] `rt11-010` **P1** — Chunked response with trailer accessible · `[DisplayName("RT-11-010: HTTP/1.1 chunked response with trailer round-trip")]`
-- [ ] `rt11-011` **P0** — GET → 301 with Location round-trip · `[DisplayName("RT-11-011: HTTP/1.1 GET → 301 with Location round-trip")]`
-- [ ] `rt11-012` **P0** — POST binary → 200 binary response round-trip · `[DisplayName("RT-11-012: HTTP/1.1 POST binary → 200 binary response round-trip")]`
-- [ ] `rt11-013` **P0** — GET → 404 Not Found round-trip · `[DisplayName("RT-11-013: HTTP/1.1 GET → 404 Not Found round-trip")]`
-- [ ] `rt11-014` **P0** — GET → 500 Internal Server Error round-trip · `[DisplayName("RT-11-014: HTTP/1.1 GET → 500 Internal Server Error round-trip")]`
-- [ ] `rt11-015` **P1** — Two pipelined requests and responses round-trip · `[DisplayName("RT-11-015: Two pipelined requests and responses round-trip")]`
-- [ ] `rt11-016` **P0** — 100 Continue before 200 OK round-trip · `[DisplayName("RT-11-016: 100 Continue before 200 OK round-trip")]`
-- [ ] `rt11-017` **P0** — 1 MB body round-trip · `[DisplayName("RT-11-017: HTTP/1.1 1 MB body round-trip")]`
-- [ ] `rt11-018` **P0** — Binary body with null bytes preserved · `[DisplayName("RT-11-018: HTTP/1.1 binary body with null bytes round-trip")]`
-- [ ] `rt11-019` **P1** — Two responses on keep-alive connection · `[DisplayName("RT-11-019: Two responses on keep-alive connection round-trip")]`
-- [ ] `rt11-020` **P1** — `Content-Type: application/json; charset=utf-8` preserved · `[DisplayName("RT-11-020: Content-Type: application/json; charset=utf-8 preserved")]`
+- [x] `rt11-001` **P0** — GET → 200 OK round-trip · `[DisplayName("RT-11-001: HTTP/1.1 GET → 200 OK round-trip")]`
+- [x] `rt11-002` **P0** — POST JSON → 201 Created round-trip · `[DisplayName("RT-11-002: HTTP/1.1 POST JSON → 201 Created round-trip")]`
+- [x] `rt11-003` **P0** — PUT → 204 No Content round-trip · `[DisplayName("RT-11-003: HTTP/1.1 PUT → 204 No Content round-trip")]`
+- [x] `rt11-004` **P0** — DELETE → 200 OK round-trip · `[DisplayName("RT-11-004: HTTP/1.1 DELETE → 200 OK round-trip")]`
+- [x] `rt11-005` **P0** — PATCH → 200 OK round-trip · `[DisplayName("RT-11-005: HTTP/1.1 PATCH → 200 OK round-trip")]`
+- [x] `rt11-006` **P1** — HEAD → Content-Length but no body · `[DisplayName("RT-11-006: HTTP/1.1 HEAD → Content-Length but no body")]`
+- [x] `rt11-007` **P1** — OPTIONS → 200 with Allow header · `[DisplayName("RT-11-007: HTTP/1.1 OPTIONS → 200 with Allow header")]`
+- [x] `rt11-008` **P0** — GET → 200 chunked response round-trip · `[DisplayName("RT-11-008: HTTP/1.1 GET → 200 chunked response round-trip")]`
+- [x] `rt11-009` **P0** — GET → response with 5 chunks concatenated · `[DisplayName("RT-11-009: HTTP/1.1 GET → response with 5 chunks round-trip")]`
+- [x] `rt11-010` **P1** — Chunked response with trailer accessible · `[DisplayName("RT-11-010: HTTP/1.1 chunked response with trailer round-trip")]`
+- [x] `rt11-011` **P0** — GET → 301 with Location round-trip · `[DisplayName("RT-11-011: HTTP/1.1 GET → 301 with Location round-trip")]`
+- [x] `rt11-012` **P0** — POST binary → 200 binary response round-trip · `[DisplayName("RT-11-012: HTTP/1.1 POST binary → 200 binary response round-trip")]`
+- [x] `rt11-013` **P0** — GET → 404 Not Found round-trip · `[DisplayName("RT-11-013: HTTP/1.1 GET → 404 Not Found round-trip")]`
+- [x] `rt11-014` **P0** — GET → 500 Internal Server Error round-trip · `[DisplayName("RT-11-014: HTTP/1.1 GET → 500 Internal Server Error round-trip")]`
+- [x] `rt11-015` **P1** — Two pipelined requests and responses round-trip · `[DisplayName("RT-11-015: Two pipelined requests and responses round-trip")]`
+- [x] `rt11-016` **P0** — 100 Continue before 200 OK round-trip · `[DisplayName("RT-11-016: 100 Continue before 200 OK round-trip")]`
+- [x] `rt11-017` **P0** — 1 MB body round-trip · `[DisplayName("RT-11-017: HTTP/1.1 1 MB body round-trip")]`
+- [x] `rt11-018` **P0** — Binary body with null bytes preserved · `[DisplayName("RT-11-018: HTTP/1.1 binary body with null bytes round-trip")]`
+- [x] `rt11-019` **P1** — Two responses on keep-alive connection · `[DisplayName("RT-11-019: Two responses on keep-alive connection round-trip")]`
+- [x] `rt11-020` **P1** — `Content-Type: application/json; charset=utf-8` preserved · `[DisplayName("RT-11-020: Content-Type: application/json; charset=utf-8 preserved")]`
 
 ### HTTP/2 Round-Trip
 
-- [ ] `rt2-001` **P0** — Connection preface + SETTINGS exchange · `[DisplayName("RT-2-001: HTTP/2 connection preface + SETTINGS exchange")]`
-- [ ] `rt2-002` **P0** — GET → 200 on stream 1 · `[DisplayName("RT-2-002: HTTP/2 GET → 200 on stream 1")]`
-- [ ] `rt2-003` **P0** — POST → HEADERS+DATA → 201 response · `[DisplayName("RT-2-003: HTTP/2 POST → HEADERS+DATA → 201 response")]`
-- [ ] `rt2-004` **P0** — Three concurrent streams each complete independently · `[DisplayName("RT-2-004: HTTP/2 three concurrent streams each complete independently")]`
-- [ ] `rt2-005` **P0** — HPACK dynamic table reused across three requests · `[DisplayName("RT-2-005: HTTP/2 HPACK dynamic table reused across three requests")]`
-- [ ] `rt2-006` **P0** — Server SETTINGS → client ACK → both sides updated · `[DisplayName("RT-2-006: HTTP/2 server SETTINGS → client ACK → both sides updated")]`
-- [ ] `rt2-007` **P1** — Server PING → client PONG with same payload · `[DisplayName("RT-2-007: HTTP/2 server PING → client PONG with same payload")]`
-- [ ] `rt2-008` **P0** — GOAWAY received → no new requests sent · `[DisplayName("RT-2-008: HTTP/2 GOAWAY received → no new requests sent")]`
-- [ ] `rt2-009` **P0** — RST_STREAM cancels stream, other streams continue · `[DisplayName("RT-2-009: HTTP/2 RST_STREAM → stream dropped, other streams continue")]`
-- [ ] `rt2-010` **P0** — Authorization NeverIndexed preserved in round-trip · `[DisplayName("RT-2-010: Authorization header NeverIndexed in HTTP/2 round-trip")]`
-- [ ] `rt2-011` **P1** — Cookie NeverIndexed preserved in round-trip · `[DisplayName("RT-2-011: Cookie header NeverIndexed in HTTP/2 round-trip")]`
-- [ ] `rt2-012` **P0** — Large headers via CONTINUATION, all decoded · `[DisplayName("RT-2-012: HTTP/2 request with headers exceeding frame size uses CONTINUATION")]`
-- [ ] `rt2-013` **P1** — Server PUSH_PROMISE decoded, pushed response received · `[DisplayName("RT-2-013: HTTP/2 server PUSH_PROMISE decoded, pushed response received")]`
-- [ ] `rt2-014` **P0** — POST body larger than initial window uses WINDOW_UPDATE · `[DisplayName("RT-2-014: HTTP/2 POST body larger than initial window uses WINDOW_UPDATE")]`
-- [ ] `rt2-015` **P1** — 404 response on stream decoded · `[DisplayName("RT-2-015: HTTP/2 request → 404 response on stream decoded")]`
+- [x] `rt2-001` **P0** — Connection preface + SETTINGS exchange · `[DisplayName("RT-2-001: HTTP/2 connection preface + SETTINGS exchange")]`
+- [x] `rt2-001` **P0** — Connection preface + SETTINGS exchange · `[DisplayName("RT-2-001: HTTP/2 connection preface + SETTINGS exchange")]`
+- [x] `rt2-002` **P0** — GET → 200 on stream 1 · `[DisplayName("RT-2-002: HTTP/2 GET → 200 on stream 1")]`
+- [x] `rt2-003` **P0** — POST → HEADERS+DATA → 201 response · `[DisplayName("RT-2-003: HTTP/2 POST → HEADERS+DATA → 201 response")]`
+- [x] `rt2-004` **P0** — Three concurrent streams each complete independently · `[DisplayName("RT-2-004: HTTP/2 three concurrent streams each complete independently")]`
+- [x] `rt2-005` **P0** — HPACK dynamic table reused across three requests · `[DisplayName("RT-2-005: HTTP/2 HPACK dynamic table reused across three requests")]`
+- [x] `rt2-006` **P0** — Server SETTINGS → client ACK → both sides updated · `[DisplayName("RT-2-006: HTTP/2 server SETTINGS → client ACK → both sides updated")]`
+- [x] `rt2-007` **P1** — Server PING → client PONG with same payload · `[DisplayName("RT-2-007: HTTP/2 server PING → client PONG with same payload")]`
+- [x] `rt2-008` **P0** — GOAWAY received → no new requests sent · `[DisplayName("RT-2-008: HTTP/2 GOAWAY received → no new requests sent")]`
+- [x] `rt2-009` **P0** — RST_STREAM cancels stream, other streams continue · `[DisplayName("RT-2-009: HTTP/2 RST_STREAM → stream dropped, other streams continue")]`
+- [x] `rt2-010` **P0** — Authorization NeverIndexed preserved in round-trip · `[DisplayName("RT-2-010: Authorization header NeverIndexed in HTTP/2 round-trip")]`
+- [x] `rt2-011` **P1** — Cookie NeverIndexed preserved in round-trip · `[DisplayName("RT-2-011: Cookie header NeverIndexed in HTTP/2 round-trip")]`
+- [x] `rt2-012` **P0** — Large headers via CONTINUATION, all decoded · `[DisplayName("RT-2-012: HTTP/2 request with headers exceeding frame size uses CONTINUATION")]`
+- [x] `rt2-013` **P1** — Server PUSH_PROMISE decoded, pushed response received · `[DisplayName("RT-2-013: HTTP/2 server PUSH_PROMISE decoded, pushed response received")]`
+- [x] `rt2-014` **P0** — POST body larger than initial window uses WINDOW_UPDATE · `[DisplayName("RT-2-014: HTTP/2 POST body larger than initial window uses WINDOW_UPDATE")]`
+- [x] `rt2-015` **P1** — 404 response on stream decoded · `[DisplayName("RT-2-015: HTTP/2 request → 404 response on stream decoded")]`
 
 ---
 
@@ -636,65 +637,646 @@
 
 ### HTTP/1.0 Fragmentation
 
-- [ ] `frag10-001` **P0** — Status-line split at byte 1 · `[DisplayName("FRAG-10-001: HTTP/1.0 status-line split at byte 1")]`
-- [ ] `frag10-002` **P0** — Status-line split at byte 8 (mid-version) · `[DisplayName("FRAG-10-002: HTTP/1.0 status-line split mid-version")]`
-- [ ] `frag10-003` **P0** — Header name split mid-word · `[DisplayName("FRAG-10-003: HTTP/1.0 header name split mid-word")]`
-- [ ] `frag10-004` **P0** — Body split at first byte · `[DisplayName("FRAG-10-004: HTTP/1.0 body split at first byte")]`
-- [ ] `frag10-005` **P0** — Body split at midpoint · `[DisplayName("FRAG-10-005: HTTP/1.0 body split at midpoint")]`
+- [x] `frag10-001` **P0** — Status-line split at byte 1 · `[DisplayName("FRAG-10-001: HTTP/1.0 status-line split at byte 1")]`
+- [x] `frag10-002` **P0** — Status-line split at byte 8 (mid-version) · `[DisplayName("FRAG-10-002: HTTP/1.0 status-line split mid-version")]`
+- [x] `frag10-003` **P0** — Header name split mid-word · `[DisplayName("FRAG-10-003: HTTP/1.0 header name split mid-word")]`
+- [x] `frag10-004` **P0** — Body split at first byte · `[DisplayName("FRAG-10-004: HTTP/1.0 body split at first byte")]`
+- [x] `frag10-005` **P0** — Body split at midpoint · `[DisplayName("FRAG-10-005: HTTP/1.0 body split at midpoint")]`
 
 ### HTTP/1.1 Fragmentation
 
-- [ ] `frag11-001` **P0** — Status-line split at byte 1 · `[DisplayName("FRAG-11-001: HTTP/1.1 status-line split at byte 1")]`
-- [ ] `frag11-002` **P0** — Status-line split mid-version · `[DisplayName("FRAG-11-002: HTTP/1.1 status-line split inside version")]`
-- [ ] `frag11-003` **P0** — Header split at colon · `[DisplayName("FRAG-11-003: HTTP/1.1 header split at colon")]`
-- [ ] `frag11-004` **P0** — Header-body boundary split · `[DisplayName("FRAG-11-004: HTTP/1.1 split at first byte of CRLFCRLF")]`
-- [ ] `frag11-005` **P0** — Chunked: chunk-size line split mid-hex · `[DisplayName("FRAG-11-005: HTTP/1.1 chunk-size line split mid-hex")]`
-- [ ] `frag11-006` **P0** — Chunked: chunk data split mid-content · `[DisplayName("FRAG-11-006: HTTP/1.1 chunk data split mid-content")]`
-- [ ] `frag11-007` **P0** — Chunked: final chunk split · `[DisplayName("FRAG-11-007: HTTP/1.1 final 0-chunk split")]`
-- [ ] `frag11-008` **P0** — Single-byte delivery assembles complete response · `[DisplayName("FRAG-11-008: HTTP/1.1 response delivered 1 byte at a time")]`
+- [x] `frag11-001` **P0** — Status-line split at byte 1 · `[DisplayName("FRAG-11-001: HTTP/1.1 status-line split at byte 1")]`
+- [x] `frag11-002` **P0** — Status-line split mid-version · `[DisplayName("FRAG-11-002: HTTP/1.1 status-line split inside version")]`
+- [x] `frag11-003` **P0** — Header split at colon · `[DisplayName("FRAG-11-003: HTTP/1.1 header split at colon")]`
+- [x] `frag11-004` **P0** — Header-body boundary split · `[DisplayName("FRAG-11-004: HTTP/1.1 split at first byte of CRLFCRLF")]`
+- [x] `frag11-005` **P0** — Chunked: chunk-size line split mid-hex · `[DisplayName("FRAG-11-005: HTTP/1.1 chunk-size line split mid-hex")]`
+- [x] `frag11-006` **P0** — Chunked: chunk data split mid-content · `[DisplayName("FRAG-11-006: HTTP/1.1 chunk data split mid-content")]`
+- [x] `frag11-007` **P0** — Chunked: final chunk split · `[DisplayName("FRAG-11-007: HTTP/1.1 final 0-chunk split")]`
+- [x] `frag11-008` **P0** — Single-byte delivery assembles complete response · `[DisplayName("FRAG-11-008: HTTP/1.1 response delivered 1 byte at a time")]`
 
 ### HTTP/2 Fragmentation
 
-- [ ] `frag2-001` **P0** — Frame header split at byte 1 · `[DisplayName("FRAG-2-001: HTTP/2 frame header split at byte 1")]`
-- [ ] `frag2-002` **P0** — Frame header split at byte 3 (end of length) · `[DisplayName("FRAG-2-002: HTTP/2 frame header split at byte 3 (end of length)")]`
-- [ ] `frag2-003` **P0** — Frame header split at byte 5 (flags) · `[DisplayName("FRAG-2-003: HTTP/2 frame header split at byte 5 (flags)")]`
-- [ ] `frag2-004` **P0** — Frame header split at byte 8 (last stream byte) · `[DisplayName("FRAG-2-004: HTTP/2 frame header split at byte 8 (last stream byte)")]`
-- [ ] `frag2-005` **P0** — DATA payload split mid-content · `[DisplayName("FRAG-2-005: HTTP/2 DATA payload split mid-content")]`
-- [ ] `frag2-006` **P0** — HPACK block split mid-stream · `[DisplayName("FRAG-2-006: HTTP/2 HEADERS HPACK block split mid-stream")]`
-- [ ] `frag2-007` **P0** — Split between HEADERS and CONTINUATION frames · `[DisplayName("FRAG-2-007: HTTP/2 split between HEADERS and CONTINUATION frames")]`
-- [ ] `frag2-008` **P0** — Two complete frames in one buffer both processed · `[DisplayName("FRAG-2-008: Two complete HTTP/2 frames in one read both processed")]`
-- [ ] `frag2-009` **P0** — Second stream HEADERS split across reads · `[DisplayName("FRAG-2-009: Second stream's HEADERS split across reads while first stream active")]`
+- [x] `frag2-001` **P0** — Frame header split at byte 1 · `[DisplayName("FRAG-2-001: HTTP/2 frame header split at byte 1")]`
+- [x] `frag2-002` **P0** — Frame header split at byte 3 (end of length) · `[DisplayName("FRAG-2-002: HTTP/2 frame header split at byte 3 (end of length)")]`
+- [x] `frag2-003` **P0** — Frame header split at byte 5 (flags) · `[DisplayName("FRAG-2-003: HTTP/2 frame header split at byte 5 (flags)")]`
+- [x] `frag2-004` **P0** — Frame header split at byte 8 (last stream byte) · `[DisplayName("FRAG-2-004: HTTP/2 frame header split at byte 8 (last stream byte)")]`
+- [x] `frag2-005` **P0** — DATA payload split mid-content · `[DisplayName("FRAG-2-005: HTTP/2 DATA payload split mid-content")]`
+- [x] `frag2-006` **P0** — HPACK block split mid-stream · `[DisplayName("FRAG-2-006: HTTP/2 HEADERS HPACK block split mid-stream")]`
+- [x] `frag2-007` **P0** — Split between HEADERS and CONTINUATION frames · `[DisplayName("FRAG-2-007: HTTP/2 split between HEADERS and CONTINUATION frames")]`
+- [x] `frag2-008` **P0** — Two complete frames in one buffer both processed · `[DisplayName("FRAG-2-008: Two complete HTTP/2 frames in one read both processed")]`
+- [x] `frag2-009` **P0** — Second stream HEADERS split across reads · `[DisplayName("FRAG-2-009: Second stream's HEADERS split across reads while first stream active")]`
 
 ---
 
-## Progress Tracker
+## Phase 11: Benchmarks
+
+### New Project: `src/TurboHttp.Benchmarks/TurboHttp.Benchmarks.csproj`
+
+- `net10.0`, `<Optimize>true</Optimize>`, `<AllowUnsafeBlocks>true</AllowUnsafeBlocks>`
+- NuGet: `BenchmarkDotNet`
+- Project reference to `TurboHttp`
+- Add to `TurboHttp.sln`
+
+### Files
+
+**`Program.cs`**: `BenchmarkSwitcher.FromAssembly(typeof(Program).Assembly).Run(args);`
+
+**`EncoderBenchmarks.cs`** — `[MemoryDiagnoser]` `[ShortRunJob]`
+- `Http10_Encode_SimpleGet`
+- `Http10_Encode_WithHeaders_10`
+- `Http11_Encode_SimpleGet`
+- `Http11_Encode_Post_1KB`
+- `Http11_Encode_Post_64KB`
+- `Http11_Encode_WithHeaders_20`
+- `Http2_Encode_ColdHpackTable`
+- `Http2_Encode_WarmHpackTable_10Requests`
+
+**`DecoderBenchmarks.cs`** — `[MemoryDiagnoser]` `[ShortRunJob]`
+- `Http10_Decode_200_NoBody`
+- `Http10_Decode_200_1KB`
+- `Http11_Decode_200_NoBody`
+- `Http11_Decode_200_1KB`
+- `Http11_Decode_200_Chunked_8Chunks`
+- `Http11_Decode_200_64KB`
+- `Http2_Decode_SingleDataFrame`
+- `Http2_Decode_8DataFrames`
+
+**`HpackBenchmarks.cs`** — `[MemoryDiagnoser]` `[ShortRunJob]`
+- `Encode_StaticOnly` / `Encode_Cold` / `Encode_Warm`
+- `Decode_StaticOnly` / `Decode_Cold` / `Decode_Warm`
+- `Huffman_Encode_16chars` / `Huffman_Encode_256chars`
+- `Huffman_Decode_16chars` / `Huffman_Decode_256chars`
+
+### IMPLEMENTATION_PLAN.md section
 
 ```
-Phase 1:  HTTP/1.0 Encoder                 [ 0/23 ] ░░░░░░░░░░
-Phase 2:  HTTP/1.0 Decoder                 [ 0/32 ] ░░░░░░░░░░
-Phase 3:  HTTP/1.1 Encoder                 [ 0/34 ] ░░░░░░░░░░
-Phase 4:  HTTP/1.1 Decoder                 [ 0/57 ] ░░░░░░░░░░
-Phase 4b: Range Requests (RFC 7233)        [ 0/9  ] ░░░░░░░░░░
-Phase 5:  HTTP/2 Encoder                   [ 0/27 ] ░░░░░░░░░░
-Phase 6:  HTTP/2 Decoder                   [ 0/57 ] ░░░░░░░░░░
-Phase 7:  HPACK (RFC 7541 full)            [ 0/30 ] ░░░░░░░░░░
-Phase 8:  Security & Limits                [ 0/17 ] ░░░░░░░░░░
-Phase 9:  Round-Trip Tests                 [ 0/35 ] ░░░░░░░░░░
-Phase 10: TCP Fragmentation                [ 0/22 ] ░░░░░░░░░░
-────────────────────────────────────────────────────────────────
-Total (list items)                         [ 0/343]
-Note: [T] items with InlineData expand to more xUnit results.
-With all [InlineData] rows: ~644 effective test results.
+## Phase 11: Benchmarks
+File: src/TurboHttp.Benchmarks/
+- [ ] Create TurboHttp.Benchmarks.csproj + add to solution
+- [ ] Program.cs
+- [ ] EncoderBenchmarks.cs  (8 benchmarks)
+- [ ] DecoderBenchmarks.cs  (8 benchmarks)
+- [ ] HpackBenchmarks.cs    (9 benchmarks)
 ```
 
 ---
 
-## New Test Files Required
+## Phase 12: HTTP/1.0 Integration Tests (~90 tests)
 
-| File | Phase | Purpose |
-|------|-------|---------|
-| `src/TurboHttp.Tests/Http11SecurityTests.cs` | 8 | HTTP/1.1 security limits and smuggling |
-| `src/TurboHttp.Tests/Http2SecurityTests.cs` | 8 | HTTP/2 protocol protection |
-| `src/TurboHttp.Tests/Http11RoundTripTests.cs` | 9 | HTTP/1.1 encode→decode end-to-end |
-| `src/TurboHttp.Tests/Http2RoundTripTests.cs` | 9 | HTTP/2 encode→decode end-to-end |
-| `src/TurboHttp.Tests/TcpFragmentationTests.cs` | 10 | Systematic TCP split-point matrix |
+**File**: `src/TurboHttp.IntegrationTests/Http10/`
+**Fixture**: `KestrelFixture` (HTTP/1.0 or HTTP/1.1 server, both acceptable for 1.0 responses)
+**ID prefix**: `IT-10-`
+**Encoding**: All requests use `Http10Encoder`, all responses decoded by `Http10Decoder`.
+
+### Test Classes
+
+**`Http10BasicTests.cs`** (~25 tests)
+- [ ] GET /hello → 200, body "Hello World"
+- [ ] GET /hello — headers: Date present, Content-Length correct
+- [ ] GET /large/1 → 200, 1 KB body
+- [ ] GET /large/64 → 200, 64 KB body
+- [ ] GET /status/200, /201, /204, /301, /400, /404, /500
+- [ ] GET /ping → 200, body "pong"
+- [ ] GET /content/text%2Fhtml → Content-Type header parsed
+- [ ] GET /content/application%2Fjson → Content-Type correct
+- [ ] HEAD /hello → 200, no body, Content-Length present
+- [ ] GET /methods → body "GET"
+
+**`Http10BodyTests.cs`** (~20 tests)
+- [ ] POST /echo small body → 200, body echoed
+- [ ] POST /echo 1KB body → correct
+- [ ] POST /echo 64KB body → correct
+- [ ] POST /echo empty body → 200, empty body
+- [ ] POST /echo binary body (0x00..0xFF) → byte-accurate round-trip
+- [ ] POST /echo body with CRLF in it
+- [ ] POST /echo body with null bytes
+- [ ] Body Content-Length matches actual byte count (5 variations)
+- [ ] POST /echo Content-Type mirrored correctly
+
+**`Http10HeaderTests.cs`** (~20 tests)
+- [ ] GET /headers/echo with X-Test: value → echoed in response
+- [ ] GET /headers/echo multiple X-* headers → all echoed
+- [ ] GET /headers/echo header with Unicode value (Latin-1)
+- [ ] GET /auth without Authorization → 401
+- [ ] GET /auth with valid Authorization → 200
+- [ ] Response headers: Server, Date, Content-Type — presence/format
+- [ ] Custom response headers from /headers/set?Foo=Bar
+- [ ] Multiple values for same header name
+- [ ] Header names case-insensitive match
+- [ ] Content-Length vs actual body byte count
+
+**`Http10StatusCodeTests.cs`** (~15 tests)
+- [ ] 200, 201, 204, 206, 301, 302, 400, 401, 403, 404, 405, 408, 500, 502, 503
+
+**`Http10ConnectionTests.cs`** (~10 tests)
+- [ ] Connection closes after response (HTTP/1.0 default)
+- [ ] Multiple sequential requests need separate connections
+- [ ] Server-sent Connection:close respected
+- [ ] TryDecodeEof on closed connection succeeds
+- [ ] Partial response → decoder returns Incomplete
+
+---
+
+## Phase 13: HTTP/1.1 Integration Tests — Core (~110 tests)
+
+**File**: `src/TurboHttp.IntegrationTests/Http11/`
+**Fixture**: `KestrelFixture`
+**ID prefix**: `IT-11-`
+**Encoding**: `Http11Encoder` + `Http11Decoder`.
+
+### Test Classes
+
+**`Http11BasicTests.cs`** (~25 tests)
+- [ ] GET, POST, HEAD, PUT, DELETE, PATCH, OPTIONS (7 verbs × basic scenario)
+- [ ] GET /hello Host header required
+- [ ] GET /hello multiple status codes: 200..503 (8 codes)
+- [ ] GET /large/1, /large/64, /large/512 KB
+- [ ] GET /content/text%2Fplain, /content/application%2Fjson, /content/application%2Foctet-stream
+
+**`Http11KeepAliveTests.cs`** (~20 tests)
+- [ ] 2 sequential requests on same connection
+- [ ] 5 sequential requests on same connection
+- [ ] 10 sequential requests on same connection
+- [ ] Server Connection:close terminates reuse
+- [ ] Request with Connection:close header
+- [ ] Mixed keep-alive + close on same socket
+- [ ] Decoder resets cleanly between requests
+- [ ] Keep-alive with varying body sizes
+- [ ] Keep-alive: GET then POST then GET
+- [ ] Pipeline depth 2: two requests in flight
+- [ ] Pipeline depth 5
+- [ ] Pipeline with mixed verbs
+- [ ] Responses arrive in request order
+- [ ] Keep-alive timeout (slow server → close)
+
+**`Http11ChunkedTests.cs`** (~25 tests)
+- [ ] GET /chunked/1 → 1 KB chunked
+- [ ] GET /chunked/64 → 64 KB chunked
+- [ ] GET /chunked/512 → 512 KB chunked
+- [ ] Chunk count: 1 chunk / 4 chunks / 32 chunks
+- [ ] Chunk sizes: 1 byte, 128 bytes, 4 KB, 16 KB
+- [ ] Chunked body round-trip (POST /echo/chunked)
+- [ ] Chunked with trailer headers
+- [ ] Chunked then keep-alive (next request on same connection)
+- [ ] Chunked with empty last chunk only (valid zero-body)
+- [ ] Chunked body matches Content-MD5
+- [ ] Chunked response to HEAD is empty
+- [ ] Decode chunked across multiple TCP reads (fragmentation)
+- [ ] Last-chunk `0\r\n\r\n` immediately after data
+
+**`Http11HeaderTests.cs`** (~20 tests)
+- [ ] 20 custom headers round-trip
+- [ ] Duplicate header names (List-append semantics)
+- [ ] Content-Type with charset parameter
+- [ ] Multi-value Accept header
+- [ ] Authorization header preserved
+- [ ] Cookie header preserved
+- [ ] Response Date header parses as RFC 7231 date
+- [ ] ETag / If-None-Match conditional 304
+- [ ] Cache-Control directives
+- [ ] X-* custom headers echoed
+- [ ] Very long header value (8 KB)
+- [ ] Header name case folding
+- [ ] Folded header value (obs-fold) rejected
+
+**`Http11StatusAndErrorTests.cs`** (~20 tests)
+- [ ] All 2xx: 200, 201, 202, 204, 206
+- [ ] All 3xx: 301, 302, 303, 307, 308
+- [ ] All 4xx: 400, 401, 403, 404, 405, 408, 409, 410, 413, 429
+- [ ] All 5xx: 500, 501, 502, 503, 504
+
+---
+
+## Phase 14: HTTP/1.1 Integration Tests — Advanced (~90 tests)
+
+**File**: `src/TurboHttp.IntegrationTests/Http11Advanced/`
+**ID prefix**: `IT-11A-`
+
+### Test Classes
+
+**`Http11ContentNegotiationTests.cs`** (~20 tests)
+- [ ] Accept: application/json → Content-Type: application/json
+- [ ] Accept: text/html → Content-Type: text/html
+- [ ] Accept: */* → server default type
+- [ ] Accept-Charset header
+- [ ] Accept-Language header
+- [ ] Content-Type: multipart/form-data (server parses)
+- [ ] Content-Type: application/x-www-form-urlencoded
+- [ ] Content-Encoding: identity (default)
+- [ ] Request with Content-Encoding header
+- [ ] Response Content-Encoding:gzip decoded metadata (not body decompress — just header present)
+- [ ] Vary: Accept header in response
+
+**`Http11RangeTests.cs`** (~20 tests)
+- [ ] Range: bytes=0-99 → 206, Content-Range header
+- [ ] Range: bytes=0-0 → 1 byte
+- [ ] Range: bytes=-100 → last 100 bytes
+- [ ] Range: bytes=100- → from byte 100 to end
+- [ ] Range on 1 KB body
+- [ ] Range on 64 KB body
+- [ ] Range: unsatisfiable range → 416
+- [ ] No Range header → 200 (full body)
+- [ ] If-Range with matching ETag
+- [ ] If-Range with non-matching ETag → 200 full
+- [ ] Range: bytes=0-49,50-99 (multi-range, server returns 200 or 206)
+
+**`Http11CachingTests.cs`** (~20 tests)
+- [ ] If-None-Match matches ETag → 304 no body
+- [ ] If-None-Match no match → 200 full body
+- [ ] If-Modified-Since past → 200
+- [ ] If-Modified-Since future → 304
+- [ ] Cache-Control: no-cache in request
+- [ ] Cache-Control: max-age=0
+- [ ] Response Cache-Control: no-store
+- [ ] ETag format valid (quoted string)
+- [ ] Last-Modified in response
+- [ ] Expires header in response
+- [ ] Pragma: no-cache
+
+**`Http11SecurityTests.cs`** (~15 tests)
+- [ ] Very large request body (10 MB) — decoder handles without OOM
+- [ ] Very many request headers (50 headers) — all preserved
+- [ ] Header injection attempt in value rejected by encoder
+- [ ] CRLF in body — body treated as opaque bytes, not parsed
+- [ ] Zero-length Content-Length body
+- [ ] Negative Content-Length → encoder rejects
+- [ ] Request URI > 8 KB — encoder encodes, decoder accepts
+- [ ] Slow response (server sends 1 byte/ms) — decoder accumulates
+
+**`Http11EdgeCaseTests.cs`** (~15 tests)
+- [ ] Empty response body with Content-Length: 0
+- [ ] 204 No Content — no body, no Content-Length
+- [ ] 304 Not Modified — no body
+- [ ] Response with only headers (no body allowed)
+- [ ] Very short response (HTTP/1.1 200 OK\r\n\r\n)
+- [ ] Multiple CRLF between header and body
+- [ ] Response with unknown headers — preserved as-is
+- [ ] OPTIONS * (asterisk request target)
+- [ ] POST with empty body
+- [ ] PUT with binary body (0x00..0xFF)
+- [ ] PATCH with JSON body
+
+---
+
+## Phase 15: HTTP/2 Integration Tests — Core (~100 tests)
+
+**File**: `src/TurboHttp.IntegrationTests/Http2/`
+**Fixture**: `KestrelH2Fixture` (h2c cleartext)
+**ID prefix**: `IT-2-`
+**Encoding**: `Http2Encoder` + `Http2Decoder`; manual connection preface in test helper.
+
+### Test Classes
+
+**`Http2ConnectionTests.cs`** (~20 tests)
+- [ ] Connection preface sent and SETTINGS received
+- [ ] SETTINGS ACK sent and received
+- [ ] PING → PING ACK round-trip
+- [ ] Multiple PING frames
+- [ ] Initial WINDOW_SIZE from server SETTINGS
+- [ ] SETTINGS: HEADER_TABLE_SIZE negotiated
+- [ ] SETTINGS: MAX_CONCURRENT_STREAMS respected
+- [ ] SETTINGS: MAX_FRAME_SIZE negotiated
+- [ ] SETTINGS: INITIAL_WINDOW_SIZE update mid-connection
+- [ ] Idle connection — no frames for 5s — no error
+- [ ] GOAWAY received after connection error
+- [ ] Server sends GOAWAY on close
+- [ ] Client sends GOAWAY before disconnect
+- [ ] SETTINGS frame with zero parameters
+- [ ] Connection-level flow control initial value
+- [ ] WINDOW_UPDATE on connection level
+
+**`Http2StreamTests.cs`** (~25 tests)
+- [ ] Stream 1: GET /hello → HEADERS(200) + DATA("Hello World") + END_STREAM
+- [ ] Stream 1: POST /echo → HEADERS + DATA(request body) → HEADERS(200) + DATA
+- [ ] Stream 1: HEAD /hello → HEADERS(200), no DATA frame
+- [ ] Stream with empty response body (204)
+- [ ] Stream 1 then stream 3 (sequential, odd IDs)
+- [ ] Three sequential streams (1, 3, 5)
+- [ ] Stream RST_STREAM: client cancels → RST received
+- [ ] Stream RST_STREAM: server rejects → RST received
+- [ ] END_STREAM on HEADERS frame (no body request)
+- [ ] END_STREAM on DATA frame
+- [ ] CONTINUATION frame for large HEADERS
+- [ ] Multiple CONTINUATION frames
+- [ ] Stream state: idle → open → half-closed → closed
+- [ ] Large response body (64 KB) across multiple DATA frames
+- [ ] Large request body (64 KB) via DATA frames
+
+**`Http2HpackTests.cs`** (~25 tests)
+- [ ] First request: all headers literal
+- [ ] Second identical request: indexed headers (smaller HEADERS frame)
+- [ ] HPACK dynamic table grows across requests
+- [ ] HPACK: sensitive header never-index
+- [ ] HPACK: static table entries used (method, path, status)
+- [ ] HPACK: Huffman encoding on/off per field
+- [ ] HPACK: dynamic table eviction (size limit reached)
+- [ ] HPACK: SETTINGS_HEADER_TABLE_SIZE reduces table
+- [ ] 20 custom headers compressed across 3 requests
+- [ ] Cookie header split into multiple cookie-pairs
+- [ ] Authorization header never-indexed
+- [ ] Pseudo-headers order: :method, :path, :scheme, :authority
+- [ ] Pseudo-headers in response: :status only
+- [ ] Unknown pseudo-headers rejected by decoder
+- [ ] Decoder: indexed header block + literal + indexed mix
+
+**`Http2DataFrameTests.cs`** (~15 tests)
+- [ ] DATA frame padding ignored
+- [ ] DATA frame PADDED flag handled
+- [ ] Empty DATA frame (0 bytes)
+- [ ] DATA frame exactly at MAX_FRAME_SIZE
+- [ ] DATA frame exceeding MAX_FRAME_SIZE split by encoder
+- [ ] Flow control: send exactly window size
+- [ ] Flow control: pause when window exhausted
+- [ ] WINDOW_UPDATE resumes flow
+- [ ] Stream-level flow control
+- [ ] Connection-level flow control
+- [ ] DATA frame with END_STREAM
+- [ ] Multiple DATA frames then END_STREAM
+- [ ] DATA fragments correctly reassembled (body matches)
+
+**`Http2ErrorTests.cs`** (~15 tests)
+- [ ] GOAWAY with PROTOCOL_ERROR
+- [ ] GOAWAY with ENHANCE_YOUR_CALM
+- [ ] RST_STREAM with CANCEL
+- [ ] RST_STREAM with STREAM_CLOSED
+- [ ] Invalid HEADERS on closed stream
+- [ ] Decoder: unexpected frame type → protocol error
+- [ ] Server-initiated RST — client decodes cleanly
+- [ ] SETTINGS with invalid parameter → PROTOCOL_ERROR
+- [ ] Stream ID 0 used for DATA → connection error
+- [ ] Even stream ID from client → PROTOCOL_ERROR
+- [ ] HEADERS without :method → decoder flags error
+- [ ] HEADERS without :path → decoder flags error
+
+---
+
+## Phase 16: HTTP/2 Integration Tests — Advanced (~70 tests)
+
+**File**: `src/TurboHttp.IntegrationTests/Http2Advanced/`
+**ID prefix**: `IT-2A-`
+
+### Test Classes
+
+**`Http2MultiplexingTests.cs`** (~25 tests)
+- [ ] 2 concurrent streams on same connection
+- [ ] 4 concurrent streams on same connection
+- [ ] 8 concurrent streams on same connection
+- [ ] 16 concurrent streams on same connection
+- [ ] Streams interleaved: DATA frames from different streams
+- [ ] Streams complete out of order
+- [ ] High-priority stream completes before low-priority
+- [ ] Concurrent GET + POST
+- [ ] Stream 1 large body + stream 3 small body (interleaved DATA)
+- [ ] MAX_CONCURRENT_STREAMS = 1: second request waits
+- [ ] MAX_CONCURRENT_STREAMS = 4: fifth request queued
+- [ ] All concurrent streams return correct bodies
+- [ ] Concurrent streams with different response codes
+- [ ] Two streams with same request path
+- [ ] Stream reuse: connection used for 20 sequential+concurrent streams
+
+**`Http2PushPromiseTests.cs`** (~10 tests)
+- [ ] PUSH_PROMISE received and decoded
+- [ ] Push stream ID is even (server-initiated)
+- [ ] PUSH_PROMISE headers decoded by HpackDecoder
+- [ ] Push stream DATA frames received
+- [ ] RST_STREAM on pushed stream (refuse push)
+- [ ] PUSH_PROMISE disabled via SETTINGS_ENABLE_PUSH=0
+- [ ] PUSH_PROMISE with :path and :status pseudo-headers
+- [ ] Multiple push promises in one response
+- [ ] Push promise on stream 1 → push stream 2
+- [ ] Push stream END_STREAM flag
+
+**`Http2FlowControlTests.cs`** (~15 tests)
+- [ ] Stream window exhaustion: encoder pauses DATA
+- [ ] WINDOW_UPDATE received: encoder resumes
+- [ ] Connection window exhaustion
+- [ ] Connection WINDOW_UPDATE resumes
+- [ ] Mixed stream + connection flow control
+- [ ] Default stream window (65535 bytes)
+- [ ] Window overflow detection: > 2^31-1 → FLOW_CONTROL_ERROR
+- [ ] Zero WINDOW_UPDATE increment → PROTOCOL_ERROR (stream)
+- [ ] Zero WINDOW_UPDATE increment → PROTOCOL_ERROR (connection)
+- [ ] 64 KB body fits in one window
+- [ ] 128 KB body requires window update mid-transfer
+- [ ] Multiple WINDOW_UPDATE frames cumulative
+- [ ] Encoder correctly tracks remaining window
+
+**`Http2LargePayloadTests.cs`** (~10 tests)
+- [ ] 1 MB response body decoded correctly
+- [ ] 4 MB response body decoded correctly
+- [ ] 1 MB request body encoded + sent correctly
+- [ ] Multiple DATA frames reassembly order preserved
+- [ ] Body matches SHA-256 of expected content
+- [ ] Large body + large headers (1 KB headers + 1 MB body)
+- [ ] Streaming decode: process frames as they arrive
+- [ ] Memory usage: no unbounded accumulation on large body
+
+**`Http2EdgeCaseTests.cs`** (~10 tests)
+- [ ] Immediately closed stream (HEADERS + END_STREAM, no DATA)
+- [ ] SETTINGS with multiple parameters in one frame
+- [ ] PING with 8-byte opaque data round-trip
+- [ ] Decoder handles unknown frame type (ignore)
+- [ ] Decoder handles unknown flags (ignore)
+- [ ] GOAWAY received mid-connection: in-flight streams complete
+- [ ] Connection reuse after SETTINGS_MAX_CONCURRENT_STREAMS increase
+- [ ] Priority frames (PRIORITY) decoded without error (deprecated but valid)
+- [ ] Very long :path value (4 KB URI)
+- [ ] :authority with port number
+
+---
+
+## Phase 17: Stress & Production-Readiness (~55 tests)
+
+**File**: `src/TurboHttp.IntegrationTests/Stress/`
+**ID prefix**: `IT-STRESS-`
+**Note**: These are slower tests; use `[Trait("Category", "Stress")]` to allow separate CI runs.
+
+### Test Classes
+
+**`Http11StressTests.cs`** (~20 tests)
+- [ ] 100 sequential GET requests on one connection — all 200
+- [ ] 1000 sequential GET requests — no memory growth
+- [ ] 100 POST /echo requests with varying body sizes
+- [ ] 50 concurrent connections × 1 request each
+- [ ] 10 concurrent connections × 10 requests each
+- [ ] Pipeline 10 requests × 10 iterations
+- [ ] Sustained keep-alive: 500 requests, connection never dropped
+- [ ] Large body stream: 10 × 512 KB = 5 MB total
+- [ ] Header stress: 50 custom headers × 100 requests
+- [ ] Mixed verbs 100 iterations: GET, POST, PUT, DELETE cycling
+- [ ] Decoder reset between requests: no state leakage
+- [ ] Memory: heap stable after 1000 requests (< 5 MB delta)
+- [ ] GC pressure: no LOH allocations in steady state
+- [ ] Throughput: > 10 MB/s encode+decode (measured, not asserted)
+
+**`Http2StressTests.cs`** (~20 tests)
+- [ ] 100 sequential streams on one connection — all 200
+- [ ] 500 sequential streams — no state leakage
+- [ ] 32 concurrent streams × 10 iterations
+- [ ] HPACK table: 1000 unique headers — no corruption
+- [ ] HPACK table: 10 000 repeated headers — compression ratio > 80%
+- [ ] Flow control: 100 × 128 KB bodies, window updated correctly each time
+- [ ] 10 connections × 100 streams each (parallel connections)
+- [ ] Encoder stream IDs: 1000 requests → IDs 1,3,5…1999
+- [ ] Decoder: interleaved DATA frames from 16 streams — body integrity
+- [ ] Memory: stable after 500 streams
+- [ ] GOAWAY graceful shutdown after 100 streams
+- [ ] Throughput: > 10 MB/s encode+decode (measured)
+
+**`Http11DecoderRobustnessTests.cs`** (~15 tests)
+- [ ] Decoder receives response 1 byte at a time — eventually succeeds
+- [ ] Decoder receives response in 2-byte chunks
+- [ ] Decoder receives headers in 1 chunk, body in 1000 tiny chunks
+- [ ] Decoder on 10 000 fragmentation patterns (fuzz-style)
+- [ ] EOF mid-header → TryDecodeEof returns error
+- [ ] EOF mid-body (no chunked) → TryDecodeEof uses remaining bytes
+- [ ] EOF mid-chunk → TryDecodeEof error
+- [ ] Decoder Reset() clears all state — next response decoded fresh
+- [ ] Decoder handles response with no headers except mandatory ones
+- [ ] Decoder handles HTTP/1.0 response on HTTP/1.1 connection
+- [ ] Content-Length mismatch: server sends fewer bytes → incomplete
+- [ ] Two responses in one TCP segment — both decoded
+- [ ] Interleaved partial responses from two connections
+
+---
+
+## Total Test Count
+
+| Phase | Tests |
+|---|---|
+| Phase 11: Benchmarks | N/A (perf metrics) |
+| Phase 12: HTTP/1.0 Integration | ~90 |
+| Phase 13: HTTP/1.1 Core | ~110 |
+| Phase 14: HTTP/1.1 Advanced | ~90 |
+| Phase 15: HTTP/2 Core | ~100 |
+| Phase 16: HTTP/2 Advanced | ~70 |
+| Phase 17: Stress | ~55 |
+| **Total Integration Tests** | **~515** |
+
+---
+
+## Implementation Order
+
+1. Append Phases 11–17 sections to `IMPLEMENTATION_PLAN.md` ✓
+2. Create `TurboHttp.Benchmarks.csproj` + add to solution + write 3 benchmark files
+3. Patch `TurboHttp.IntegrationTests.csproj` with ASP.NET framework reference + TurboHttp project ref
+4. Write shared infrastructure: `KestrelFixture.cs`, `KestrelH2Fixture.cs`, `TestRoutes.cs`
+5. Phase 12: HTTP/1.0 integration tests
+6. Phase 13: HTTP/1.1 core tests
+7. Phase 14: HTTP/1.1 advanced tests
+8. Phase 15: HTTP/2 core tests
+9. Phase 16: HTTP/2 advanced tests
+10. Phase 17: Stress tests
+
+Each step: `dotnet build` + `dotnet test` → zero regressions before continuing.
+
+## Context
+
+Phases 1–10 (RFC compliance for HTTP/1.0, 1.1, 2.0 encoders/decoders, HPACK, security, TCP fragmentation) are all complete.
+
+The following phases extend the plan with:
+1. **Phase 11 — Benchmarks**: BenchmarkDotNet performance suite for all encoder/decoder paths
+2. **Phases 12–17 — Integration Tests**: ~515 tests across multiple phases, using real Kestrel TCP + raw `System.Net.Sockets.TcpClient` transport
+
+**Scope**: Encoders/decoders are **client-side only** (encode request → decode response).
+**Transport**: Plain `System.Net.Sockets.TcpClient` + `NetworkStream` — no TurboHttp IO layer.
+**Server**: In-process ASP.NET Minimal API on `localhost:0` (Kestrel, real TCP socket).
+
+---
+
+## Critical Files
+
+| Path | Role |
+|---|---|
+| `D:/GIT/Akka.Streams.Http/IMPLEMENTATION_PLAN.md` | This document — append phases 11–17 |
+| `D:/GIT/Akka.Streams.Http/src/TurboHttp.sln` | Solution — add Benchmarks project |
+| `src/TurboHttp.IntegrationTests/TurboHttp.IntegrationTests.csproj` | Existing empty shell — patch |
+| `src/TurboHttp/Protocol/Http10Encoder.cs` | Benchmark + integration target |
+| `src/TurboHttp/Protocol/Http11Encoder.cs` | Benchmark + integration target |
+| `src/TurboHttp/Protocol/Http2Encoder.cs` | Benchmark + integration target |
+| `src/TurboHttp/Protocol/Http10Decoder.cs` | Benchmark + integration target |
+| `src/TurboHttp/Protocol/Http11Decoder.cs` | Benchmark + integration target |
+| `src/TurboHttp/Protocol/Http2Decoder.cs` | Benchmark + integration target |
+| `src/TurboHttp/Protocol/HpackEncoder.cs` | Benchmark target |
+| `src/TurboHttp/Protocol/HpackDecoder.cs` | Benchmark target |
+| `src/TurboHttp/Protocol/HuffmanCodec.cs` | Benchmark target |
+
+---
+
+## Shared Infrastructure (prerequisite for Phases 12–17)
+
+### `TurboHttp.IntegrationTests.csproj` patches
+
+Add to existing empty `.csproj`:
+- `<FrameworkReference Include="Microsoft.AspNetCore.App" />` — Kestrel + Minimal API
+- Project reference to `TurboHttp`
+- NuGet: `Microsoft.Extensions.Logging.Abstractions` (suppress Kestrel log noise in tests)
+- NuGet: `xunit`
+
+### `TestServer/` folder
+
+**`KestrelFixture.cs`** — `IAsyncLifetime` base fixture
+- `WebApplication _app`; `int Port`; `string Host = "127.0.0.1"`
+- `StartAsync()`: `WebApplication.CreateBuilder()` → Kestrel `Listen(IPAddress.Loopback, 0)` → `MapRoutes()` → `app.StartAsync()`
+- `DisposeAsync()`: `await _app.StopAsync()`
+- `GetPort()`: reads from `_app.Urls` after start
+- `NewTcpStream()`: returns open `NetworkStream` to `Host:Port`
+- `SendRaw(byte[] request) → byte[]`: writes request, reads until EOF or disconnect
+
+**`KestrelH2Fixture.cs`** — same but `HttpProtocols.Http2` (h2c cleartext)
+
+**`TestRoutes.cs`** — static helper `MapAllRoutes(WebApplication app)`:
+```
+GET  /ping                   → 200 "pong"
+GET  /hello                  → 200 "Hello World"  text/plain
+POST /echo                   → 200, echoes body, mirrors Content-Type
+POST /echo/chunked           → 200, echoes body, Transfer-Encoding: chunked
+GET  /headers/echo           → 200, echoes all X-* request headers as response headers
+GET  /headers/set            → 200, sets headers from query string ?name=value
+GET  /status/{code:int}      → {code} (no body)
+GET  /status/{code:int}/body → {code} + body "status {code}"
+GET  /large/{kb:int}         → 200, body = {kb} KB of repeating bytes
+GET  /chunked/{kb:int}       → 200 Transfer-Encoding:chunked, {kb} KB
+GET  /redirect/{code:int}    → {code} Location:/hello
+GET  /redirect/chain         → 301 → 302 → /hello
+GET  /content/{type}         → 200 Content-Type:{type}, body = "body"
+GET  /auth                   → 200 if Authorization present, else 401
+GET  /date                   → 200 Date: header
+GET  /etag                   → 200 ETag: "abc123"
+GET  /conditional            → 200 or 304 depending on If-None-Match
+GET  /range                  → 206 if Range header present, else 200
+GET  /slow/{ms:int}          → waits {ms} ms, then 200
+GET  /close                  → 200 Connection:close
+GET  /keepalive              → 200 Connection:keep-alive
+GET  /methods                → 200 body = request method name
+HEAD /hello                  → 200 no body
+OPTIONS /hello               → 200 Allow: GET,HEAD,POST,OPTIONS
+DELETE /resource             → 204
+PUT  /resource               → 201 or 200
+PATCH /resource              → 200
+GET  /error                  → 500 "Internal Server Error"
+GET  /gzip                   → 200 Content-Encoding:gzip (pre-gzipped body)
+GET  /trailer                → 200 chunked + Trailer: X-Checksum
+```
+
+## Verification
+
+```bash
+# Build everything
+dotnet build --configuration Release ./src/TurboHttp.sln
+
+# Run integration tests (fast tests only, no Stress category)
+dotnet test ./src/TurboHttp.IntegrationTests/TurboHttp.IntegrationTests.csproj \
+  --filter "Category!=Stress"
+
+# Run stress tests separately
+dotnet test ./src/TurboHttp.IntegrationTests/TurboHttp.IntegrationTests.csproj \
+  --filter "Category=Stress"
+
+# Full suite — all unit + integration (must be zero regressions)
+dotnet test ./src/TurboHttp.sln
+
+# Benchmarks (dry-run validation, no timing assertions)
+dotnet run --configuration Release --project ./src/TurboHttp.Benchmarks -- \
+  --job dry --filter "*"
+```

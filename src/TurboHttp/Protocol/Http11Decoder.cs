@@ -557,7 +557,10 @@ public sealed class Http11Decoder : IDisposable
     private static bool IsContentHeader(string name) =>
         name.StartsWith("content-", StringComparison.OrdinalIgnoreCase) ||
         name.Equals("content-length", StringComparison.OrdinalIgnoreCase) ||
-        name.Equals("content-type", StringComparison.OrdinalIgnoreCase);
+        name.Equals("content-type", StringComparison.OrdinalIgnoreCase) ||
+        name.Equals("allow", StringComparison.OrdinalIgnoreCase) ||
+        name.Equals("expires", StringComparison.OrdinalIgnoreCase) ||
+        name.Equals("last-modified", StringComparison.OrdinalIgnoreCase);
 
     private static int? GetContentLengthHeader(Dictionary<string, List<string>> headers)
     {
