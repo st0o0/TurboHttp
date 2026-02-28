@@ -1,5 +1,3 @@
-#nullable enable
-
 using System;
 using System.Net;
 using System.Net.Http;
@@ -10,6 +8,7 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using TurboHttp.Protocol;
 
 namespace TurboHttp.Benchmarks.Core;
@@ -21,6 +20,7 @@ namespace TurboHttp.Benchmarks.Core;
 /// and idle connection retention after a 50 ms idle period.
 /// </summary>
 [MemoryDiagnoser]
+[Config(typeof(MicroBenchmarkConfig))]
 [SimpleJob(warmupCount: 3, targetCount: 5)]
 public class CoreConnectionBenchmarks
 {
@@ -36,6 +36,7 @@ public class CoreConnectionBenchmarks
     public async Task Setup()
     {
         _server = Host.CreateDefaultBuilder()
+            .ConfigureLogging(x => x.ClearProviders())
             .ConfigureWebHostDefaults(web =>
             {
                 web.UseKestrel();
@@ -85,8 +86,15 @@ public class CoreConnectionBenchmarks
             while (true)
             {
                 var n = await stream.ReadAsync(_readBuf);
-                if (n == 0) { break; }
-                if (decoder.TryDecode(_readBuf.AsMemory(0, n), out _)) { break; }
+                if (n == 0)
+                {
+                    break;
+                }
+
+                if (decoder.TryDecode(_readBuf.AsMemory(0, n), out _))
+                {
+                    break;
+                }
             }
         }
     }
@@ -115,8 +123,15 @@ public class CoreConnectionBenchmarks
             while (true)
             {
                 var n = await stream.ReadAsync(readBuf);
-                if (n == 0) { break; }
-                if (decoder.TryDecode(readBuf.AsMemory(0, n), out _)) { break; }
+                if (n == 0)
+                {
+                    break;
+                }
+
+                if (decoder.TryDecode(readBuf.AsMemory(0, n), out _))
+                {
+                    break;
+                }
             }
         }
     }
@@ -151,8 +166,15 @@ public class CoreConnectionBenchmarks
             while (true)
             {
                 var n = await stream.ReadAsync(readBuf);
-                if (n == 0) { break; }
-                if (decoder.TryDecode(readBuf.AsMemory(0, n), out _)) { break; }
+                if (n == 0)
+                {
+                    break;
+                }
+
+                if (decoder.TryDecode(readBuf.AsMemory(0, n), out _))
+                {
+                    break;
+                }
             }
         }
     }
@@ -199,8 +221,15 @@ public class CoreConnectionBenchmarks
         while (true)
         {
             var n = await stream.ReadAsync(readBuf);
-            if (n == 0) { return false; }
-            if (decoder.TryDecode(readBuf.AsMemory(0, n), out _)) { return true; }
+            if (n == 0)
+            {
+                return false;
+            }
+
+            if (decoder.TryDecode(readBuf.AsMemory(0, n), out _))
+            {
+                return true;
+            }
         }
     }
 }

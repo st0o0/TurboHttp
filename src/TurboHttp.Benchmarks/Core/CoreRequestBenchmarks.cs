@@ -1,5 +1,3 @@
-#nullable enable
-
 using System;
 using System.Net;
 using System.Net.Http;
@@ -10,6 +8,7 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using TurboHttp.Protocol;
 
 namespace TurboHttp.Benchmarks.Core;
@@ -20,6 +19,7 @@ namespace TurboHttp.Benchmarks.Core;
 /// and roundtrip latency for TurboHttp (raw TCP) vs HttpClient.
 /// </summary>
 [MemoryDiagnoser]
+[Config(typeof(MicroBenchmarkConfig))]
 [SimpleJob(warmupCount: 3, targetCount: 5)]
 public class CoreRequestBenchmarks
 {
@@ -39,6 +39,7 @@ public class CoreRequestBenchmarks
     public async Task Setup()
     {
         _server = Host.CreateDefaultBuilder()
+            .ConfigureLogging(x => x.ClearProviders())
             .ConfigureWebHostDefaults(web =>
             {
                 web.UseKestrel();
@@ -76,8 +77,15 @@ public class CoreRequestBenchmarks
         while (true)
         {
             var n = await _persistentStream.ReadAsync(_readBuf);
-            if (n == 0) { break; }
-            if (_persistentDecoder.TryDecode(_readBuf.AsMemory(0, n), out _)) { break; }
+            if (n == 0)
+            {
+                break;
+            }
+
+            if (_persistentDecoder.TryDecode(_readBuf.AsMemory(0, n), out _))
+            {
+                break;
+            }
         }
     }
 
@@ -107,8 +115,15 @@ public class CoreRequestBenchmarks
         while (true)
         {
             var n = await _persistentStream.ReadAsync(_readBuf);
-            if (n == 0) { return false; }
-            if (_persistentDecoder.TryDecode(_readBuf.AsMemory(0, n), out _)) { return true; }
+            if (n == 0)
+            {
+                return false;
+            }
+
+            if (_persistentDecoder.TryDecode(_readBuf.AsMemory(0, n), out _))
+            {
+                return true;
+            }
         }
     }
 
@@ -141,8 +156,15 @@ public class CoreRequestBenchmarks
         while (true)
         {
             var n = await stream.ReadAsync(readBuf);
-            if (n == 0) { return false; }
-            if (decoder.TryDecode(readBuf.AsMemory(0, n), out _)) { return true; }
+            if (n == 0)
+            {
+                return false;
+            }
+
+            if (decoder.TryDecode(readBuf.AsMemory(0, n), out _))
+            {
+                return true;
+            }
         }
     }
 
@@ -171,8 +193,15 @@ public class CoreRequestBenchmarks
             while (true)
             {
                 var n = await stream.ReadAsync(readBuf);
-                if (n == 0) { break; }
-                if (decoder.TryDecode(readBuf.AsMemory(0, n), out _)) { break; }
+                if (n == 0)
+                {
+                    break;
+                }
+
+                if (decoder.TryDecode(readBuf.AsMemory(0, n), out _))
+                {
+                    break;
+                }
             }
         }
     }
@@ -199,8 +228,15 @@ public class CoreRequestBenchmarks
         while (true)
         {
             var n = await stream.ReadAsync(readBuf);
-            if (n == 0) { return 0; }
-            if (decoder.TryDecode(readBuf.AsMemory(0, n), out var responses)) { return responses.Count; }
+            if (n == 0)
+            {
+                return 0;
+            }
+
+            if (decoder.TryDecode(readBuf.AsMemory(0, n), out var responses))
+            {
+                return responses.Count;
+            }
         }
     }
 
@@ -228,8 +264,15 @@ public class CoreRequestBenchmarks
         while (true)
         {
             var n = await stream.ReadAsync(readBuf);
-            if (n == 0) { return 0; }
-            if (decoder.TryDecode(readBuf.AsMemory(0, n), out var responses)) { return responses.Count; }
+            if (n == 0)
+            {
+                return 0;
+            }
+
+            if (decoder.TryDecode(readBuf.AsMemory(0, n), out var responses))
+            {
+                return responses.Count;
+            }
         }
     }
 }

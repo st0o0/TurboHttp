@@ -1,5 +1,3 @@
-#nullable enable
-
 using System;
 using System.Net;
 using System.Net.Sockets;
@@ -10,6 +8,7 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Hosting;
 using System.Net.Http;
+using Microsoft.Extensions.Logging;
 using TurboHttp.Protocol;
 
 namespace TurboHttp.Benchmarks.Core;
@@ -20,6 +19,7 @@ namespace TurboHttp.Benchmarks.Core;
 /// behaviour, and peak heap growth during a concurrent burst.
 /// </summary>
 [MemoryDiagnoser]
+[Config(typeof(MicroBenchmarkConfig))]
 [SimpleJob(warmupCount: 3, targetCount: 5)]
 public class CoreMemoryBenchmarks
 {
@@ -32,6 +32,7 @@ public class CoreMemoryBenchmarks
     public async Task Setup()
     {
         _server = Host.CreateDefaultBuilder()
+            .ConfigureLogging(x => x.ClearProviders())
             .ConfigureWebHostDefaults(web =>
             {
                 web.UseKestrel();
