@@ -1,4 +1,3 @@
-#nullable enable
 using System;
 using System.Net;
 using System.Net.Sockets;
@@ -36,7 +35,7 @@ public class ConcurrencyScalingBenchmarks
 
     // Pre-established connection pool — 50 keep-alive connections.
     private TcpClient[] _pool = null!;
-    private System.Net.Sockets.NetworkStream[] _streams = null!;
+    private NetworkStream[] _streams = null!;
     private Http11Decoder[] _decoders = null!;
 
     private int _port;
@@ -74,7 +73,7 @@ public class ConcurrencyScalingBenchmarks
 
         // Pre-establish PoolSize keep-alive connections.
         _pool = new TcpClient[PoolSize];
-        _streams = new System.Net.Sockets.NetworkStream[PoolSize];
+        _streams = new NetworkStream[PoolSize];
         _decoders = new Http11Decoder[PoolSize];
 
         for (var i = 0; i < PoolSize; i++)
@@ -250,7 +249,7 @@ public class ConcurrencyScalingBenchmarks
     }
 
     private async Task SendOnConnectionAsync(
-        System.Net.Sockets.NetworkStream stream,
+        NetworkStream stream,
         Http11Decoder decoder)
     {
         // Local buffers: each concurrent task gets its own stack, avoiding

@@ -19,7 +19,6 @@ namespace TurboHttp.Benchmarks.Core;
 /// behaviour, and peak heap growth during a concurrent burst.
 /// </summary>
 [MemoryDiagnoser]
-[Config(typeof(MicroBenchmarkConfig))]
 [SimpleJob(warmupCount: 3, targetCount: 5)]
 public class CoreMemoryBenchmarks
 {

@@ -1,4 +1,3 @@
-#nullable enable
 using System;
 using System.Net;
 using System.Net.Http;
@@ -39,7 +38,7 @@ public class BurstTrafficBenchmarks
     // Pre-established keep-alive pool eliminates TIME_WAIT accumulation during
     // BenchmarkDotNet's pilot phase while still modelling spike concurrency.
     private TcpClient[] _pool = null!;
-    private System.Net.Sockets.NetworkStream[] _streams = null!;
+    private NetworkStream[] _streams = null!;
     private Http11Decoder[] _decoders = null!;
 
     private int _port;
@@ -83,7 +82,7 @@ public class BurstTrafficBenchmarks
         _httpClient = new HttpClient(handler);
 
         _pool = new TcpClient[PoolSize];
-        _streams = new System.Net.Sockets.NetworkStream[PoolSize];
+        _streams = new NetworkStream[PoolSize];
         _decoders = new Http11Decoder[PoolSize];
 
         for (var i = 0; i < PoolSize; i++)
@@ -226,7 +225,7 @@ public class BurstTrafficBenchmarks
 
     private async Task SendThrottledAsync(
         SemaphoreSlim semaphore,
-        System.Net.Sockets.NetworkStream stream,
+        NetworkStream stream,
         Http11Decoder decoder)
     {
         await semaphore.WaitAsync();
@@ -241,7 +240,7 @@ public class BurstTrafficBenchmarks
     }
 
     private async Task SendOnConnectionAsync(
-        System.Net.Sockets.NetworkStream stream,
+        NetworkStream stream,
         Http11Decoder decoder)
     {
         var encBuf = new byte[512];
@@ -295,7 +294,7 @@ public class BurstTrafficBenchmarks
         }
     }
 
-    private async Task SendOneWithTokenAsync(System.Threading.CancellationToken cancellationToken)
+    private async Task SendOneWithTokenAsync(CancellationToken cancellationToken)
     {
         using var tcp = new TcpClient();
         await tcp.ConnectAsync(IPAddress.Loopback, _port, cancellationToken);

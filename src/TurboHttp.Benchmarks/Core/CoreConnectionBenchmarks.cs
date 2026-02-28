@@ -20,7 +20,6 @@ namespace TurboHttp.Benchmarks.Core;
 /// and idle connection retention after a 50 ms idle period.
 /// </summary>
 [MemoryDiagnoser]
-[Config(typeof(MicroBenchmarkConfig))]
 [SimpleJob(warmupCount: 3, targetCount: 5)]
 public class CoreConnectionBenchmarks
 {

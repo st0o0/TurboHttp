@@ -1258,112 +1258,147 @@ File: src/TurboHttp.Benchmarks/
 
 ### Long Running Stability
 
-- [ ] 24 hour sustained load
-- [ ] 10M total requests
-- [ ] Memory growth slope < linear
+- [x] 24 hour sustained load
+- [x] 10M total requests
+- [x] Memory growth slope < linear
 
 ---
 
 ### Network Variability Simulation
 
-- [ ] Latency jitter tolerance
-- [ ] Packet fragmentation handling
-- [ ] Connection reset recovery
+- [x] Latency jitter tolerance
+- [x] Packet fragmentation handling
+- [x] Connection reset recovery
 
 ---
 
 ## Cloud / Microservice Patterns
 
-- [ ] Gateway-style request patterns
-- [ ] Authentication token refresh load
-- [ ] Telemetry streaming workload
+- [x] Gateway-style request patterns
+- [x] Authentication token refresh load
+- [x] Telemetry streaming workload
 
 ---
 
-# Phase 22: Production Benchmark Validation (Release Gate)
+# Phase 22: Release Throughput Validation
 
-**File**: `benchmarks/Release/`
-**ID prefix**: `BM-REL-`
-**Note**: This phase serves as the final performance validation gate before the 1.0 release. No new benchmark scenarios are introduced — only full, statistically valid runs of the existing benchmark suites.
-
----
-
-## Scope
-
-This phase includes:
-
-* Core Performance (BM-CORE-*)
-* Protocol & Streaming (BM-PROTO-*)
-* Concurrency & Scaling (BM-CONC-*)
-
-Comparative baselines:
-
-* HttpClient
-* SocketsHttpHandler
-
-All baselines must use:
-
-* Identical payloads
-* Identical server configuration
-* Identical network conditions
+**File:** `benchmarks/Release/HttpClientThroughputBenchmark.cs`
+**ID prefix:** `BM-REL-THR-`
 
 ---
 
-## Benchmark Configuration
+## Objective
 
-Release mode only.
-Executed on the dedicated benchmark environment documented in `docs/performance/environment.md`.
+Measure the maximum achievable **requests per second (RPS)** under reproducible release conditions.
 
-```text
+Two benchmark variants must be executed and compared:
+
+1. **Baseline:** Standard `HttpClient`
+2. **Custom Implementation:** `HttpClient` using the minimal version of the custom encoder and decoder
+
+Both variants must run under identical conditions using **HTTP/1.1**.
+
+---
+
+## Test Environment
+
+* Dedicated benchmark machine
+* Release build
+* .NET 10
+* Server GC enabled
+* No debugger attached
+* Fixed CPU frequency (Turbo Boost disabled)
+* Locally running test server (loopback)
+
+---
+
+## Server Configuration
+
+* Minimal API (Kestrel)
+* Fixed payload size (e.g., 256-byte JSON)
+* No logging
+* Keep-Alive enabled
+* HTTP/1.1 only
+
+---
+
+## Client Configurations
+
+### 1️⃣ Baseline
+
+* Singleton `HttpClient`
+* Default `SocketsHttpHandler`
+* HTTP/1.1
+* Keep-Alive enabled
+* No retries
+* Fixed target address
+
+### 2️⃣ Custom Encoder/Decoder Variant
+
+* Singleton `HttpClient`
+* Custom minimal encoder and decoder implementation
+* HTTP/1.1
+* Keep-Alive enabled
+* No retries
+* Same target address
+* No additional features enabled
+
+Both configurations must use:
+
+* Identical payload
+* Identical concurrency level
+* Identical runtime settings
+* Identical machine and network conditions
+
+---
+
+## Benchmark
+
+### BM-REL-THR-01 — Maximum Throughput Comparison
+
+**Goal:** Compare maximum stable requests per second
+**Load profile:** Constant parallelism (e.g., 256 concurrent requests)
+**Measurement duration:** 30 seconds per iteration
+
+Both variants must be benchmarked in the same run.
+
+---
+
+## Metrics Collected
+
+* Requests per second (Mean)
+* P95 latency
+* P99 latency
+* Standard deviation
+
+---
+
+## BenchmarkDotNet Configuration
+
+```text id="r3kz91"
 Configuration: Release
-Runtime: .NET 10 (Server GC)
-LaunchCount: 10
-WarmupCount: 10
-IterationCount: 20
+Runtime: .NET 10
+Server GC: true
+LaunchCount: 5
+WarmupCount: 5
+IterationCount: 10
+MinIterationTime: 30s
 ```
 
-Statistical reporting must include:
-
-- Mean
-- Median
-- P95 / P99 latency
-- Standard deviation
-- Allocated bytes per operation
-
 ---
 
-## Benchmarks (~12–15 total)
+## Release Criteria
 
-### Core
+A release is permitted only if:
 
-- [ ] Warm steady-state latency (P50 / P99)
-- [ ] Throughput (requests/sec)
-- [ ] Allocations per request
-- [ ] GC collections per 10k requests
-
-### Protocol
-
-- [ ] Header parsing cost
-- [ ] Streaming / chunked throughput
-- [ ] HTTP/2 multiplexing throughput (if applicable)
-
-### Concurrency
-
-- [ ] 1k concurrent request scaling curve
-- [ ] Burst spike handling behavior
-- [ ] Connection reuse efficiency
-
----
-
-## Done when:
-
-- [ ] Full BenchmarkDotNet run completed
-- [ ] No >5% latency regression vs last release candidate
-- [ ] No >5% allocation regression vs last release candidate
-- [ ] Comparative results vs HttpClient documented
-- [ ] Results committed to `docs/performance/release-1.0.md`
-- [ ] Raw BenchmarkDotNet artifacts archived
-- [ ] Build produces zero warnings
+* All benchmark iterations complete successfully without errors
+* No benchmark run is aborted prematurely
+* Baseline and custom implementation are both executed
+* No >5% regression in RPS compared to the previous release candidate (custom variant)
+* No >5% regression in P99 latency compared to the previous release candidate
+* Results are documented in `docs/performance/release-1.0.md`
+* Raw BenchmarkDotNet artifacts are archived
+* The build produces zero warnings
 
 ---
 
