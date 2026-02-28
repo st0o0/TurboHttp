@@ -3,6 +3,7 @@ using TurboHttp.Protocol;
 using System.Buffers;
 using System;
 using System.Collections.Generic;
+using System.Linq;
 
 namespace TurboHttp.Benchmarks;
 
@@ -142,26 +143,26 @@ public class DecoderBenchmarks
         var offset = 0;
 
         var headerLine = "HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n"u8;
-        headerLine.CopyTo(span.Slice(offset));
+        headerLine.CopyTo(span[offset..]);
         offset += headerLine.Length;
 
-        for (int i = 0; i < chunkCount; i++)
+        for (var i = 0; i < chunkCount; i++)
         {
-            var chunkSizeLine = System.Text.Encoding.ASCII.GetBytes("1\r\n");
-            chunkSizeLine.CopyTo(span.Slice(offset));
+            var chunkSizeLine = "1\r\n"u8.ToArray();
+            chunkSizeLine.CopyTo(span[offset..]);
             offset += chunkSizeLine.Length;
 
             span[offset] = (byte)'x';
             offset += 1;
 
-            "\r\n"u8.CopyTo(span.Slice(offset));
+            "\r\n"u8.CopyTo(span[offset..]);
             offset += 2;
         }
 
-        "0\r\n\r\n"u8.CopyTo(span.Slice(offset));
+        "0\r\n\r\n"u8.CopyTo(span[offset..]);
         offset += 5;
 
-        return span.Slice(0, offset).ToArray();
+        return span[..offset].ToArray();
     }
 
     // Build a minimal HTTP/2 HEADERS frame (200 OK, END_STREAM+END_HEADERS) + DATA payload
@@ -185,7 +186,7 @@ public class DecoderBenchmarks
         var frames = new List<byte[]> { headersFrame };
         var chunkSize = 512;
 
-        for (int i = 0; i < frameCount; i++)
+        for (var i = 0; i < frameCount; i++)
         {
             var isLast = i == frameCount - 1;
             var payload = new byte[chunkSize];
@@ -209,11 +210,7 @@ public class DecoderBenchmarks
             frames.Add(frame);
         }
 
-        var totalLength = 0;
-        foreach (var f in frames)
-        {
-            totalLength += f.Length;
-        }
+        var totalLength = frames.Sum(f => f.Length);
 
         var response = new byte[totalLength];
         var offset = 0;

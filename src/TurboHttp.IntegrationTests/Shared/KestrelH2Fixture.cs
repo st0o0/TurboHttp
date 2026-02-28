@@ -1,4 +1,3 @@
-#nullable enable
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Hosting.Server;
@@ -227,6 +226,43 @@ public sealed class KestrelH2Fixture : IAsyncLifetime
             var body = "cookie-set"u8.ToArray();
             ctx.Response.ContentLength = body.Length;
             return Results.Content("cookie-set", "text/plain");
+        });
+
+        // GET /h2/large-headers/{kb} → returns kb*1024 bytes with 10 custom response headers
+        app.MapGet("/h2/large-headers/{kb:int}", (HttpContext ctx, int kb) =>
+        {
+            for (var i = 0; i < 10; i++)
+            {
+                ctx.Response.Headers[$"X-Large-{i:D2}"] = new string('v', 90);
+            }
+
+            var body = new byte[kb * 1024];
+            Array.Fill(body, (byte)'A');
+            return Results.Bytes(body, "application/octet-stream");
+        });
+
+        // GET /h2/priority/{kb} → returns kb*1024 bytes (used for priority stream tests)
+        app.MapGet("/h2/priority/{kb:int}", (int kb) =>
+        {
+            var body = new byte[kb * 1024];
+            Array.Fill(body, (byte)'P');
+            return Results.Bytes(body, "application/octet-stream");
+        });
+
+        // GET /h2/echo-path → echoes the request :path pseudo-header value in body
+        app.MapGet("/h2/echo-path", (HttpContext ctx) =>
+        {
+            var path = ctx.Request.Path + ctx.Request.QueryString;
+            return Results.Content(path, "text/plain");
+        });
+
+        // GET /h2/settings/max-concurrent → echoes X-Stream-Id header value
+        app.MapGet("/h2/settings/max-concurrent", (HttpContext ctx) =>
+        {
+            var streamId = ctx.Request.Headers["X-Stream-Id"].ToString();
+            ctx.Response.Headers["X-Stream-Id"] = streamId;
+            ctx.Response.ContentLength = 0;
+            return Results.Empty;
         });
     }
 }

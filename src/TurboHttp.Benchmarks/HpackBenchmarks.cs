@@ -1,7 +1,6 @@
 using BenchmarkDotNet.Attributes;
 using TurboHttp.Protocol;
 using System;
-using System.Buffers;
 
 namespace TurboHttp.Benchmarks;
 
@@ -10,21 +9,21 @@ namespace TurboHttp.Benchmarks;
 public class HpackBenchmarks
 {
     // Pre-encoded data for decode benchmarks
-    private byte[] _staticOnlyEncoded = default!;
-    private byte[] _coldEncoded = default!;
-    private byte[] _warmEncoded = default!;
+    private byte[] _staticOnlyEncoded = null!;
+    private byte[] _coldEncoded = null!;
+    private byte[] _warmEncoded = null!;
 
     // Raw bytes for Huffman benchmarks
-    private byte[] _raw16chars = default!;
-    private byte[] _raw256chars = default!;
+    private byte[] _raw16chars = null!;
+    private byte[] _raw256chars = null!;
 
     // Pre-encoded Huffman data for decode benchmarks
-    private byte[] _huffman16chars = default!;
-    private byte[] _huffman256chars = default!;
+    private byte[] _huffman16chars = null!;
+    private byte[] _huffman256chars = null!;
 
     // Pre-warmed encoder/decoder for warm-path benchmarks
-    private HpackEncoder _warmEncoder = default!;
-    private HpackDecoder _warmDecoder = default!;
+    private HpackEncoder _warmEncoder = null!;
+    private HpackDecoder _warmDecoder = null!;
 
     // Header sets reused in encode benchmarks
     private static readonly (string Name, string Value)[] StaticHeaders =
@@ -65,7 +64,7 @@ public class HpackBenchmarks
         // Build warm encoder: encode headers 5 times to populate dynamic table
         _warmEncoder = new HpackEncoder();
         _warmDecoder = new HpackDecoder();
-        for (int i = 0; i < 5; i++)
+        for (var i = 0; i < 5; i++)
         {
             var encoded = _warmEncoder.Encode(WarmHeaders);
             _warmDecoder.Decode(encoded.Span);
@@ -74,7 +73,7 @@ public class HpackBenchmarks
         _warmEncoded = _warmEncoder.Encode(WarmHeaders).ToArray();
 
         // Huffman test data
-        _raw16chars = System.Text.Encoding.ASCII.GetBytes("Accept-Encoding");   // 15 chars
+        _raw16chars = "Accept-Encoding"u8.ToArray();   // 15 chars
         _raw256chars = new byte[256];
         Array.Fill(_raw256chars, (byte)'x');
 

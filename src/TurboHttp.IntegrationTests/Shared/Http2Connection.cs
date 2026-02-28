@@ -1,4 +1,3 @@
-#nullable enable
 using System.Net;
 using System.Net.Sockets;
 using TurboHttp.Protocol;
@@ -71,8 +70,7 @@ public sealed class Http2Connection : IAsyncDisposable
     /// Sends a request and waits for the response on the same stream.
     /// Automatically processes control frames (SETTINGS ACK, PING ACK, WINDOW_UPDATE).
     /// </summary>
-    public async Task<HttpResponseMessage> SendAndReceiveAsync(
-        HttpRequestMessage request,
+    public async Task<HttpResponseMessage> SendAndReceiveAsync(HttpRequestMessage request,
         CancellationToken externalCt = default)
     {
         using var cts = CancellationTokenSource.CreateLinkedTokenSource(externalCt);
@@ -129,8 +127,9 @@ public sealed class Http2Connection : IAsyncDisposable
                 }
             }
 
-            // Replenish our receive window if needed (for large response bodies).
+            // Replenish connection and stream receive windows (for large response bodies).
             await SendConnectionWindowUpdateIfNeededAsync(ct);
+            await SendStreamWindowUpdateIfNeededAsync(streamId, ct);
 
             // Return the response if it arrived.
             foreach (var (sid, resp) in result.Responses)
@@ -146,9 +145,7 @@ public sealed class Http2Connection : IAsyncDisposable
             {
                 if (sid == streamId)
                 {
-                    throw new Http2Exception(
-                        $"Server reset stream {streamId} with error {error}.",
-                        error);
+                    throw new Http2Exception($"Server reset stream {streamId} with error {error}.", error);
                 }
             }
 
@@ -185,8 +182,7 @@ public sealed class Http2Connection : IAsyncDisposable
     }
 
     /// <summary>Sends raw bytes directly to the TCP stream (for low-level frame tests).</summary>
-    public Task WriteRawAsync(byte[] bytes, CancellationToken ct = default)
-        => _stream.WriteAsync(bytes, ct).AsTask();
+    public Task WriteRawAsync(byte[] bytes, CancellationToken ct = default) => _stream.WriteAsync(bytes, ct).AsTask();
 
     /// <summary>
     /// Sends a PING frame and waits for the PING ACK.
@@ -248,8 +244,7 @@ public sealed class Http2Connection : IAsyncDisposable
     }
 
     /// <summary>Sends an HTTP/2 SETTINGS frame.</summary>
-    public Task SendSettingsAsync(
-        ReadOnlySpan<(SettingsParameter Key, uint Value)> parameters,
+    public Task SendSettingsAsync(ReadOnlySpan<(SettingsParameter Key, uint Value)> parameters,
         CancellationToken ct = default)
     {
         var frame = Http2Encoder.EncodeSettings(parameters);
@@ -258,6 +253,126 @@ public sealed class Http2Connection : IAsyncDisposable
 
     /// <summary>Exposes the underlying decoder for window and state inspection by tests.</summary>
     public Http2Decoder Decoder => _decoder;
+
+    // ── Multi-stream API ──────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Sends multiple requests back-to-back without waiting for any responses.
+    /// Returns the stream IDs in order of the supplied requests.
+    /// </summary>
+    public async Task<IReadOnlyList<int>> SendRequestsAsync(IReadOnlyList<HttpRequestMessage> requests,
+        CancellationToken ct = default)
+    {
+        var streamIds = new List<int>(requests.Count);
+        foreach (var request in requests)
+        {
+            streamIds.Add(await SendRequestAsync(request, ct));
+        }
+
+        return streamIds;
+    }
+
+    /// <summary>
+    /// Reads responses for all <paramref name="streamIds"/>, buffering any that arrive
+    /// out of order, and returns a dictionary mapping stream ID to response.
+    /// </summary>
+    public async Task<IReadOnlyDictionary<int, HttpResponseMessage>> ReadAllResponsesAsync(
+        IReadOnlyList<int> streamIds,
+        CancellationToken externalCt = default)
+    {
+        using var cts = CancellationTokenSource.CreateLinkedTokenSource(externalCt);
+        cts.CancelAfter(TimeSpan.FromSeconds(30));
+
+        var pending = new HashSet<int>(streamIds);
+        var collected = new Dictionary<int, HttpResponseMessage>();
+
+        while (pending.Count > 0)
+        {
+            var bytesRead = await _stream.ReadAsync(_readBuffer, cts.Token);
+            if (bytesRead == 0)
+            {
+                throw new InvalidOperationException(
+                    "Server closed connection before all responses were received.");
+            }
+
+            var chunk = _readBuffer.AsMemory(0, bytesRead).ToArray();
+            if (!_decoder.TryDecode(chunk.AsMemory(), out var result))
+            {
+                continue;
+            }
+
+            foreach (var ack in result.SettingsAcksToSend)
+            {
+                await _stream.WriteAsync(ack, cts.Token);
+            }
+
+            foreach (var pingAck in result.PingAcksToSend)
+            {
+                await _stream.WriteAsync(pingAck, cts.Token);
+            }
+
+            foreach (var (sid, increment) in result.WindowUpdates)
+            {
+                if (sid == 0)
+                {
+                    _encoder.UpdateConnectionWindow(increment);
+                }
+                else
+                {
+                    _encoder.UpdateStreamWindow(sid, increment);
+                }
+            }
+
+            await SendConnectionWindowUpdateIfNeededAsync(cts.Token);
+            foreach (var sid in pending)
+            {
+                await SendStreamWindowUpdateIfNeededAsync(sid, cts.Token);
+            }
+
+            foreach (var (sid, resp) in result.Responses)
+            {
+                if (pending.Contains(sid))
+                {
+                    collected[sid] = resp;
+                    pending.Remove(sid);
+                }
+            }
+
+            foreach (var (sid, error) in result.RstStreams)
+            {
+                if (pending.Contains(sid))
+                {
+                    throw new Http2Exception(
+                        $"Server reset stream {sid} with error {error}.",
+                        error);
+                }
+            }
+
+            if (result.GoAway is { } goAway && pending.Count > 0)
+            {
+                throw new Http2Exception(
+                    $"Server sent GOAWAY: lastStream={goAway.LastStreamId}, error={goAway.ErrorCode}.",
+                    goAway.ErrorCode);
+            }
+        }
+
+        return collected;
+    }
+
+    /// <summary>
+    /// Convenience: sends all requests then waits for all responses.
+    /// Returns a dictionary mapping stream ID to response.
+    /// </summary>
+    public async Task<IReadOnlyDictionary<int, HttpResponseMessage>> SendAndReceiveMultipleAsync(
+        IReadOnlyList<HttpRequestMessage> requests,
+        CancellationToken externalCt = default)
+    {
+        using var cts = CancellationTokenSource.CreateLinkedTokenSource(externalCt);
+        cts.CancelAfter(TimeSpan.FromSeconds(30));
+
+        var streamIds = await SendRequestsAsync(requests, cts.Token);
+        return await ReadAllResponsesAsync(streamIds, cts.Token);
+    }
 
     // ── Internal helpers ──────────────────────────────────────────────────────
 
@@ -318,6 +433,28 @@ public sealed class Http2Connection : IAsyncDisposable
         }
     }
 
+    /// <summary>
+    /// Sends a stream-level WINDOW_UPDATE for <paramref name="streamId"/> when its receive window
+    /// drops below the refill threshold, allowing the server to send more DATA frames on that stream.
+    /// Without this, bodies larger than the initial window (65535 bytes) stall because the stream
+    /// window is exhausted even though the connection window is still available.
+    /// </summary>
+    private async Task SendStreamWindowUpdateIfNeededAsync(int streamId, CancellationToken ct)
+    {
+        var current = _decoder.GetStreamReceiveWindow(streamId);
+        if (current < ReceiveWindowRefillThreshold)
+        {
+            var increment = InitialReceiveWindow - current;
+            if (increment > 0)
+            {
+                var wu = Http2Encoder.EncodeWindowUpdate(streamId, increment);
+                await _stream.WriteAsync(wu, ct);
+                // Update decoder so it accepts future DATA frames within the new window.
+                _decoder.SetStreamReceiveWindow(streamId, InitialReceiveWindow);
+            }
+        }
+    }
+
     // ── IAsyncDisposable ──────────────────────────────────────────────────────
 
     public async ValueTask DisposeAsync()
@@ -326,7 +463,7 @@ public sealed class Http2Connection : IAsyncDisposable
 
         try
         {
-            _stream.Dispose();
+            await _stream.DisposeAsync();
         }
         catch (Exception)
         {
@@ -349,9 +486,7 @@ public static class Http2Helper
     /// Opens a new HTTP/2 connection, sends <paramref name="request"/>, reads one response,
     /// disposes the connection, and returns the response.
     /// </summary>
-    public static async Task<HttpResponseMessage> SendAsync(
-        int port,
-        HttpRequestMessage request,
+    public static async Task<HttpResponseMessage> SendAsync(int port, HttpRequestMessage request,
         CancellationToken externalCt = default)
     {
         using var cts = CancellationTokenSource.CreateLinkedTokenSource(externalCt);
@@ -362,20 +497,14 @@ public static class Http2Helper
     }
 
     /// <summary>Sends GET <paramref name="path"/> over a new HTTP/2 connection.</summary>
-    public static Task<HttpResponseMessage> GetAsync(
-        int port,
-        string path,
-        CancellationToken ct = default)
+    public static Task<HttpResponseMessage> GetAsync(int port, string path, CancellationToken ct = default)
     {
         var request = new HttpRequestMessage(HttpMethod.Get, BuildUri(port, path));
         return SendAsync(port, request, ct);
     }
 
     /// <summary>Sends POST <paramref name="path"/> over a new HTTP/2 connection.</summary>
-    public static Task<HttpResponseMessage> PostAsync(
-        int port,
-        string path,
-        HttpContent? content,
+    public static Task<HttpResponseMessage> PostAsync(int port, string path, HttpContent? content,
         CancellationToken ct = default)
     {
         var request = new HttpRequestMessage(HttpMethod.Post, BuildUri(port, path))

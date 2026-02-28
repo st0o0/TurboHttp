@@ -1,4 +1,3 @@
-#nullable enable
 using System.Buffers.Binary;
 using System.Net;
 using System.Net.Sockets;

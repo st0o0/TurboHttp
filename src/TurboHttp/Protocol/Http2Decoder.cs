@@ -56,6 +56,18 @@ public sealed class Http2Decoder
     public void SetConnectionReceiveWindow(int value) => _connectionReceiveWindow = value;
 
     /// <summary>
+    /// Sets the stream-level receive window after sending a stream WINDOW_UPDATE,
+    /// so the decoder will accept future DATA frames within the new window.
+    /// </summary>
+    public void SetStreamReceiveWindow(int streamId, int value)
+    {
+        if (_streams.TryGetValue(streamId, out var state))
+        {
+            state.SetReceiveWindow(value);
+        }
+    }
+
+    /// <summary>
     /// RFC 7540 §3.5 — Validates that bytes from the server begin with a SETTINGS frame
     /// (the mandatory server connection preface).
     /// Returns false if bytes are incomplete (caller should buffer and retry).
@@ -691,6 +703,11 @@ public sealed class Http2Decoder
         public void DeductReceiveWindow(int bytes)
         {
             ReceiveWindow = Math.Max(0, ReceiveWindow - bytes);
+        }
+
+        public void SetReceiveWindow(int value)
+        {
+            ReceiveWindow = value;
         }
 
         public void AppendBody(ReadOnlySpan<byte> data)

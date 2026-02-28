@@ -2,7 +2,6 @@ using BenchmarkDotNet.Attributes;
 using TurboHttp.Protocol;
 using System;
 using System.Net.Http;
-using System.Buffers;
 
 namespace TurboHttp.Benchmarks;
 
@@ -10,12 +9,12 @@ namespace TurboHttp.Benchmarks;
 [SimpleJob(warmupCount: 3, targetCount: 5)]
 public class EncoderBenchmarks
 {
-    private HttpRequestMessage _simpleGet10 = default!;
-    private HttpRequestMessage _simpleGet11 = default!;
-    private HttpRequestMessage _post1KB = default!;
-    private HttpRequestMessage _post64KB = default!;
-    private HttpRequestMessage _withHeaders10 = default!;
-    private HttpRequestMessage _withHeaders20 = default!;
+    private HttpRequestMessage _simpleGet10 = null!;
+    private HttpRequestMessage _simpleGet11 = null!;
+    private HttpRequestMessage _post1KB = null!;
+    private HttpRequestMessage _post64KB = null!;
+    private HttpRequestMessage _withHeaders10 = null!;
+    private HttpRequestMessage _withHeaders20 = null!;
     private readonly byte[] _encodeBuffer = new byte[70_000];
 
     [GlobalSetup]
@@ -24,25 +23,25 @@ public class EncoderBenchmarks
         _simpleGet10 = new HttpRequestMessage
         {
             Method = HttpMethod.Get,
-            RequestUri = new System.Uri("http://example.com/hello")
+            RequestUri = new Uri("http://example.com/hello")
         };
 
         _simpleGet11 = new HttpRequestMessage
         {
             Method = HttpMethod.Get,
-            RequestUri = new System.Uri("http://example.com/hello"),
-            Version = new System.Version(1, 1)
+            RequestUri = new Uri("http://example.com/hello"),
+            Version = new Version(1, 1)
         };
 
         var body1KB = new byte[1024];
-        System.Array.Fill(body1KB, (byte)'x');
+        Array.Fill(body1KB, (byte)'x');
         _post1KB = new HttpRequestMessage(HttpMethod.Post, "http://example.com/echo")
         {
             Content = new ByteArrayContent(body1KB)
         };
 
         var body64KB = new byte[64 * 1024];
-        System.Array.Fill(body64KB, (byte)'y');
+        Array.Fill(body64KB, (byte)'y');
         _post64KB = new HttpRequestMessage(HttpMethod.Post, "http://example.com/echo")
         {
             Content = new ByteArrayContent(body64KB)
@@ -51,7 +50,7 @@ public class EncoderBenchmarks
         _withHeaders10 = new HttpRequestMessage
         {
             Method = HttpMethod.Get,
-            RequestUri = new System.Uri("http://example.com/test")
+            RequestUri = new Uri("http://example.com/test")
         };
         _withHeaders10.Headers.Add("User-Agent", "BenchmarkClient/1.0");
         _withHeaders10.Headers.Add("Accept", "application/json");
@@ -67,7 +66,7 @@ public class EncoderBenchmarks
         _withHeaders20 = new HttpRequestMessage
         {
             Method = HttpMethod.Get,
-            RequestUri = new System.Uri("http://example.com/test")
+            RequestUri = new Uri("http://example.com/test")
         };
         _withHeaders20.Headers.Add("User-Agent", "BenchmarkClient/1.0");
         _withHeaders20.Headers.Add("Accept", "application/json");
@@ -148,7 +147,7 @@ public class EncoderBenchmarks
         var encoder = new Http2Encoder();
         var totalEncoded = 0;
 
-        for (int i = 0; i < 10; i++)
+        for (var i = 0; i < 10; i++)
         {
             var req = new HttpRequestMessage(HttpMethod.Get, $"https://example.com/api/v1/resource/{i}");
             var buffer = _encodeBuffer.AsMemory();

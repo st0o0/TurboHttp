@@ -176,7 +176,7 @@ public sealed class Http11Connection : IAsyncDisposable
 
         try
         {
-            _stream.Dispose();
+            await _stream.DisposeAsync();
         }
         catch (Exception)
         {

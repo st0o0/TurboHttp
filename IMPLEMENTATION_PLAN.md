@@ -1,4 +1,4 @@
-# Client Encoder/Decoder — Production-Ready RFC Implementation Plan
+# Client — Production-Ready RFC Implementation Plan
 
 > **Scope:** Client-side only.
 > **Encoders:** `HttpRequestMessage → bytes` (client sends request)
@@ -1018,70 +1018,70 @@ File: src/TurboHttp.Benchmarks/
 ### Test Classes
 
 **`Http2MultiplexingTests.cs`** (~25 tests)
-- [ ] 2 concurrent streams on same connection
-- [ ] 4 concurrent streams on same connection
-- [ ] 8 concurrent streams on same connection
-- [ ] 16 concurrent streams on same connection
-- [ ] Streams interleaved: DATA frames from different streams
-- [ ] Streams complete out of order
-- [ ] High-priority stream completes before low-priority
-- [ ] Concurrent GET + POST
-- [ ] Stream 1 large body + stream 3 small body (interleaved DATA)
-- [ ] MAX_CONCURRENT_STREAMS = 1: second request waits
-- [ ] MAX_CONCURRENT_STREAMS = 4: fifth request queued
-- [ ] All concurrent streams return correct bodies
-- [ ] Concurrent streams with different response codes
-- [ ] Two streams with same request path
-- [ ] Stream reuse: connection used for 20 sequential+concurrent streams
+- [x] 2 concurrent streams on same connection
+- [x] 4 concurrent streams on same connection
+- [x] 8 concurrent streams on same connection
+- [x] 16 concurrent streams on same connection
+- [x] Streams interleaved: DATA frames from different streams
+- [x] Streams complete out of order
+- [x] High-priority stream completes before low-priority
+- [x] Concurrent GET + POST
+- [x] Stream 1 large body + stream 3 small body (interleaved DATA)
+- [x] MAX_CONCURRENT_STREAMS = 1: second request waits
+- [x] MAX_CONCURRENT_STREAMS = 4: fifth request queued
+- [x] All concurrent streams return correct bodies
+- [x] Concurrent streams with different response codes
+- [x] Two streams with same request path
+- [x] Stream reuse: connection used for 20 sequential+concurrent streams
 
 **`Http2PushPromiseTests.cs`** (~10 tests)
-- [ ] PUSH_PROMISE received and decoded
-- [ ] Push stream ID is even (server-initiated)
-- [ ] PUSH_PROMISE headers decoded by HpackDecoder
-- [ ] Push stream DATA frames received
-- [ ] RST_STREAM on pushed stream (refuse push)
-- [ ] PUSH_PROMISE disabled via SETTINGS_ENABLE_PUSH=0
-- [ ] PUSH_PROMISE with :path and :status pseudo-headers
-- [ ] Multiple push promises in one response
-- [ ] Push promise on stream 1 → push stream 2
-- [ ] Push stream END_STREAM flag
+- [x] PUSH_PROMISE received and decoded
+- [x] Push stream ID is even (server-initiated)
+- [x] PUSH_PROMISE headers decoded by HpackDecoder
+- [x] Push stream DATA frames received
+- [x] RST_STREAM on pushed stream (refuse push)
+- [x] PUSH_PROMISE disabled via SETTINGS_ENABLE_PUSH=0
+- [x] PUSH_PROMISE with :path and :status pseudo-headers
+- [x] Multiple push promises in one response
+- [x] Push promise on stream 1 → push stream 2
+- [x] Push stream END_STREAM flag
 
 **`Http2FlowControlTests.cs`** (~15 tests)
-- [ ] Stream window exhaustion: encoder pauses DATA
-- [ ] WINDOW_UPDATE received: encoder resumes
-- [ ] Connection window exhaustion
-- [ ] Connection WINDOW_UPDATE resumes
-- [ ] Mixed stream + connection flow control
-- [ ] Default stream window (65535 bytes)
-- [ ] Window overflow detection: > 2^31-1 → FLOW_CONTROL_ERROR
-- [ ] Zero WINDOW_UPDATE increment → PROTOCOL_ERROR (stream)
-- [ ] Zero WINDOW_UPDATE increment → PROTOCOL_ERROR (connection)
-- [ ] 64 KB body fits in one window
-- [ ] 128 KB body requires window update mid-transfer
-- [ ] Multiple WINDOW_UPDATE frames cumulative
-- [ ] Encoder correctly tracks remaining window
+- [x] Stream window exhaustion: encoder pauses DATA
+- [x] WINDOW_UPDATE received: encoder resumes
+- [x] Connection window exhaustion
+- [x] Connection WINDOW_UPDATE resumes
+- [x] Mixed stream + connection flow control
+- [x] Default stream window (65535 bytes)
+- [x] Window overflow detection: > 2^31-1 → FLOW_CONTROL_ERROR
+- [x] Zero WINDOW_UPDATE increment → PROTOCOL_ERROR (stream)
+- [x] Zero WINDOW_UPDATE increment → PROTOCOL_ERROR (connection)
+- [x] 64 KB body fits in one window
+- [x] 128 KB body requires window update mid-transfer
+- [x] Multiple WINDOW_UPDATE frames cumulative
+- [x] Encoder correctly tracks remaining window
 
 **`Http2LargePayloadTests.cs`** (~10 tests)
-- [ ] 1 MB response body decoded correctly
-- [ ] 4 MB response body decoded correctly
-- [ ] 1 MB request body encoded + sent correctly
-- [ ] Multiple DATA frames reassembly order preserved
-- [ ] Body matches SHA-256 of expected content
-- [ ] Large body + large headers (1 KB headers + 1 MB body)
-- [ ] Streaming decode: process frames as they arrive
-- [ ] Memory usage: no unbounded accumulation on large body
+- [x] 1 MB response body decoded correctly
+- [x] 4 MB response body decoded correctly
+- [x] 1 MB request body encoded + sent correctly
+- [x] Multiple DATA frames reassembly order preserved
+- [x] Body matches SHA-256 of expected content
+- [x] Large body + large headers (1 KB headers + 1 MB body)
+- [x] Streaming decode: process frames as they arrive
+- [x] Memory usage: no unbounded accumulation on large body
 
 **`Http2EdgeCaseTests.cs`** (~10 tests)
-- [ ] Immediately closed stream (HEADERS + END_STREAM, no DATA)
-- [ ] SETTINGS with multiple parameters in one frame
-- [ ] PING with 8-byte opaque data round-trip
-- [ ] Decoder handles unknown frame type (ignore)
-- [ ] Decoder handles unknown flags (ignore)
-- [ ] GOAWAY received mid-connection: in-flight streams complete
-- [ ] Connection reuse after SETTINGS_MAX_CONCURRENT_STREAMS increase
-- [ ] Priority frames (PRIORITY) decoded without error (deprecated but valid)
-- [ ] Very long :path value (4 KB URI)
-- [ ] :authority with port number
+- [x] Immediately closed stream (HEADERS + END_STREAM, no DATA)
+- [x] SETTINGS with multiple parameters in one frame
+- [x] PING with 8-byte opaque data round-trip
+- [x] Decoder handles unknown frame type (ignore)
+- [x] Decoder handles unknown flags (ignore)
+- [x] GOAWAY received mid-connection: in-flight streams complete
+- [x] Connection reuse after SETTINGS_MAX_CONCURRENT_STREAMS increase
+- [x] Priority frames (PRIORITY) decoded without error (deprecated but valid)
+- [x] Very long :path value (4 KB URI)
+- [x] :authority with port number
 
 ---
 
@@ -1140,35 +1140,145 @@ File: src/TurboHttp.Benchmarks/
 
 ---
 
-## Total Test Count
+## Phase 18: Core Performance Validation (~20 Benchmarks)
 
-| Phase | Tests |
-|---|---|
-| Phase 11: Benchmarks | N/A (perf metrics) |
-| Phase 12: HTTP/1.0 Integration | ~90 |
-| Phase 13: HTTP/1.1 Core | ~110 |
-| Phase 14: HTTP/1.1 Advanced | ~90 |
-| Phase 15: HTTP/2 Core | ~100 |
-| Phase 16: HTTP/2 Advanced | ~70 |
-| Phase 17: Stress | ~55 |
-| **Total Integration Tests** | **~515** |
+**File**: `benchmarks/Core/`
+**ID prefix**: `BM-CORE-`
 
 ---
 
-## Implementation Order
+### Request Performance
 
-1. Append Phases 11–17 sections to `IMPLEMENTATION_PLAN.md` ✓
-2. Create `TurboHttp.Benchmarks.csproj` + add to solution + write 3 benchmark files
-3. Patch `TurboHttp.IntegrationTests.csproj` with ASP.NET framework reference + TurboHttp project ref
-4. Write shared infrastructure: `KestrelFixture.cs`, `KestrelH2Fixture.cs`, `TestRoutes.cs`
-5. Phase 12: HTTP/1.0 integration tests
-6. Phase 13: HTTP/1.1 core tests
-7. Phase 14: HTTP/1.1 advanced tests
-8. Phase 15: HTTP/2 core tests
-9. Phase 16: HTTP/2 advanced tests
-10. Phase 17: Stress tests
+- [ ] P50 / P99 latency — Warm requests
+- [ ] Cold start request latency
+- [ ] Throughput (Requests/sec)
+- [ ] Roundtrip latency over localhost
+- [ ] Roundtrip latency over simulated WAN
 
-Each step: `dotnet build` + `dotnet test` → zero regressions before continuing.
+---
+
+### Memory Efficiency
+
+- [ ] Bytes allocated per request
+- [ ] GC Gen0 collections per 10k requests
+- [ ] LOH allocation detection
+- [ ] Peak heap size during burst load
+
+---
+
+### Connection Handling
+
+- [ ] Connection reuse ratio
+- [ ] TLS session reuse cost
+- [ ] Connection acquisition latency
+- [ ] Idle connection retention performance
+
+---
+
+---
+
+## Phase 19: Streaming & Protocol Efficiency (~25 Benchmarks)
+
+**File**: `benchmarks/Protocol/`
+**ID prefix**: `BM-PROTO-`
+
+---
+
+### HTTP/1.1 Efficiency
+
+- [ ] Chunked encoding throughput
+- [ ] Header parsing latency
+- [ ] Large header sets parsing cost
+- [ ] Pipeline request throughput
+- [ ] Mixed verb workload performance
+
+---
+
+### HTTP/2 Multiplexing
+
+- [ ] Concurrent stream throughput
+- [ ] Stream scheduling overhead
+- [ ] HPACK compression efficiency
+- [ ] Frame decoding throughput
+- [ ] Flow control window behavior
+
+---
+
+### Serialization Paths
+
+- [ ] Small payload path (<128 bytes)
+- [ ] Medium payload path (~1 MB)
+- [ ] Large payload streaming (>5 MB)
+- [ ] Zero-copy path validation
+
+---
+
+---
+
+## Phase 20: Concurrency & Production Load Simulation (~25 Benchmarks)
+
+**File**: `benchmarks/Concurrency/`
+**ID prefix**: `BM-CONC-`
+
+---
+
+### Scaling Behavior
+
+- [ ] 100 → 10k concurrent requests scaling curve
+- [ ] ThreadPool saturation point
+- [ ] Request scheduling fairness
+- [ ] Async continuation overhead
+
+---
+
+### Burst Traffic Simulation
+
+- [ ] Spike load (0 → 5000 RPS → 0)
+- [ ] Request queue backpressure performance
+- [ ] Timeout handling cost
+
+---
+
+### Failure Recovery Performance
+
+- [ ] Retry latency overhead
+- [ ] Circuit breaker recovery cost
+- [ ] Cancellation propagation performance
+
+---
+
+---
+
+## Phase 21: Enterprise Stability & Real World Patterns (~30 Benchmarks)
+
+**File**: `benchmarks/Stability/`
+**ID prefix**: `BM-ENT-`
+
+---
+
+### Long Running Stability
+
+- [ ] 24 hour sustained load
+- [ ] 10M total requests
+- [ ] Memory growth slope < linear
+
+---
+
+### Network Variability Simulation
+
+- [ ] Latency jitter tolerance
+- [ ] Packet fragmentation handling
+- [ ] Connection reset recovery
+
+---
+
+## Cloud / Microservice Patterns
+
+- [ ] Gateway-style request patterns
+- [ ] Authentication token refresh load
+- [ ] Telemetry streaming workload
+
+---
 
 ## Context
 
@@ -1177,29 +1287,11 @@ Phases 1–10 (RFC compliance for HTTP/1.0, 1.1, 2.0 encoders/decoders, HPACK, s
 The following phases extend the plan with:
 1. **Phase 11 — Benchmarks**: BenchmarkDotNet performance suite for all encoder/decoder paths
 2. **Phases 12–17 — Integration Tests**: ~515 tests across multiple phases, using real Kestrel TCP + raw `System.Net.Sockets.TcpClient` transport
+3. **Phases 18-21 - TurboHttp vs HttpCliennt**: 
 
 **Scope**: Encoders/decoders are **client-side only** (encode request → decode response).
 **Transport**: Plain `System.Net.Sockets.TcpClient` + `NetworkStream` — no TurboHttp IO layer.
 **Server**: In-process ASP.NET Minimal API on `localhost:0` (Kestrel, real TCP socket).
-
----
-
-## Critical Files
-
-| Path | Role |
-|---|---|
-| `D:/GIT/Akka.Streams.Http/IMPLEMENTATION_PLAN.md` | This document — append phases 11–17 |
-| `D:/GIT/Akka.Streams.Http/src/TurboHttp.sln` | Solution — add Benchmarks project |
-| `src/TurboHttp.IntegrationTests/TurboHttp.IntegrationTests.csproj` | Existing empty shell — patch |
-| `src/TurboHttp/Protocol/Http10Encoder.cs` | Benchmark + integration target |
-| `src/TurboHttp/Protocol/Http11Encoder.cs` | Benchmark + integration target |
-| `src/TurboHttp/Protocol/Http2Encoder.cs` | Benchmark + integration target |
-| `src/TurboHttp/Protocol/Http10Decoder.cs` | Benchmark + integration target |
-| `src/TurboHttp/Protocol/Http11Decoder.cs` | Benchmark + integration target |
-| `src/TurboHttp/Protocol/Http2Decoder.cs` | Benchmark + integration target |
-| `src/TurboHttp/Protocol/HpackEncoder.cs` | Benchmark target |
-| `src/TurboHttp/Protocol/HpackDecoder.cs` | Benchmark target |
-| `src/TurboHttp/Protocol/HuffmanCodec.cs` | Benchmark target |
 
 ---
 

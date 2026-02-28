@@ -19,7 +19,7 @@ public sealed class TcpConnectionManagerActor : ReceiveActor
     public TcpConnectionManagerActor()
     {
         Receive<OpenConnection>(HandleOpenConnection);
-        Receive<TcpClientRunner.TcpDisconnected>(HandleDisconnected);
+        Receive<TcpClientRunner.ClientDisconnected>(HandleDisconnected);
     }
 
     private void HandleOpenConnection(OpenConnection msg)
@@ -29,10 +29,9 @@ public sealed class TcpConnectionManagerActor : ReceiveActor
         {
             var client = new TcpClient();
             client.Connect(msg.Host, msg.Port);
-
             var connId = ++_connCounter;
-            var runner = Context.ResolveChildActor<TcpClientRunner>(
-                $"tcp-runner-{msg.Host.Replace(".", "-")}-{msg.Port}-{connId}", client, msg.Handler, msg.MaxFrameSize);
+            var runnerName = $"tcp-runner-{msg.Host.Replace(".", "-")}-{msg.Port}-{connId}";
+            var runner = Context.ResolveChildActor<TcpClientRunner>(runnerName, client, msg.Handler, msg.MaxFrameSize);
             _runners[runner] = (msg.Host, msg.Port);
 
             caller.Tell(new ConnectionReady(runner, msg.Host, msg.Port));
@@ -43,17 +42,13 @@ public sealed class TcpConnectionManagerActor : ReceiveActor
         }
     }
 
-    private void HandleDisconnected(TcpClientRunner.TcpDisconnected msg)
+    private void HandleDisconnected(TcpClientRunner.ClientDisconnected msg)
     {
         _runners.Remove(Sender, out _);
     }
 
     protected override SupervisorStrategy SupervisorStrategy() =>
-        new OneForOneStrategy(
-            maxNrOfRetries: 3,
-            withinTimeRange: TimeSpan.FromSeconds(30),
-            decider: new Restart()
-        );
+        new OneForOneStrategy(maxNrOfRetries: 3, withinTimeRange: TimeSpan.FromSeconds(30), decider: new Restart());
 }
 
 public class Restart : IDecider
