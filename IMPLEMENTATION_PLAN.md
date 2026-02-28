@@ -1094,49 +1094,49 @@ File: src/TurboHttp.Benchmarks/
 ### Test Classes
 
 **`Http11StressTests.cs`** (~20 tests)
-- [ ] 100 sequential GET requests on one connection — all 200
-- [ ] 1000 sequential GET requests — no memory growth
-- [ ] 100 POST /echo requests with varying body sizes
-- [ ] 50 concurrent connections × 1 request each
-- [ ] 10 concurrent connections × 10 requests each
-- [ ] Pipeline 10 requests × 10 iterations
-- [ ] Sustained keep-alive: 500 requests, connection never dropped
-- [ ] Large body stream: 10 × 512 KB = 5 MB total
-- [ ] Header stress: 50 custom headers × 100 requests
-- [ ] Mixed verbs 100 iterations: GET, POST, PUT, DELETE cycling
-- [ ] Decoder reset between requests: no state leakage
-- [ ] Memory: heap stable after 1000 requests (< 5 MB delta)
-- [ ] GC pressure: no LOH allocations in steady state
-- [ ] Throughput: > 10 MB/s encode+decode (measured, not asserted)
+- [x] 100 sequential GET requests on one connection — all 200
+- [x] 1000 sequential GET requests — no memory growth
+- [x] 100 POST /echo requests with varying body sizes
+- [x] 50 concurrent connections × 1 request each
+- [x] 10 concurrent connections × 10 requests each
+- [x] Pipeline 10 requests × 10 iterations
+- [x] Sustained keep-alive: 500 requests, connection never dropped
+- [x] Large body stream: 10 × 512 KB = 5 MB total
+- [x] Header stress: 50 custom headers × 100 requests
+- [x] Mixed verbs 100 iterations: GET, POST, PUT, DELETE cycling
+- [x] Decoder reset between requests: no state leakage
+- [x] Memory: heap stable after 1000 requests (< 5 MB delta)
+- [x] GC pressure: no LOH allocations in steady state
+- [x] Throughput: > 10 MB/s encode+decode (measured, not asserted)
 
 **`Http2StressTests.cs`** (~20 tests)
-- [ ] 100 sequential streams on one connection — all 200
-- [ ] 500 sequential streams — no state leakage
-- [ ] 32 concurrent streams × 10 iterations
-- [ ] HPACK table: 1000 unique headers — no corruption
-- [ ] HPACK table: 10 000 repeated headers — compression ratio > 80%
-- [ ] Flow control: 100 × 128 KB bodies, window updated correctly each time
-- [ ] 10 connections × 100 streams each (parallel connections)
-- [ ] Encoder stream IDs: 1000 requests → IDs 1,3,5…1999
-- [ ] Decoder: interleaved DATA frames from 16 streams — body integrity
-- [ ] Memory: stable after 500 streams
-- [ ] GOAWAY graceful shutdown after 100 streams
-- [ ] Throughput: > 10 MB/s encode+decode (measured)
+- [x] 100 sequential streams on one connection — all 200
+- [x] 500 sequential streams — no state leakage
+- [x] 32 concurrent streams × 10 iterations
+- [x] HPACK table: 1000 unique headers — no corruption
+- [x] HPACK table: 10 000 repeated headers — compression ratio > 80%
+- [x] Flow control: 100 × 128 KB bodies, window updated correctly each time
+- [x] 10 connections × 100 streams each (parallel connections)
+- [x] Encoder stream IDs: 1000 requests → IDs 1,3,5…1999
+- [x] Decoder: interleaved DATA frames from 16 streams — body integrity
+- [x] Memory: stable after 500 streams
+- [x] GOAWAY graceful shutdown after 100 streams
+- [x] Throughput: > 10 MB/s encode+decode (measured)
 
 **`Http11DecoderRobustnessTests.cs`** (~15 tests)
-- [ ] Decoder receives response 1 byte at a time — eventually succeeds
-- [ ] Decoder receives response in 2-byte chunks
-- [ ] Decoder receives headers in 1 chunk, body in 1000 tiny chunks
-- [ ] Decoder on 10 000 fragmentation patterns (fuzz-style)
-- [ ] EOF mid-header → TryDecodeEof returns error
-- [ ] EOF mid-body (no chunked) → TryDecodeEof uses remaining bytes
-- [ ] EOF mid-chunk → TryDecodeEof error
-- [ ] Decoder Reset() clears all state — next response decoded fresh
-- [ ] Decoder handles response with no headers except mandatory ones
-- [ ] Decoder handles HTTP/1.0 response on HTTP/1.1 connection
-- [ ] Content-Length mismatch: server sends fewer bytes → incomplete
-- [ ] Two responses in one TCP segment — both decoded
-- [ ] Interleaved partial responses from two connections
+- [x] Decoder receives response 1 byte at a time — eventually succeeds
+- [x] Decoder receives response in 2-byte chunks
+- [x] Decoder receives headers in 1 chunk, body in 1000 tiny chunks
+- [x] Decoder on 10 000 fragmentation patterns (fuzz-style)
+- [x] EOF mid-header → TryDecodeEof returns error
+- [x] EOF mid-body (no chunked) → TryDecodeEof uses remaining bytes
+- [x] EOF mid-chunk → TryDecodeEof error
+- [x] Decoder Reset() clears all state — next response decoded fresh
+- [x] Decoder handles response with no headers except mandatory ones
+- [x] Decoder handles HTTP/1.0 response on HTTP/1.1 connection
+- [x] Content-Length mismatch: server sends fewer bytes → incomplete
+- [x] Two responses in one TCP segment — both decoded
+- [x] Interleaved partial responses from two connections
 
 ---
 
