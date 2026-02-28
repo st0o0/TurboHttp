@@ -1149,29 +1149,29 @@ File: src/TurboHttp.Benchmarks/
 
 ### Request Performance
 
-- [ ] P50 / P99 latency — Warm requests
-- [ ] Cold start request latency
-- [ ] Throughput (Requests/sec)
-- [ ] Roundtrip latency over localhost
-- [ ] Roundtrip latency over simulated WAN
+- [x] P50 / P99 latency — Warm requests
+- [x] Cold start request latency
+- [x] Throughput (Requests/sec)
+- [x] Roundtrip latency over localhost
+- [x] Roundtrip latency over simulated WAN
 
 ---
 
 ### Memory Efficiency
 
-- [ ] Bytes allocated per request
-- [ ] GC Gen0 collections per 10k requests
-- [ ] LOH allocation detection
-- [ ] Peak heap size during burst load
+- [x] Bytes allocated per request
+- [x] GC Gen0 collections per 10k requests
+- [x] LOH allocation detection
+- [x] Peak heap size during burst load
 
 ---
 
 ### Connection Handling
 
-- [ ] Connection reuse ratio
-- [ ] TLS session reuse cost
-- [ ] Connection acquisition latency
-- [ ] Idle connection retention performance
+- [x] Connection reuse ratio
+- [x] TLS session reuse cost
+- [x] Connection acquisition latency
+- [x] Idle connection retention performance
 
 ---
 
