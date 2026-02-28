@@ -855,66 +855,66 @@ File: src/TurboHttp.Benchmarks/
 ### Test Classes
 
 **`Http11ContentNegotiationTests.cs`** (~20 tests)
-- [ ] Accept: application/json → Content-Type: application/json
-- [ ] Accept: text/html → Content-Type: text/html
-- [ ] Accept: */* → server default type
-- [ ] Accept-Charset header
-- [ ] Accept-Language header
-- [ ] Content-Type: multipart/form-data (server parses)
-- [ ] Content-Type: application/x-www-form-urlencoded
-- [ ] Content-Encoding: identity (default)
-- [ ] Request with Content-Encoding header
-- [ ] Response Content-Encoding:gzip decoded metadata (not body decompress — just header present)
-- [ ] Vary: Accept header in response
+- [x] Accept: application/json → Content-Type: application/json
+- [x] Accept: text/html → Content-Type: text/html
+- [x] Accept: */* → server default type
+- [x] Accept-Charset header
+- [x] Accept-Language header
+- [x] Content-Type: multipart/form-data (server parses)
+- [x] Content-Type: application/x-www-form-urlencoded
+- [x] Content-Encoding: identity (default)
+- [x] Request with Content-Encoding header
+- [x] Response Content-Encoding:gzip decoded metadata (not body decompress — just header present)
+- [x] Vary: Accept header in response
 
 **`Http11RangeTests.cs`** (~20 tests)
-- [ ] Range: bytes=0-99 → 206, Content-Range header
-- [ ] Range: bytes=0-0 → 1 byte
-- [ ] Range: bytes=-100 → last 100 bytes
-- [ ] Range: bytes=100- → from byte 100 to end
-- [ ] Range on 1 KB body
-- [ ] Range on 64 KB body
-- [ ] Range: unsatisfiable range → 416
-- [ ] No Range header → 200 (full body)
-- [ ] If-Range with matching ETag
-- [ ] If-Range with non-matching ETag → 200 full
-- [ ] Range: bytes=0-49,50-99 (multi-range, server returns 200 or 206)
+- [x] Range: bytes=0-99 → 206, Content-Range header
+- [x] Range: bytes=0-0 → 1 byte
+- [x] Range: bytes=-100 → last 100 bytes
+- [x] Range: bytes=100- → from byte 100 to end
+- [x] Range on 1 KB body
+- [x] Range on 64 KB body
+- [x] Range: unsatisfiable range → 416
+- [x] No Range header → 200 (full body)
+- [x] If-Range with matching ETag
+- [x] If-Range with non-matching ETag → 200 full
+- [x] Range: bytes=0-49,50-99 (multi-range, server returns 200 or 206)
 
 **`Http11CachingTests.cs`** (~20 tests)
-- [ ] If-None-Match matches ETag → 304 no body
-- [ ] If-None-Match no match → 200 full body
-- [ ] If-Modified-Since past → 200
-- [ ] If-Modified-Since future → 304
-- [ ] Cache-Control: no-cache in request
-- [ ] Cache-Control: max-age=0
-- [ ] Response Cache-Control: no-store
-- [ ] ETag format valid (quoted string)
-- [ ] Last-Modified in response
-- [ ] Expires header in response
-- [ ] Pragma: no-cache
+- [x] If-None-Match matches ETag → 304 no body
+- [x] If-None-Match no match → 200 full body
+- [x] If-Modified-Since past → 200
+- [x] If-Modified-Since future → 304
+- [x] Cache-Control: no-cache in request
+- [x] Cache-Control: max-age=0
+- [x] Response Cache-Control: no-store
+- [x] ETag format valid (quoted string)
+- [x] Last-Modified in response
+- [x] Expires header in response
+- [x] Pragma: no-cache
 
 **`Http11SecurityTests.cs`** (~15 tests)
-- [ ] Very large request body (10 MB) — decoder handles without OOM
-- [ ] Very many request headers (50 headers) — all preserved
-- [ ] Header injection attempt in value rejected by encoder
-- [ ] CRLF in body — body treated as opaque bytes, not parsed
-- [ ] Zero-length Content-Length body
-- [ ] Negative Content-Length → encoder rejects
-- [ ] Request URI > 8 KB — encoder encodes, decoder accepts
-- [ ] Slow response (server sends 1 byte/ms) — decoder accumulates
+- [x] Very large request body (10 MB) — decoder handles without OOM
+- [x] Very many request headers (50 headers) — all preserved
+- [x] Header injection attempt in value rejected by encoder
+- [x] CRLF in body — body treated as opaque bytes, not parsed
+- [x] Zero-length Content-Length body
+- [x] Negative Content-Length → encoder rejects
+- [x] Request URI > 8 KB — encoder encodes, decoder accepts
+- [x] Slow response (server sends 1 byte/ms) — decoder accumulates
 
 **`Http11EdgeCaseTests.cs`** (~15 tests)
-- [ ] Empty response body with Content-Length: 0
-- [ ] 204 No Content — no body, no Content-Length
-- [ ] 304 Not Modified — no body
-- [ ] Response with only headers (no body allowed)
-- [ ] Very short response (HTTP/1.1 200 OK\r\n\r\n)
-- [ ] Multiple CRLF between header and body
-- [ ] Response with unknown headers — preserved as-is
-- [ ] OPTIONS * (asterisk request target)
-- [ ] POST with empty body
-- [ ] PUT with binary body (0x00..0xFF)
-- [ ] PATCH with JSON body
+- [x] Empty response body with Content-Length: 0
+- [x] 204 No Content — no body, no Content-Length
+- [x] 304 Not Modified — no body
+- [x] Response with only headers (no body allowed)
+- [x] Very short response (HTTP/1.1 200 OK\r\n\r\n)
+- [x] Multiple CRLF between header and body
+- [x] Response with unknown headers — preserved as-is
+- [x] OPTIONS * (asterisk request target)
+- [x] POST with empty body
+- [x] PUT with binary body (0x00..0xFF)
+- [x] PATCH with JSON body
 
 ---
 

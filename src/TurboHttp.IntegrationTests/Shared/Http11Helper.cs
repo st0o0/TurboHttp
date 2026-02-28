@@ -1,4 +1,3 @@
-#nullable enable
 using System.Collections.Immutable;
 using System.Net;
 using System.Net.Sockets;

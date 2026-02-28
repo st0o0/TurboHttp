@@ -337,5 +337,144 @@ public sealed class KestrelFixture : IAsyncLifetime
             ctx.Response.ContentLength = body.Length;
             await ctx.Response.Body.WriteAsync(body);
         });
+
+        // ── Phase 14: Content Negotiation ─────────────────────────────────────
+
+        // GET /negotiate → returns content matching the Accept header
+        app.MapGet("/negotiate", (HttpContext ctx) =>
+        {
+            var accept = ctx.Request.Headers.Accept.ToString();
+            if (accept.Contains("application/json", StringComparison.OrdinalIgnoreCase))
+            {
+                return Results.Content("{\"ok\":true}", "application/json");
+            }
+
+            if (accept.Contains("text/html", StringComparison.OrdinalIgnoreCase))
+            {
+                return Results.Content("<html><body>ok</body></html>", "text/html");
+            }
+
+            return Results.Content("default", "text/plain");
+        });
+
+        // GET /negotiate/vary → returns Vary: Accept header in response
+        app.MapGet("/negotiate/vary", (HttpContext ctx) =>
+        {
+            ctx.Response.Headers.Vary = "Accept";
+            return Results.Content("data", "text/plain");
+        });
+
+        // GET /gzip-meta → returns Content-Encoding: identity header (metadata only — body is plain)
+        app.MapGet("/gzip-meta", async (HttpContext ctx) =>
+        {
+            ctx.Response.Headers["Content-Encoding"] = "identity";
+            ctx.Response.ContentType = "text/plain";
+            var body = "encoded-body"u8.ToArray();
+            ctx.Response.ContentLength = body.Length;
+            await ctx.Response.Body.WriteAsync(body);
+        });
+
+        // POST /form/multipart → accepts multipart/form-data, echoes body length
+        app.MapPost("/form/multipart", async (HttpContext ctx) =>
+        {
+            using var ms = new MemoryStream();
+            await ctx.Request.Body.CopyToAsync(ms);
+            var received = ms.ToArray();
+            ctx.Response.ContentType = "text/plain";
+            var response = System.Text.Encoding.UTF8.GetBytes($"received:{received.Length}");
+            ctx.Response.ContentLength = response.Length;
+            await ctx.Response.Body.WriteAsync(response);
+        });
+
+        // POST /form/urlencoded → accepts application/x-www-form-urlencoded, echoes body
+        app.MapPost("/form/urlencoded", async (HttpContext ctx) =>
+        {
+            using var ms = new MemoryStream();
+            await ctx.Request.Body.CopyToAsync(ms);
+            var received = ms.ToArray();
+            ctx.Response.ContentType = "text/plain";
+            var response = System.Text.Encoding.UTF8.GetBytes($"received:{received.Length}");
+            ctx.Response.ContentLength = response.Length;
+            await ctx.Response.Body.WriteAsync(response);
+        });
+
+        // ── Phase 14: Range Requests ──────────────────────────────────────────
+
+        // GET /range/{kb} → range-capable resource, kb*1024 sequential bytes
+        app.MapGet("/range/{kb:int}", (int kb) =>
+        {
+            var body = new byte[kb * 1024];
+            for (var i = 0; i < body.Length; i++)
+            {
+                body[i] = (byte)(i % 256);
+            }
+
+            return Results.Bytes(body, "application/octet-stream", enableRangeProcessing: true);
+        });
+
+        // GET /range/etag → range-capable resource with ETag for If-Range testing
+        const string rangeEtag = "\"range-v1\"";
+        app.MapGet("/range/etag", (HttpContext ctx) =>
+        {
+            var body = new byte[512];
+            for (var i = 0; i < body.Length; i++)
+            {
+                body[i] = (byte)(i % 256);
+            }
+
+            var entityTag = new Microsoft.Net.Http.Headers.EntityTagHeaderValue(rangeEtag);
+            return Results.Bytes(body, "application/octet-stream",
+                entityTag: entityTag,
+                enableRangeProcessing: true);
+        });
+
+        // ── Phase 14: Additional Cache Routes ────────────────────────────────
+
+        // GET /cache/no-store → returns Cache-Control: no-store
+        app.MapGet("/cache/no-store", async (HttpContext ctx) =>
+        {
+            ctx.Response.Headers["Cache-Control"] = "no-store";
+            ctx.Response.ContentType = "text/plain";
+            var body = "no-store-resource"u8.ToArray();
+            ctx.Response.ContentLength = body.Length;
+            await ctx.Response.Body.WriteAsync(body);
+        });
+
+        // ── Phase 14: Slow Response ───────────────────────────────────────────
+
+        // GET /slow/{count} → sends count ASCII 'x' bytes, 1 per write with a flush,
+        // simulating a streaming server that delivers data incrementally.
+        app.MapGet("/slow/{count:int}", async (HttpContext ctx, int count) =>
+        {
+            ctx.Response.ContentType = "text/plain";
+            await ctx.Response.StartAsync();
+            var single = new byte[] { (byte)'x' };
+            for (var i = 0; i < count; i++)
+            {
+                await ctx.Response.Body.WriteAsync(single);
+                await ctx.Response.Body.FlushAsync();
+                await Task.Delay(1);
+            }
+        });
+
+        // ── Phase 14: Edge Case Routes ────────────────────────────────────────
+
+        // GET /empty-cl → returns 200 with Content-Length: 0 and no body
+        app.MapGet("/empty-cl", (HttpContext ctx) =>
+        {
+            ctx.Response.ContentLength = 0;
+            return Results.Empty;
+        });
+
+        // GET /unknown-headers → response with non-standard X-Custom-* headers
+        app.MapGet("/unknown-headers", (HttpContext ctx) =>
+        {
+            ctx.Response.Headers["X-Unknown-Foo"] = "bar";
+            ctx.Response.Headers["X-Unknown-Bar"] = "baz";
+            ctx.Response.ContentType = "text/plain";
+            var body = "ok"u8.ToArray();
+            ctx.Response.ContentLength = body.Length;
+            return Results.Content("ok", "text/plain");
+        });
     }
 }
