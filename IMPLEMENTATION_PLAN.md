@@ -928,85 +928,85 @@ File: src/TurboHttp.Benchmarks/
 ### Test Classes
 
 **`Http2ConnectionTests.cs`** (~20 tests)
-- [ ] Connection preface sent and SETTINGS received
-- [ ] SETTINGS ACK sent and received
-- [ ] PING → PING ACK round-trip
-- [ ] Multiple PING frames
-- [ ] Initial WINDOW_SIZE from server SETTINGS
-- [ ] SETTINGS: HEADER_TABLE_SIZE negotiated
-- [ ] SETTINGS: MAX_CONCURRENT_STREAMS respected
-- [ ] SETTINGS: MAX_FRAME_SIZE negotiated
-- [ ] SETTINGS: INITIAL_WINDOW_SIZE update mid-connection
-- [ ] Idle connection — no frames for 5s — no error
-- [ ] GOAWAY received after connection error
-- [ ] Server sends GOAWAY on close
-- [ ] Client sends GOAWAY before disconnect
-- [ ] SETTINGS frame with zero parameters
-- [ ] Connection-level flow control initial value
-- [ ] WINDOW_UPDATE on connection level
+- [x] Connection preface sent and SETTINGS received
+- [x] SETTINGS ACK sent and received
+- [x] PING → PING ACK round-trip
+- [x] Multiple PING frames
+- [x] Initial WINDOW_SIZE from server SETTINGS
+- [x] SETTINGS: HEADER_TABLE_SIZE negotiated
+- [x] SETTINGS: MAX_CONCURRENT_STREAMS respected
+- [x] SETTINGS: MAX_FRAME_SIZE negotiated
+- [x] SETTINGS: INITIAL_WINDOW_SIZE update mid-connection
+- [x] Idle connection — no frames for 5s — no error
+- [x] GOAWAY received after connection error
+- [x] Server sends GOAWAY on close
+- [x] Client sends GOAWAY before disconnect
+- [x] SETTINGS frame with zero parameters
+- [x] Connection-level flow control initial value
+- [x] WINDOW_UPDATE on connection level
 
 **`Http2StreamTests.cs`** (~25 tests)
-- [ ] Stream 1: GET /hello → HEADERS(200) + DATA("Hello World") + END_STREAM
-- [ ] Stream 1: POST /echo → HEADERS + DATA(request body) → HEADERS(200) + DATA
-- [ ] Stream 1: HEAD /hello → HEADERS(200), no DATA frame
-- [ ] Stream with empty response body (204)
-- [ ] Stream 1 then stream 3 (sequential, odd IDs)
-- [ ] Three sequential streams (1, 3, 5)
-- [ ] Stream RST_STREAM: client cancels → RST received
-- [ ] Stream RST_STREAM: server rejects → RST received
-- [ ] END_STREAM on HEADERS frame (no body request)
-- [ ] END_STREAM on DATA frame
-- [ ] CONTINUATION frame for large HEADERS
-- [ ] Multiple CONTINUATION frames
-- [ ] Stream state: idle → open → half-closed → closed
-- [ ] Large response body (64 KB) across multiple DATA frames
-- [ ] Large request body (64 KB) via DATA frames
+- [x] Stream 1: GET /hello → HEADERS(200) + DATA("Hello World") + END_STREAM
+- [x] Stream 1: POST /echo → HEADERS + DATA(request body) → HEADERS(200) + DATA
+- [x] Stream 1: HEAD /hello → HEADERS(200), no DATA frame
+- [x] Stream with empty response body (204)
+- [x] Stream 1 then stream 3 (sequential, odd IDs)
+- [x] Three sequential streams (1, 3, 5)
+- [x] Stream RST_STREAM: client cancels → RST received
+- [x] Stream RST_STREAM: server rejects → RST received
+- [x] END_STREAM on HEADERS frame (no body request)
+- [x] END_STREAM on DATA frame
+- [x] CONTINUATION frame for large HEADERS
+- [x] Multiple CONTINUATION frames
+- [x] Stream state: idle → open → half-closed → closed
+- [x] Large response body (64 KB) across multiple DATA frames
+- [x] Large request body (64 KB) via DATA frames
 
 **`Http2HpackTests.cs`** (~25 tests)
-- [ ] First request: all headers literal
-- [ ] Second identical request: indexed headers (smaller HEADERS frame)
-- [ ] HPACK dynamic table grows across requests
-- [ ] HPACK: sensitive header never-index
-- [ ] HPACK: static table entries used (method, path, status)
-- [ ] HPACK: Huffman encoding on/off per field
-- [ ] HPACK: dynamic table eviction (size limit reached)
-- [ ] HPACK: SETTINGS_HEADER_TABLE_SIZE reduces table
-- [ ] 20 custom headers compressed across 3 requests
-- [ ] Cookie header split into multiple cookie-pairs
-- [ ] Authorization header never-indexed
-- [ ] Pseudo-headers order: :method, :path, :scheme, :authority
-- [ ] Pseudo-headers in response: :status only
-- [ ] Unknown pseudo-headers rejected by decoder
-- [ ] Decoder: indexed header block + literal + indexed mix
+- [x] First request: all headers literal
+- [x] Second identical request: indexed headers (smaller HEADERS frame)
+- [x] HPACK dynamic table grows across requests
+- [x] HPACK: sensitive header never-index
+- [x] HPACK: static table entries used (method, path, status)
+- [x] HPACK: Huffman encoding on/off per field
+- [x] HPACK: dynamic table eviction (size limit reached)
+- [x] HPACK: SETTINGS_HEADER_TABLE_SIZE reduces table
+- [x] 20 custom headers compressed across 3 requests
+- [x] Cookie header split into multiple cookie-pairs
+- [x] Authorization header never-indexed
+- [x] Pseudo-headers order: :method, :path, :scheme, :authority
+- [x] Pseudo-headers in response: :status only
+- [x] Unknown pseudo-headers rejected by decoder
+- [x] Decoder: indexed header block + literal + indexed mix
 
 **`Http2DataFrameTests.cs`** (~15 tests)
-- [ ] DATA frame padding ignored
-- [ ] DATA frame PADDED flag handled
-- [ ] Empty DATA frame (0 bytes)
-- [ ] DATA frame exactly at MAX_FRAME_SIZE
-- [ ] DATA frame exceeding MAX_FRAME_SIZE split by encoder
-- [ ] Flow control: send exactly window size
-- [ ] Flow control: pause when window exhausted
-- [ ] WINDOW_UPDATE resumes flow
-- [ ] Stream-level flow control
-- [ ] Connection-level flow control
-- [ ] DATA frame with END_STREAM
-- [ ] Multiple DATA frames then END_STREAM
-- [ ] DATA fragments correctly reassembled (body matches)
+- [x] DATA frame padding ignored
+- [x] DATA frame PADDED flag handled
+- [x] Empty DATA frame (0 bytes)
+- [x] DATA frame exactly at MAX_FRAME_SIZE
+- [x] DATA frame exceeding MAX_FRAME_SIZE split by encoder
+- [x] Flow control: send exactly window size
+- [x] Flow control: pause when window exhausted
+- [x] WINDOW_UPDATE resumes flow
+- [x] Stream-level flow control
+- [x] Connection-level flow control
+- [x] DATA frame with END_STREAM
+- [x] Multiple DATA frames then END_STREAM
+- [x] DATA fragments correctly reassembled (body matches)
 
 **`Http2ErrorTests.cs`** (~15 tests)
-- [ ] GOAWAY with PROTOCOL_ERROR
-- [ ] GOAWAY with ENHANCE_YOUR_CALM
-- [ ] RST_STREAM with CANCEL
-- [ ] RST_STREAM with STREAM_CLOSED
-- [ ] Invalid HEADERS on closed stream
-- [ ] Decoder: unexpected frame type → protocol error
-- [ ] Server-initiated RST — client decodes cleanly
-- [ ] SETTINGS with invalid parameter → PROTOCOL_ERROR
-- [ ] Stream ID 0 used for DATA → connection error
-- [ ] Even stream ID from client → PROTOCOL_ERROR
-- [ ] HEADERS without :method → decoder flags error
-- [ ] HEADERS without :path → decoder flags error
+- [x] GOAWAY with PROTOCOL_ERROR
+- [x] GOAWAY with ENHANCE_YOUR_CALM
+- [x] RST_STREAM with CANCEL
+- [x] RST_STREAM with STREAM_CLOSED
+- [x] Invalid HEADERS on closed stream
+- [x] Decoder: unexpected frame type → protocol error
+- [x] Server-initiated RST — client decodes cleanly
+- [x] SETTINGS with invalid parameter → PROTOCOL_ERROR
+- [x] Stream ID 0 used for DATA → connection error
+- [x] Even stream ID from client → PROTOCOL_ERROR
+- [x] HEADERS without :method → decoder flags error
+- [x] HEADERS without :path → decoder flags error
 
 ---
 
