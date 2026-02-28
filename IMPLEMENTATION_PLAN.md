@@ -1224,26 +1224,26 @@ File: src/TurboHttp.Benchmarks/
 
 ### Scaling Behavior
 
-- [ ] 100 → 10k concurrent requests scaling curve
-- [ ] ThreadPool saturation point
-- [ ] Request scheduling fairness
-- [ ] Async continuation overhead
+- [x] 100 → 10k concurrent requests scaling curve
+- [x] ThreadPool saturation point
+- [x] Request scheduling fairness
+- [x] Async continuation overhead
 
 ---
 
 ### Burst Traffic Simulation
 
-- [ ] Spike load (0 → 5000 RPS → 0)
-- [ ] Request queue backpressure performance
-- [ ] Timeout handling cost
+- [x] Spike load (0 → 5000 RPS → 0)
+- [x] Request queue backpressure performance
+- [x] Timeout handling cost
 
 ---
 
 ### Failure Recovery Performance
 
-- [ ] Retry latency overhead
-- [ ] Circuit breaker recovery cost
-- [ ] Cancellation propagation performance
+- [x] Retry latency overhead
+- [x] Circuit breaker recovery cost
+- [x] Cancellation propagation performance
 
 ---
 
