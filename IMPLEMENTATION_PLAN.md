@@ -317,12 +317,13 @@ case SettingsParameter.MaxConcurrentStreams:
 
 ## Phase 35-37: Round-Trip Tests
 
-### Phase 35: Http10 (50+ tests)
-- All methods (GET, POST, PUT, DELETE, HEAD, OPTIONS)
-- With/without body
-- Various headers
-- Fragmented TCP reads
-- Large bodies (streaming)
+### Phase 35: Http10 (50+ tests) ✅
+- ✅ All methods (GET, POST, PUT, DELETE, HEAD, OPTIONS, PATCH)
+- ✅ With/without body
+- ✅ Various headers (custom, forbidden-stripped, content headers)
+- ✅ Fragmented TCP reads (2-frag, single-byte, mid-header, mid-body)
+- ✅ Large bodies (64KB), UTF-8 multi-byte bodies
+- **Tests**: 50 in `Http10RoundTripTests.cs` (7 original + 43 new RT-10-008..RT-10-050)
 
 ### Phase 36: Http11 (60+ tests)
 - Content-Length scenarios
