@@ -637,10 +637,16 @@ public sealed class Http11Decoder : IDisposable
                 return (HttpDecodeResult.Incomplete(), null, 0, null);
             }
 
-            // Parse chunk size (hex)
+            // Parse chunk size (hex) and optional chunk extensions (RFC 9112 §7.1.1)
             var sizeLine = data[pos..lineEnd];
             var semiIdx = sizeLine.IndexOf((byte)';');
             var sizeSpan = semiIdx >= 0 ? sizeLine[..semiIdx] : sizeLine;
+            var extSpan = semiIdx >= 0 ? sizeLine[(semiIdx + 1)..] : ReadOnlySpan<byte>.Empty;
+
+            if (!TryParseChunkExtensions(extSpan))
+            {
+                return (HttpDecodeResult.Fail(HttpDecodeError.InvalidChunkExtension), null, 0, null);
+            }
 
             if (!TryParseHex(sizeSpan, out var chunkSize))
             {
@@ -768,6 +774,127 @@ public sealed class Http11Decoder : IDisposable
         }
 
         return -1;
+    }
+
+    // ── Chunk Extension Parsing ─────────────────────────────────────────────────
+
+    /// <summary>
+    /// RFC 9112 §7.1.1: Validates chunk-ext syntax.
+    /// chunk-ext = *( BWS ";" BWS chunk-ext-name [ BWS "=" BWS chunk-ext-val ] )
+    /// Semantics of extensions are ignored; only syntax is validated.
+    /// </summary>
+    private static bool TryParseChunkExtensions(ReadOnlySpan<byte> extBytes)
+    {
+        if (extBytes.IsEmpty)
+        {
+            return true;
+        }
+
+        var pos = 0;
+        while (pos < extBytes.Length)
+        {
+            // Skip BWS before name
+            while (pos < extBytes.Length && (extBytes[pos] == ' ' || extBytes[pos] == '\t'))
+            {
+                pos++;
+            }
+
+            var nameStart = pos;
+            while (pos < extBytes.Length && IsTokenChar(extBytes[pos]) && extBytes[pos] != ';')
+            {
+                pos++;
+            }
+
+            if (pos == nameStart)
+            {
+                return false;
+            }
+
+            // Skip BWS after name
+            while (pos < extBytes.Length && (extBytes[pos] == ' ' || extBytes[pos] == '\t'))
+            {
+                pos++;
+            }
+
+            if (pos < extBytes.Length && extBytes[pos] == '=')
+            {
+                pos++;
+
+                // Skip BWS after '='
+                while (pos < extBytes.Length && (extBytes[pos] == ' ' || extBytes[pos] == '\t'))
+                {
+                    pos++;
+                }
+
+                if (pos < extBytes.Length && extBytes[pos] == '"')
+                {
+                    // Quoted string value
+                    pos++;
+                    while (pos < extBytes.Length && extBytes[pos] != '"')
+                    {
+                        if (extBytes[pos] == '\\')
+                        {
+                            pos += 2;
+                        }
+                        else
+                        {
+                            pos++;
+                        }
+                    }
+
+                    if (pos >= extBytes.Length)
+                    {
+                        return false;
+                    }
+
+                    pos++; // consume closing '"'
+                }
+                else
+                {
+                    // Token value
+                    var valStart = pos;
+                    while (pos < extBytes.Length && IsTokenChar(extBytes[pos]) && extBytes[pos] != ';')
+                    {
+                        pos++;
+                    }
+
+                    if (pos == valStart)
+                    {
+                        return false;
+                    }
+                }
+            }
+
+            // Skip BWS after value
+            while (pos < extBytes.Length && (extBytes[pos] == ' ' || extBytes[pos] == '\t'))
+            {
+                pos++;
+            }
+
+            if (pos < extBytes.Length && extBytes[pos] == ';')
+            {
+                pos++;
+            }
+            else if (pos < extBytes.Length)
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static bool IsTokenChar(byte b)
+    {
+        return b switch
+        {
+            (byte)'!' or (byte)'#' or (byte)'$' or (byte)'%' or (byte)'&' or (byte)'\''
+            or (byte)'*' or (byte)'+' or (byte)'-' or (byte)'.' or (byte)'^' or (byte)'_'
+            or (byte)'`' or (byte)'|' or (byte)'~' => true,
+            _ => (b >= (byte)'0' && b <= (byte)'9') ||
+                 (b >= (byte)'A' && b <= (byte)'Z') ||
+                 (b >= (byte)'a' && b <= (byte)'z')
+        };
     }
 
     // ── Number Parsing ──────────────────────────────────────────────────────────
