@@ -17,7 +17,6 @@ namespace TurboHttp.Benchmarks.Protocol;
 ///                              allocation for the encoder call itself).
 /// All benchmarks are pure in-memory — no Kestrel server required.
 /// </summary>
-[MemoryDiagnoser]
 [SimpleJob(warmupCount: 3, targetCount: 5)]
 public class SerializationPathBenchmarks
 {

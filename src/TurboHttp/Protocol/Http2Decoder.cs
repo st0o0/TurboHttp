@@ -30,6 +30,10 @@ public sealed class Http2Decoder
     // RFC 7540 §6.5.2: Default MAX_FRAME_SIZE is 2^14 (16384).
     private int _maxFrameSize = 16384;
 
+    // RFC 7540 §5.1.2 / §6.5.2: MAX_CONCURRENT_STREAMS limit and active count.
+    private int _maxConcurrentStreams = int.MaxValue;
+    private int _activeStreamCount = 0;
+
     // RFC 7540 §5.2: Connection-level receive window (how much DATA server may send us).
     private int _connectionReceiveWindow = 65535;
 
@@ -38,6 +42,12 @@ public sealed class Http2Decoder
 
     // Set to true after we receive a GOAWAY frame; blocks new stream creation.
     private bool _receivedGoAway;
+
+    /// <summary>Returns the current number of active (open) streams.</summary>
+    public int GetActiveStreamCount() => _activeStreamCount;
+
+    /// <summary>Returns the MAX_CONCURRENT_STREAMS limit (default int.MaxValue).</summary>
+    public int GetMaxConcurrentStreams() => _maxConcurrentStreams;
 
     /// <summary>Returns the current connection-level receive window.</summary>
     public int GetConnectionReceiveWindow() => _connectionReceiveWindow;
@@ -196,7 +206,13 @@ public sealed class Http2Decoder
                     {
                         var error = (Http2ErrorCode)BinaryPrimitives.ReadUInt32BigEndian(payload.Span);
                         rstStreams.Add((streamId, error));
-                        _streams.Remove(streamId);
+
+                        // Decrement active count only if the stream was being tracked.
+                        if (_streams.Remove(streamId))
+                        {
+                            _activeStreamCount--;
+                        }
+
                         _closedStreamIds.Add(streamId);
 
                         // Security: rapid RST_STREAM cycling protection (mitigates CVE-2023-44487).
@@ -262,6 +278,8 @@ public sealed class Http2Decoder
         _connectionSendWindow = 65535;
         _rstStreamCount = 0;
         _emptyDataFrameCount = 0;
+        _maxConcurrentStreams = int.MaxValue;
+        _activeStreamCount = 0;
     }
 
     // ========================================================================
@@ -336,6 +354,7 @@ public sealed class Http2Decoder
             _streams.Remove(streamId);
             _closedStreamIds.Add(streamId);
             responses.Add((streamId, response));
+            _activeStreamCount--;
         }
     }
 
@@ -375,6 +394,19 @@ public sealed class Http2Decoder
             throw new Http2Exception(
                 $"RFC 7540 §6.8: No new streams accepted after GOAWAY; stream {streamId} rejected.",
                 Http2ErrorCode.ProtocolError);
+        }
+
+        // RFC 7540 §5.1.2 / §6.5.2: Enforce MAX_CONCURRENT_STREAMS for new streams.
+        if (!_streams.ContainsKey(streamId))
+        {
+            if (_activeStreamCount >= _maxConcurrentStreams)
+            {
+                throw new Http2Exception(
+                    $"RFC 7540 §6.5.2: MAX_CONCURRENT_STREAMS limit ({_maxConcurrentStreams}) exceeded on stream {streamId}.",
+                    Http2ErrorCode.RefusedStream);
+            }
+
+            _activeStreamCount++;
         }
 
         var data = payload;
@@ -600,6 +632,7 @@ public sealed class Http2Decoder
 
         if (endStream)
         {
+            _activeStreamCount--;
             _closedStreamIds.Add(streamId);
             responses.Add((streamId, state.BuildResponse()));
         }
@@ -639,6 +672,12 @@ public sealed class Http2Decoder
                             Http2ErrorCode.FlowControlError);
                     }
 
+                    break;
+
+                case SettingsParameter.MaxConcurrentStreams:
+                    // RFC 7540 §6.5.2: No error code is defined for violations of this limit;
+                    // the decoder uses REFUSED_STREAM when the limit is exceeded.
+                    _maxConcurrentStreams = (int)value;
                     break;
 
                 default:

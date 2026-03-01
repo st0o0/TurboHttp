@@ -1,4 +1,5 @@
 using System;
+using System.Buffers;
 using System.Net;
 using System.Net.Sockets;
 using System.Threading.Tasks;
@@ -11,6 +12,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using System.Linq;
+using System.Net.Http;
 using Microsoft.Extensions.Logging;
 using TurboHttp.Protocol;
 
@@ -204,8 +206,7 @@ public class LongRunningStabilityBenchmarks
         var tasks = new Task[PoolSize];
         for (var i = 0; i < PoolSize; i++)
         {
-            var idx = i;
-            tasks[i] = SendOnConnectionAsync(_streams[idx], _decoders[idx]);
+            tasks[i] = SendOnConnectionAsync(_streams[i], _decoders[i]);
         }
 
         await Task.WhenAll(tasks);
@@ -229,8 +230,7 @@ public class LongRunningStabilityBenchmarks
         var tasks = new Task[20];
         for (var i = 0; i < 20; i++)
         {
-            var idx = i;
-            tasks[i] = SendOnConnectionAsync(_streams[idx], _decoders[idx]);
+            tasks[i] = SendOnConnectionAsync(_streams[i], _decoders[i]);
         }
 
         await Task.WhenAll(tasks);
@@ -238,32 +238,40 @@ public class LongRunningStabilityBenchmarks
 
     // ── Helper ────────────────────────────────────────────────────────────────
 
-    private async Task SendOnConnectionAsync(
-        NetworkStream stream,
-        Http11Decoder decoder)
+    private async Task SendOnConnectionAsync(NetworkStream stream, Http11Decoder decoder)
     {
-        // Local buffers: each concurrent task gets its own stack allocation,
-        // avoiding data races on shared instance-level byte arrays.
-        var encBuf = new byte[512];
-        var req = new System.Net.Http.HttpRequestMessage(
-            System.Net.Http.HttpMethod.Get, _baseUrl);
-        var span = encBuf.AsSpan();
-        var written = Http11Encoder.Encode(req, ref span);
-        await stream.WriteAsync(encBuf.AsMemory(0, written));
-
-        var readBuf = new byte[2048];
-        while (true)
+        var encBuf = ArrayPool<byte>.Shared.Rent(512);
+        var readBuf = ArrayPool<byte>.Shared.Rent(2048);
+        try
         {
-            var n = await stream.ReadAsync(readBuf);
-            if (n == 0)
-            {
-                return;
-            }
+            // Local buffers: each concurrent task gets its own stack allocation,
+            // avoiding data races on shared instance-level byte arrays.
 
-            if (decoder.TryDecode(readBuf.AsMemory(0, n), out _))
+            var req = new HttpRequestMessage(
+                HttpMethod.Get, _baseUrl);
+            var span = encBuf.AsSpan();
+            var written = Http11Encoder.Encode(req, ref span);
+            await stream.WriteAsync(encBuf.AsMemory(0, written));
+
+
+            while (true)
             {
-                return;
+                var n = await stream.ReadAsync(readBuf);
+                if (n == 0)
+                {
+                    return;
+                }
+
+                if (decoder.TryDecode(readBuf.AsMemory(0, n), out _))
+                {
+                    return;
+                }
             }
+        }
+        finally
+        {
+            ArrayPool<byte>.Shared.Return(encBuf);
+            ArrayPool<byte>.Shared.Return(readBuf);
         }
     }
 }

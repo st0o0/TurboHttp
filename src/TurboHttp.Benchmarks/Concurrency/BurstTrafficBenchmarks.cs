@@ -128,8 +128,7 @@ public class BurstTrafficBenchmarks
         var tasks = new Task[PoolSize];
         for (var i = 0; i < PoolSize; i++)
         {
-            var idx = i;
-            tasks[i] = SendOnConnectionAsync(_streams[idx], _decoders[idx]);
+            tasks[i] = SendOnConnectionAsync(_streams[i], _decoders[i]);
         }
 
         await Task.WhenAll(tasks);
@@ -176,8 +175,7 @@ public class BurstTrafficBenchmarks
         var tasks = new Task[PoolSize];
         for (var i = 0; i < PoolSize; i++)
         {
-            var idx = i;
-            tasks[i] = SendThrottledAsync(semaphore, _streams[idx], _decoders[idx]);
+            tasks[i] = SendThrottledAsync(semaphore, _streams[i], _decoders[i]);
         }
 
         await Task.WhenAll(tasks);

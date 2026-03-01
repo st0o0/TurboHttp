@@ -11,6 +11,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using System.Linq;
+using System.Net.Http;
 using Microsoft.Extensions.Logging;
 using TurboHttp.Protocol;
 
@@ -153,8 +154,7 @@ public class CloudMicroserviceBenchmarks
         var tasks = new Task[PoolSize];
         for (var i = 0; i < PoolSize; i++)
         {
-            var idx = i;
-            tasks[i] = SendOnConnectionAsync(_streams[idx], _decoders[idx], _smallUrl);
+            tasks[i] = SendOnConnectionAsync(_streams[i], _decoders[i], _smallUrl);
         }
 
         await Task.WhenAll(tasks);
@@ -265,8 +265,7 @@ public class CloudMicroserviceBenchmarks
         var tasks = new Task[PoolSize];
         for (var i = 0; i < PoolSize; i++)
         {
-            var idx = i;
-            tasks[i] = SendOnConnectionAsync(_streams[idx], _decoders[idx], _largeUrl, bufSize: 4096);
+            tasks[i] = SendOnConnectionAsync(_streams[i], _decoders[i], _largeUrl, bufSize: 4096);
         }
 
         await Task.WhenAll(tasks);
@@ -282,8 +281,7 @@ public class CloudMicroserviceBenchmarks
     {
         // Local buffer per call — no shared mutable state between concurrent tasks.
         var encBuf = new byte[512];
-        var req = new System.Net.Http.HttpRequestMessage(
-            System.Net.Http.HttpMethod.Get, url);
+        var req = new HttpRequestMessage(HttpMethod.Get, url);
         var span = encBuf.AsSpan();
         var written = Http11Encoder.Encode(req, ref span);
         await stream.WriteAsync(encBuf.AsMemory(0, written));

@@ -14,7 +14,6 @@ namespace TurboHttp.Benchmarks.Protocol;
 /// frame handling (large DATA frames near the max-frame-size boundary).
 /// All benchmarks are pure in-memory — no Kestrel server required.
 /// </summary>
-[MemoryDiagnoser]
 [SimpleJob(warmupCount: 3, targetCount: 5)]
 public class Http2MultiplexingBenchmarks
 {

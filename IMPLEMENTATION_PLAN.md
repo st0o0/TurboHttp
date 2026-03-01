@@ -254,7 +254,7 @@ public ReadOnlyMemory<byte> Encode(
 
 ---
 
-## Phase 32-33: Http2Decoder — MAX_CONCURRENT_STREAMS
+## Phase 32-33: Http2Decoder — MAX_CONCURRENT_STREAMS ✅
 
 **Location**: `src/TurboHttp/Protocol/Http2Decoder.cs`
 **RFC**: RFC 7540 §5.1, §6.5.2

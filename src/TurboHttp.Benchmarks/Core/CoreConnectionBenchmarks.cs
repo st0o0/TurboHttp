@@ -19,7 +19,6 @@ namespace TurboHttp.Benchmarks.Core;
 /// (modelled via connection-reset), TCP connection acquisition latency,
 /// and idle connection retention after a 50 ms idle period.
 /// </summary>
-[MemoryDiagnoser]
 [SimpleJob(warmupCount: 3, targetCount: 5)]
 public class CoreConnectionBenchmarks
 {

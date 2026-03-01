@@ -18,7 +18,6 @@ namespace TurboHttp.Benchmarks.Core;
 /// Measures warm/cold request latency, sequential throughput,
 /// and roundtrip latency for TurboHttp (raw TCP) vs HttpClient.
 /// </summary>
-[MemoryDiagnoser]
 [Config(typeof(MicroBenchmarkConfig))]
 [SimpleJob(warmupCount: 3, targetCount: 5)]
 public class CoreRequestBenchmarks

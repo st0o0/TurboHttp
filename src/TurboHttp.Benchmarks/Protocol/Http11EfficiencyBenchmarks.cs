@@ -18,7 +18,6 @@ namespace TurboHttp.Benchmarks.Protocol;
 /// Covers chunked decode throughput, header parsing latency, large header-set
 /// parsing cost, pipelined request throughput, and mixed-verb encoding workload.
 /// </summary>
-[MemoryDiagnoser]
 [SimpleJob(warmupCount: 3, targetCount: 5)]
 public class Http11EfficiencyBenchmarks
 {
