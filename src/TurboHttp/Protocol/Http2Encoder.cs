@@ -81,6 +81,7 @@ public sealed class Http2Encoder(bool useHuffman = true)
             }
         }
 
+        ValidatePseudoHeaders(headers);
         var headerBlock = _hpack.Encode(headers);
         var span = buffer.Span;
         var bytesWritten = 0;
@@ -177,6 +178,104 @@ public sealed class Http2Encoder(bool useHuffman = true)
 
         _streamSendWindows.TryGetValue(streamId, out var current);
         _streamSendWindows[streamId] = current + increment;
+    }
+
+    // ========================================================================
+    // PSEUDO-HEADER VALIDATION (RFC 7540 §8.1.2.1)
+    // ========================================================================
+    internal static void ValidatePseudoHeaders(List<(string Name, string Value)> headers)
+    {
+        var hasMethod = false;
+        var hasPath = false;
+        var hasScheme = false;
+        var hasAuthority = false;
+        var lastPseudoIndex = -1;
+        var firstRegularIndex = int.MaxValue;
+
+        for (var i = 0; i < headers.Count; i++)
+        {
+            var (name, _) = headers[i];
+
+            if (name.StartsWith(':'))
+            {
+                lastPseudoIndex = i;
+
+                switch (name)
+                {
+                    case ":method":
+                        if (hasMethod)
+                        {
+                            throw new Http2Exception(
+                                "RFC 7540 §8.1.2.1: Duplicate :method pseudo-header",
+                                Http2ErrorCode.ProtocolError);
+                        }
+
+                        hasMethod = true;
+                        break;
+                    case ":path":
+                        if (hasPath)
+                        {
+                            throw new Http2Exception(
+                                "RFC 7540 §8.1.2.1: Duplicate :path pseudo-header",
+                                Http2ErrorCode.ProtocolError);
+                        }
+
+                        hasPath = true;
+                        break;
+                    case ":scheme":
+                        if (hasScheme)
+                        {
+                            throw new Http2Exception(
+                                "RFC 7540 §8.1.2.1: Duplicate :scheme pseudo-header",
+                                Http2ErrorCode.ProtocolError);
+                        }
+
+                        hasScheme = true;
+                        break;
+                    case ":authority":
+                        if (hasAuthority)
+                        {
+                            throw new Http2Exception(
+                                "RFC 7540 §8.1.2.1: Duplicate :authority pseudo-header",
+                                Http2ErrorCode.ProtocolError);
+                        }
+
+                        hasAuthority = true;
+                        break;
+                    default:
+                        throw new Http2Exception(
+                            $"RFC 7540 §8.1.2.1: Unknown request pseudo-header '{name}'",
+                            Http2ErrorCode.ProtocolError);
+                }
+            }
+            else
+            {
+                if (firstRegularIndex == int.MaxValue)
+                {
+                    firstRegularIndex = i;
+                }
+            }
+        }
+
+        if (lastPseudoIndex > firstRegularIndex)
+        {
+            throw new Http2Exception(
+                $"RFC 7540 §8.1.2.1: Pseudo-header at index {lastPseudoIndex} appears after regular header at index {firstRegularIndex}",
+                Http2ErrorCode.ProtocolError);
+        }
+
+        var missing = new System.Text.StringBuilder();
+        if (!hasMethod) missing.Append(missing.Length > 0 ? ", :method" : ":method");
+        if (!hasPath) missing.Append(missing.Length > 0 ? ", :path" : ":path");
+        if (!hasScheme) missing.Append(missing.Length > 0 ? ", :scheme" : ":scheme");
+        if (!hasAuthority) missing.Append(missing.Length > 0 ? ", :authority" : ":authority");
+
+        if (missing.Length > 0)
+        {
+            throw new Http2Exception(
+                $"RFC 7540 §8.1.2.1: Missing required pseudo-headers: {missing}",
+                Http2ErrorCode.ProtocolError);
+        }
     }
 
     private int AllocStreamId()
