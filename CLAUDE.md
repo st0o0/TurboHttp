@@ -161,7 +161,7 @@ Log usage of csharp-lsp in the Flight Recorder.
 
 - **HTTP/1.0**: RFC 1945
 - **HTTP/1.1**: RFC 9112 (message framing)
-- **HTTP/2**: RFC 7540 (protocol), RFC 7541 (HPACK)
+- **HTTP/2**: RFC 9113 (protocol), RFC 7541 (HPACK)
 
 ## Dependencies
 

@@ -1,6 +1,6 @@
 using TurboHttp.IntegrationTests.Shared;
 
-namespace TurboHttp.IntegrationTests.Http2Advanced;
+namespace TurboHttp.IntegrationTests.Http2;
 
 /// <summary>
 /// xUnit collection that shares a single <see cref="KestrelH2Fixture"/> across all

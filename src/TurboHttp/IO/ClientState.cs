@@ -6,7 +6,7 @@ using System.Threading.Channels;
 
 namespace Servus.Akka.IO;
 
-internal sealed class TcpClientState
+internal sealed class ClientState
 {
     public int MaxFrameSize { get; }
     public Stream Stream { get; }
@@ -21,7 +21,7 @@ internal sealed class TcpClientState
     public ChannelWriter<(IMemoryOwner<byte> buffer, int readableBytes)> InboundWriter => _inboundChannel.Writer;
     public Pipe Pipe { get; }
 
-    public TcpClientState(int maxFrameSize, Stream stream,
+    public ClientState(int maxFrameSize, Stream stream,
         Channel<(IMemoryOwner<byte> buffer, int readableBytes)>? inboundChannel,
         Channel<(IMemoryOwner<byte> buffer, int readableBytes)>? outboundChannel)
     {

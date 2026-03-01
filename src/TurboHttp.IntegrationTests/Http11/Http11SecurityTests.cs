@@ -3,7 +3,7 @@ using System.Text;
 using TurboHttp.IntegrationTests.Shared;
 using TurboHttp.Protocol;
 
-namespace TurboHttp.IntegrationTests.Http11Advanced;
+namespace TurboHttp.IntegrationTests.Http11;
 
 /// <summary>
 /// Phase 14 — HTTP/1.1 Integration Tests: Security and limits.

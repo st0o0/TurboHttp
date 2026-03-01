@@ -16,6 +16,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TurboHttp.IntegrationTests"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TurboHttp.Benchmarks", "TurboHttp.Benchmarks\TurboHttp.Benchmarks.csproj", "{7349D1A9-F360-4D86-8122-A0168B58D688}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TurboHttp.StreamTests", "TurboHttp.StreamTests\TurboHttp.StreamTests.csproj", "{D11B4E67-BEEF-416B-8B60-A6D47C42ACB6}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -74,6 +76,18 @@ Global
 		{7349D1A9-F360-4D86-8122-A0168B58D688}.Release|x64.Build.0 = Release|Any CPU
 		{7349D1A9-F360-4D86-8122-A0168B58D688}.Release|x86.ActiveCfg = Release|Any CPU
 		{7349D1A9-F360-4D86-8122-A0168B58D688}.Release|x86.Build.0 = Release|Any CPU
+		{D11B4E67-BEEF-416B-8B60-A6D47C42ACB6}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{D11B4E67-BEEF-416B-8B60-A6D47C42ACB6}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{D11B4E67-BEEF-416B-8B60-A6D47C42ACB6}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{D11B4E67-BEEF-416B-8B60-A6D47C42ACB6}.Debug|x64.Build.0 = Debug|Any CPU
+		{D11B4E67-BEEF-416B-8B60-A6D47C42ACB6}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{D11B4E67-BEEF-416B-8B60-A6D47C42ACB6}.Debug|x86.Build.0 = Debug|Any CPU
+		{D11B4E67-BEEF-416B-8B60-A6D47C42ACB6}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{D11B4E67-BEEF-416B-8B60-A6D47C42ACB6}.Release|Any CPU.Build.0 = Release|Any CPU
+		{D11B4E67-BEEF-416B-8B60-A6D47C42ACB6}.Release|x64.ActiveCfg = Release|Any CPU
+		{D11B4E67-BEEF-416B-8B60-A6D47C42ACB6}.Release|x64.Build.0 = Release|Any CPU
+		{D11B4E67-BEEF-416B-8B60-A6D47C42ACB6}.Release|x86.ActiveCfg = Release|Any CPU
+		{D11B4E67-BEEF-416B-8B60-A6D47C42ACB6}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

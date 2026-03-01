@@ -95,7 +95,7 @@ public static class Http11Encoder
     /// <summary>
     /// Encodes an HTTP/1.1 request into a Memory buffer (legacy compatibility).
     /// </summary>
-    public static long Encode(HttpRequestMessage request, ref Memory<byte> buffer, bool absoluteForm = false)
+    public static int Encode(HttpRequestMessage request, ref Memory<byte> buffer, bool absoluteForm = false)
     {
         var span = buffer.Span;
         var written = Encode(request, ref span, absoluteForm);
@@ -120,7 +120,7 @@ public static class Http11Encoder
         var uri = request.RequestUri!;
 
         // OPTIONS * case (asterisk-form)
-        if (request.Method == HttpMethod.Options && (uri.PathAndQuery == "*" || uri.PathAndQuery == "/*"))
+        if (request.Method == HttpMethod.Options && uri.PathAndQuery is "*" or "/*")
         {
             bytesWritten += WriteBytes(ref buffer, "*"u8);
         }
@@ -138,6 +138,7 @@ public static class Http11Encoder
             {
                 pathAndQuery = "/";
             }
+
             bytesWritten += WriteAscii(ref buffer, pathAndQuery);
         }
 
@@ -280,6 +281,7 @@ public static class Http11Encoder
             {
                 bytesWritten += WriteBytes(ref buffer, ", "u8);
             }
+
             bytesWritten += WriteAscii(ref buffer, value);
             first = false;
         }
@@ -460,13 +462,9 @@ public static class Http11Encoder
 
     private static void ValidateMethod(string method)
     {
-        foreach (var c in method)
+        if (method.Any(char.IsLower))
         {
-            if (char.IsLower(c))
-            {
-                throw new ArgumentException(
-                    $"HTTP/1.1 method must be uppercase: {method}", nameof(method));
-            }
+            throw new ArgumentException($"HTTP/1.1 method must be uppercase: {method}", nameof(method));
         }
     }
 
@@ -512,8 +510,7 @@ public static class Http11Encoder
         // All positions must consist only of DIGIT characters.
         if (!value.StartsWith("bytes=", StringComparison.OrdinalIgnoreCase))
         {
-            throw new ArgumentException(
-                $"Invalid Range header value: '{value}' (must start with 'bytes=')", "Range");
+            throw new ArgumentException($"Invalid Range header value: '{value}' (must start with 'bytes=')", "Range");
         }
 
         var rangeSpec = value["bytes=".Length..];
@@ -530,8 +527,7 @@ public static class Http11Encoder
             var dashIdx = trimmed.IndexOf('-');
             if (dashIdx < 0)
             {
-                throw new ArgumentException(
-                    $"Invalid Range header value: '{value}' (missing '-' in range spec)", "Range");
+                throw new ArgumentException($"Invalid Range header value: '{value}' (missing '-' in range spec)", "Range");
             }
 
             var first = trimmed[..dashIdx];
@@ -539,16 +535,14 @@ public static class Http11Encoder
 
             if (first.IsEmpty && last.IsEmpty)
             {
-                throw new ArgumentException(
-                    $"Invalid Range header value: '{value}' (empty range spec)", "Range");
+                throw new ArgumentException($"Invalid Range header value: '{value}' (empty range spec)", "Range");
             }
 
             foreach (var ch in first)
             {
                 if (!char.IsAsciiDigit(ch))
                 {
-                    throw new ArgumentException(
-                        $"Invalid Range header value: '{value}' (non-digit in byte position)", "Range");
+                    throw new ArgumentException($"Invalid Range header value: '{value}' (non-digit in byte position)", "Range");
                 }
             }
 
@@ -556,8 +550,7 @@ public static class Http11Encoder
             {
                 if (!char.IsAsciiDigit(ch))
                 {
-                    throw new ArgumentException(
-                        $"Invalid Range header value: '{value}' (non-digit in byte position)", "Range");
+                    throw new ArgumentException($"Invalid Range header value: '{value}' (non-digit in byte position)", "Range");
                 }
             }
         }

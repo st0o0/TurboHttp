@@ -1,3 +1,4 @@
+using System.Buffers;
 using System.Collections.Immutable;
 using System.Net;
 using System.Net.Sockets;
@@ -17,7 +18,6 @@ public sealed class Http11Connection : IAsyncDisposable
     private readonly Http11Decoder _decoder;
     private readonly byte[] _readBuffer;
     private readonly Queue<HttpResponseMessage> _pending;
-    private bool _serverClosedConnection;
 
     private const int ReadBufferSize = 65536;
 
@@ -28,7 +28,7 @@ public sealed class Http11Connection : IAsyncDisposable
         _decoder = new Http11Decoder(maxHeaderSize: maxHeaderSize);
         _readBuffer = new byte[ReadBufferSize];
         _pending = new Queue<HttpResponseMessage>();
-        _serverClosedConnection = false;
+        IsServerClosed = false;
     }
 
     /// <summary>Opens a new TCP connection to 127.0.0.1:<paramref name="port"/>.</summary>
@@ -43,7 +43,8 @@ public sealed class Http11Connection : IAsyncDisposable
     /// Opens a new TCP connection with a custom <paramref name="maxHeaderSize"/> for the decoder.
     /// Use when testing very large response headers that exceed the default 8 KB limit.
     /// </summary>
-    public static async Task<Http11Connection> OpenWithHeaderSizeAsync(int port, int maxHeaderSize, CancellationToken ct = default)
+    public static async Task<Http11Connection> OpenWithHeaderSizeAsync(int port, int maxHeaderSize,
+        CancellationToken ct = default)
     {
         var tcp = new TcpClient();
         await tcp.ConnectAsync(IPAddress.Loopback, port, ct);
@@ -51,69 +52,79 @@ public sealed class Http11Connection : IAsyncDisposable
     }
 
     /// <summary>True when the server sent a <c>Connection: close</c> response header.</summary>
-    public bool IsServerClosed => _serverClosedConnection;
+    public bool IsServerClosed { get; private set; }
 
     /// <summary>
     /// Encodes <paramref name="request"/> and sends it on the persistent connection.
     /// Reads bytes until the decoder produces a complete response.
     /// </summary>
-    public async Task<HttpResponseMessage> SendAsync(
-        HttpRequestMessage request,
-        CancellationToken externalCt = default)
+    public async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken externalCt = default)
     {
-        using var cts = CancellationTokenSource.CreateLinkedTokenSource(externalCt);
-        cts.CancelAfter(TimeSpan.FromSeconds(30));
-        var ct = cts.Token;
+        var encBuf = ArrayPool<byte>.Shared.Rent(4 * 1024 * 1024);
+        try
+        {
+            using var cts = CancellationTokenSource.CreateLinkedTokenSource(externalCt);
+            cts.CancelAfter(TimeSpan.FromSeconds(30));
+            var ct = cts.Token;
 
-        var isHead = request.Method == HttpMethod.Head;
+            var isHead = request.Method == HttpMethod.Head;
 
-        var encodeBuffer = new byte[4 * 1024 * 1024];
-        var span = encodeBuffer.AsSpan();
-        var written = Http11Encoder.Encode(request, ref span);
-        await _stream.WriteAsync(encodeBuffer.AsMemory(0, written), ct);
+            var span = encBuf.AsSpan();
+            var written = Http11Encoder.Encode(request, ref span);
+            await _stream.WriteAsync(encBuf.AsMemory(0, written), ct);
 
-        return await ReadOneResponseAsync(ct, isHead);
+            return await ReadOneResponseAsync(ct, isHead);
+        }
+        finally
+        {
+            ArrayPool<byte>.Shared.Return(encBuf);
+        }
     }
 
     /// <summary>
     /// Sends all <paramref name="requests"/> in a single batch (HTTP/1.1 pipelining)
     /// and returns all responses in order.
     /// </summary>
-    public async Task<IReadOnlyList<HttpResponseMessage>> PipelineAsync(
-        IEnumerable<HttpRequestMessage> requests,
+    public async Task<IReadOnlyList<HttpResponseMessage>> PipelineAsync(IEnumerable<HttpRequestMessage> requests,
         CancellationToken externalCt = default)
     {
-        using var cts = CancellationTokenSource.CreateLinkedTokenSource(externalCt);
-        cts.CancelAfter(TimeSpan.FromSeconds(30));
-        var ct = cts.Token;
-
-        var requestList = requests.ToList();
-        if (requestList.Count == 0)
+        var encBuf = ArrayPool<byte>.Shared.Rent(2 * 1024 * 1024);
+        try
         {
-            return Array.Empty<HttpResponseMessage>();
-        }
+            using var cts = CancellationTokenSource.CreateLinkedTokenSource(externalCt);
+            cts.CancelAfter(TimeSpan.FromSeconds(30));
+            var ct = cts.Token;
 
-        // Encode and send all requests in one buffer
-        var encodeBuffer = new byte[requestList.Count * 2 * 1024 * 1024];
-        var totalWritten = 0;
-        foreach (var request in requestList)
+            var requestList = requests.ToList();
+            if (requestList.Count == 0)
+            {
+                return [];
+            }
+
+            var totalWritten = 0;
+            foreach (var request in requestList)
+            {
+                var span = encBuf.AsSpan(totalWritten);
+                var written = Http11Encoder.Encode(request, ref span);
+                totalWritten += written;
+            }
+
+            await _stream.WriteAsync(encBuf.AsMemory(0, totalWritten), ct);
+
+            // Read responses in order (track HEAD requests for no-body decoding)
+            var results = new List<HttpResponseMessage>(requestList.Count);
+            foreach (var t in requestList)
+            {
+                var isHead = t.Method == HttpMethod.Head;
+                results.Add(await ReadOneResponseAsync(ct, isHead));
+            }
+
+            return results;
+        }
+        finally
         {
-            var span = encodeBuffer.AsSpan(totalWritten);
-            var written = Http11Encoder.Encode(request, ref span);
-            totalWritten += written;
+            ArrayPool<byte>.Shared.Return(encBuf);
         }
-
-        await _stream.WriteAsync(encodeBuffer.AsMemory(0, totalWritten), ct);
-
-        // Read responses in order (track HEAD requests for no-body decoding)
-        var results = new List<HttpResponseMessage>(requestList.Count);
-        for (var i = 0; i < requestList.Count; i++)
-        {
-            var isHead = requestList[i].Method == HttpMethod.Head;
-            results.Add(await ReadOneResponseAsync(ct, isHead));
-        }
-
-        return results;
     }
 
     private async Task<HttpResponseMessage> ReadOneResponseAsync(CancellationToken ct, bool isHead = false)
@@ -162,7 +173,7 @@ public sealed class Http11Connection : IAsyncDisposable
                 // Track server-initiated connection close
                 if (response.Headers.Connection.Contains("close"))
                 {
-                    _serverClosedConnection = true;
+                    IsServerClosed = true;
                 }
 
                 return response;

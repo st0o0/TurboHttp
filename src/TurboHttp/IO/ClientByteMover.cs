@@ -6,14 +6,14 @@ using Akka.Actor;
 
 namespace Servus.Akka.IO;
 
-public sealed record CloseConnection
+public sealed record DoClose
 {
-    public static readonly CloseConnection Instance = new();
+    public static readonly DoClose Instance = new();
 }
 
-internal static class TcpClientByteMover
+internal static class ClientByteMover
 {
-    internal static async Task MoveStreamToPipe(TcpClientState state, IActorRef runner, CancellationToken ct)
+    internal static async Task MoveStreamToPipe(ClientState state, IActorRef runner, CancellationToken ct)
     {
         Exception? pipeError = null;
         try
@@ -25,7 +25,7 @@ internal static class TcpClientByteMover
                     var bytesRead = await state.Stream.ReadAsync(state.GetWriteMemory(), ct).ConfigureAwait(false);
                     if (bytesRead == 0)
                     {
-                        runner.Tell(CloseConnection.Instance);
+                        runner.Tell(DoClose.Instance);
                         return;
                     }
 
@@ -39,7 +39,7 @@ internal static class TcpClientByteMover
                 catch (Exception ex)
                 {
                     pipeError = ex;
-                    runner.Tell(CloseConnection.Instance);
+                    runner.Tell(DoClose.Instance);
                     return;
                 }
 
@@ -62,7 +62,7 @@ internal static class TcpClientByteMover
         }
     }
 
-    internal static async Task MovePipeToChannel(TcpClientState state, IActorRef runner, CancellationToken ct)
+    internal static async Task MovePipeToChannel(ClientState state, IActorRef runner, CancellationToken ct)
     {
         while (!ct.IsCancellationRequested)
         {
@@ -76,7 +76,7 @@ internal static class TcpClientByteMover
                     // the buffer is empty and we must not write a zero-length entry into
                     // _readsFromTransport. Advance past the empty buffer and exit cleanly.
                     state.Pipe.Reader.AdvanceTo(result.Buffer.Start);
-                    runner.Tell(CloseConnection.Instance);
+                    runner.Tell(DoClose.Instance);
                     return;
                 }
 
@@ -95,13 +95,13 @@ internal static class TcpClientByteMover
 
                 if (result.IsCompleted)
                 {
-                    runner.Tell(CloseConnection.Instance);
+                    runner.Tell(DoClose.Instance);
                     return;
                 }
             }
             catch (OperationCanceledException)
             {
-                runner.Tell(CloseConnection.Instance);
+                runner.Tell(DoClose.Instance);
                 return;
             }
             catch (Exception)
@@ -110,13 +110,13 @@ internal static class TcpClientByteMover
                 // through DoWriteToPipeAsync). The faulted pipe surfaces as an exception here
                 // rather than as result.IsCompleted, so we must handle it explicitly to ensure
                 // ReadFinished is always self-told and BackgroundTasksCompleted can fire.
-                runner.Tell(CloseConnection.Instance);
+                runner.Tell(DoClose.Instance);
                 return;
             }
         }
     }
 
-    internal static async Task MoveChannelToStream(TcpClientState state, IActorRef runner, CancellationToken ct)
+    internal static async Task MoveChannelToStream(ClientState state, IActorRef runner, CancellationToken ct)
     {
         while (!state.OutboundReader.Completion.IsCompleted)
         {

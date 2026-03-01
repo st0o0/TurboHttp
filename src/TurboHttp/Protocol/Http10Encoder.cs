@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Net.Http;
 using System.Text;
 
@@ -143,13 +144,9 @@ public static class Http10Encoder
 
     private static void ValidateMethod(string method)
     {
-        foreach (var c in method)
+        if (method.Any(char.IsLower))
         {
-            if (char.IsLower(c))
-            {
-                throw new ArgumentException(
-                    $"HTTP/1.0 method must be uppercase: {method}", nameof(method));
-            }
+            throw new ArgumentException($"HTTP/1.0 method must be uppercase: {method}", nameof(method));
         }
     }
 

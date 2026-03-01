@@ -3,7 +3,7 @@ using System.Text;
 using TurboHttp.IntegrationTests.Shared;
 using TurboHttp.Protocol;
 
-namespace TurboHttp.IntegrationTests.Http2Advanced;
+namespace TurboHttp.IntegrationTests.Http2;
 
 /// <summary>
 /// Phase 16 — HTTP/2 Advanced: Stream multiplexing tests.

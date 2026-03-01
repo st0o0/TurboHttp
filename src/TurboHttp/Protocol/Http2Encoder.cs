@@ -63,7 +63,9 @@ public sealed class Http2Encoder(bool useHuffman = true)
         {
             var lower = header.Key.ToLowerInvariant();
             if (lower is "connection" or "keep-alive" or "transfer-encoding" or "upgrade" or "proxy-connection" or "te")
+            {
                 continue;
+            }
 
             headers.AddRange(header.Value.Select(v => (lower, v)));
         }
@@ -75,7 +77,9 @@ public sealed class Http2Encoder(bool useHuffman = true)
             {
                 var lower = header.Key.ToLowerInvariant();
                 if (lower is "connection" or "keep-alive" or "transfer-encoding" or "upgrade")
+                {
                     continue;
+                }
 
                 headers.AddRange(header.Value.Select(v => (lower, v)));
             }
@@ -369,9 +373,7 @@ public sealed class Http2Encoder(bool useHuffman = true)
                     break;
                 }
 
-                var streamWindow = _streamSendWindows.TryGetValue(streamId, out var sw)
-                    ? sw
-                    : InitialWindowSize;
+                var streamWindow = _streamSendWindows.GetValueOrDefault(streamId, InitialWindowSize);
                 var effectiveWindow = Math.Min(_connectionSendWindow, streamWindow);
                 if (effectiveWindow <= 0)
                 {

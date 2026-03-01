@@ -2,7 +2,7 @@ using System.Net;
 using System.Security.Cryptography;
 using TurboHttp.IntegrationTests.Shared;
 
-namespace TurboHttp.IntegrationTests.Http2Advanced;
+namespace TurboHttp.IntegrationTests.Http2;
 
 /// <summary>
 /// Phase 16 — HTTP/2 Advanced: Large payload tests.

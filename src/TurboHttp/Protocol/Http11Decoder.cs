@@ -61,7 +61,7 @@ public sealed class Http11Decoder : IDisposable
         // Combine remainder with incoming data using pooled buffer
         ReadOnlySpan<byte> working;
         byte[]? combinedBuffer = null;
-        var combinedLength = 0;
+        int combinedLength;
 
         if (_remainderLength > 0)
         {
@@ -77,7 +77,6 @@ public sealed class Http11Decoder : IDisposable
         else
         {
             working = incomingData.Span;
-            combinedLength = incomingData.Length;
         }
 
         try
@@ -121,13 +120,9 @@ public sealed class Http11Decoder : IDisposable
             }
         }
 
-        if (builder.Count > 0)
-        {
-            responses = builder.ToImmutable();
-            return true;
-        }
-
-        return false;
+        if (builder.Count <= 0) return false;
+        responses = builder.ToImmutable();
+        return true;
     }
 
     /// <summary>
@@ -164,7 +159,6 @@ public sealed class Http11Decoder : IDisposable
         else
         {
             working = incomingData.Span;
-            combinedLength = incomingData.Length;
         }
 
         try
@@ -239,11 +233,9 @@ public sealed class Http11Decoder : IDisposable
             _remainderBuffer = null;
         }
 
-        if (_bodyBuffer != null)
-        {
-            ArrayPool<byte>.Shared.Return(_bodyBuffer);
-            _bodyBuffer = null;
-        }
+        if (_bodyBuffer == null) return;
+        ArrayPool<byte>.Shared.Return(_bodyBuffer);
+        _bodyBuffer = null;
     }
 
     // ── Buffer Management ───────────────────────────────────────────────────────
@@ -297,7 +289,8 @@ public sealed class Http11Decoder : IDisposable
     /// <summary>
     /// Parses one response but always returns an empty body (used for HEAD responses).
     /// </summary>
-    private HttpDecodeResult TryParseOneNoBody(ReadOnlySpan<byte> buffer, out HttpResponseMessage? response, out int consumed)
+    private HttpDecodeResult TryParseOneNoBody(ReadOnlySpan<byte> buffer, out HttpResponseMessage? response,
+        out int consumed)
     {
         response = null;
         consumed = 0;
@@ -332,7 +325,7 @@ public sealed class Http11Decoder : IDisposable
 
         response = new HttpResponseMessage
         {
-            StatusCode = (System.Net.HttpStatusCode)statusCode,
+            StatusCode = (HttpStatusCode)statusCode,
             ReasonPhrase = reasonPhrase,
             Version = new Version(1, 1)
         };
@@ -538,14 +531,15 @@ public sealed class Http11Decoder : IDisposable
         {
             var lineEnd = FindCrlf(data, pos);
             if (lineEnd < 0 || lineEnd == pos)
+            {
                 break;
+            }
 
             // Security: enforce maximum header field count (prevents header flood attacks).
             fieldCount++;
             if (fieldCount > _maxHeaderCount)
             {
-                throw new HttpDecoderException(
-                    HttpDecodeError.TooManyHeaders,
+                throw new HttpDecoderException(HttpDecodeError.TooManyHeaders,
                     $"Received {fieldCount} fields; limit is {_maxHeaderCount}.");
             }
 
@@ -895,11 +889,9 @@ public sealed class Http11Decoder : IDisposable
         return b switch
         {
             (byte)'!' or (byte)'#' or (byte)'$' or (byte)'%' or (byte)'&' or (byte)'\''
-            or (byte)'*' or (byte)'+' or (byte)'-' or (byte)'.' or (byte)'^' or (byte)'_'
-            or (byte)'`' or (byte)'|' or (byte)'~' => true,
-            _ => (b >= (byte)'0' && b <= (byte)'9') ||
-                 (b >= (byte)'A' && b <= (byte)'Z') ||
-                 (b >= (byte)'a' && b <= (byte)'z')
+                or (byte)'*' or (byte)'+' or (byte)'-' or (byte)'.' or (byte)'^' or (byte)'_'
+                or (byte)'`' or (byte)'|' or (byte)'~' => true,
+            _ => b is >= (byte)'0' and <= (byte)'9' or >= (byte)'A' and <= (byte)'Z' or >= (byte)'a' and <= (byte)'z'
         };
     }
 
@@ -945,7 +937,7 @@ public sealed class Http11Decoder : IDisposable
             }
 
             // Detect overflow: if top 4 bits are non-zero, shifting left 4 would overflow int
-            if ((value >> 28) != 0)
+            if (value >> 28 != 0)
             {
                 return false;
             }

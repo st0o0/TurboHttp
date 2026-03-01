@@ -56,7 +56,6 @@ D:/GIT/Akka.Streams.Http/
 ├── TOOLING.md                            # Build/test/debug workflows
 ├── RFC_TEST_MATRIX.md                    # 150+ RFC test cases with coverage status
 ├── IMPLEMENTATION_PLAN.md                # 14-week phased roadmap
-├── DAILY_CHECKLIST.md                    # Dev workflow checklist
 └── QUICK_REFERENCE.md                    # Code patterns & templates
 ```
 

@@ -146,7 +146,7 @@ public static class HuffmanCodec
 
                 if (node is null)
                 {
-                    throw new HpackException("Ungültige Huffman-Sequenz.");
+                    throw new HpackException("");
                 }
 
                 remainingBits++;

@@ -1,4 +1,5 @@
 using System;
+using System.Buffers;
 using System.Linq;
 using System.Net;
 using System.Net.Http;
@@ -14,7 +15,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using TurboHttp.Protocol;
 
-namespace TurboHttp.Benchmarks.Throughput;
+namespace TurboHttp.Benchmarks;
 
 /// <summary>
 /// BM-REL-THR-01: Maximum Throughput Comparison — Baseline vs TurboHttp.
@@ -209,27 +210,36 @@ public class HttpClientThroughputBenchmarks
     /// </summary>
     private async Task SendCustomRequestAsync(NetworkStream stream, Http11Decoder decoder)
     {
+        var encBuf = ArrayPool<byte>.Shared.Rent(512);
+        var readBuf = ArrayPool<byte>.Shared.Rent(4096);
         // Local buffers — no shared mutable state between concurrent tasks.
-        var encBuf = new byte[512];
-        var req = new HttpRequestMessage(HttpMethod.Get, _baseUrl);
-        var span = encBuf.AsSpan();
-        var written = Http11Encoder.Encode(req, ref span);
-        await stream.WriteAsync(encBuf.AsMemory(0, written));
-
-        // Read buffer sized to hold the full response (headers + 256-byte body).
-        var readBuf = new byte[4096];
-        while (true)
+        try
         {
-            var n = await stream.ReadAsync(readBuf);
-            if (n == 0)
-            {
-                return;
-            }
+            var req = new HttpRequestMessage(HttpMethod.Get, _baseUrl);
+            var span = encBuf.AsSpan();
+            var written = Http11Encoder.Encode(req, ref span);
+            await stream.WriteAsync(encBuf.AsMemory(0, written));
 
-            if (decoder.TryDecode(readBuf.AsMemory(0, n), out _))
+            // Read buffer sized to hold the full response (headers + 256-byte body).
+
+            while (true)
             {
-                return;
+                var n = await stream.ReadAsync(readBuf);
+                if (n == 0)
+                {
+                    return;
+                }
+
+                if (decoder.TryDecode(readBuf.AsMemory(0, n), out _))
+                {
+                    return;
+                }
             }
+        }
+        finally
+        {
+            ArrayPool<byte>.Shared.Return(encBuf);
+            ArrayPool<byte>.Shared.Return(readBuf);
         }
     }
 }

@@ -5,45 +5,35 @@ using System.Net.Security;
 using System.Net.Sockets;
 using System.Security.Authentication;
 using System.Security.Cryptography.X509Certificates;
-using System.Threading;
-using System.Threading.Tasks;
 
 namespace Servus.Akka.IO;
 
-public interface IStreamProvider
+public interface IClientProvider
 {
     EndPoint? RemoteEndPoint { get; }
-    Task<Stream> ConnectAsync(string host, int port, CancellationToken ct = default);
+    Stream GetStream();
     void Close();
 }
 
-public class TcpStreamProvider : IStreamProvider
+public class TcpClientProvider(TcpOptions options) : IClientProvider
 {
-    private readonly AddressFamily _addressFamily;
     private Socket? _socket;
-
-    public TcpStreamProvider(TcpOptions options)
-        : this(options.AddressFamily)
-    {
-    }
-
-    public TcpStreamProvider(AddressFamily addressFamily)
-    {
-        _addressFamily = addressFamily;
-    }
 
     public EndPoint? RemoteEndPoint => _socket?.RemoteEndPoint;
 
-    public async Task<Stream> ConnectAsync(string host, int port, CancellationToken ct = default)
+    public Stream GetStream()
     {
+        var host = options.Host;
+        var port = options.Port;
+
         _socket = CreateSocket();
-        var addresses = await Dns.GetHostAddressesAsync(host, ct).ConfigureAwait(false);
+        var addresses = Dns.GetHostAddresses(host);
         if (addresses.Length == 0)
         {
-            throw new ArgumentException($"Could not resolve any IP addresses for host '{host}'.", nameof(host));
+            throw new InvalidOperationException($"Could not resolve any IP addresses for host '{host}'.");
         }
 
-        await _socket.ConnectAsync(addresses, port, ct).ConfigureAwait(false);
+        _socket.Connect(addresses, port);
         return new NetworkStream(_socket, ownsSocket: false);
     }
 
@@ -71,23 +61,24 @@ public class TcpStreamProvider : IStreamProvider
 
     private Socket CreateSocket()
     {
-        var result = new Socket(_addressFamily, SocketType.Stream, ProtocolType.Tcp)
+        var addressFamily = options.AddressFamily;
+        var result = new Socket(addressFamily, SocketType.Stream, ProtocolType.Tcp)
         {
             NoDelay = true,
             LingerState = new LingerOption(true, 0)
         };
 
-        if (_addressFamily is AddressFamily.Unspecified)
+        if (addressFamily is AddressFamily.Unspecified)
         {
             result = new Socket(SocketType.Stream, ProtocolType.Tcp)
             {
                 NoDelay = true,
-                LingerState = new LingerOption(true, 2)
+                LingerState = new LingerOption(true, 0)
             };
         }
 
         result.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.KeepAlive, true);
-        if (_addressFamily is AddressFamily.InterNetworkV6)
+        if (addressFamily is AddressFamily.InterNetworkV6)
         {
             result.DualMode = true;
         }
@@ -96,39 +87,31 @@ public class TcpStreamProvider : IStreamProvider
     }
 }
 
-public class TlsStreamProvider : IStreamProvider
+public class TlsClientProvider(TlsOptions options) : IClientProvider
 {
-    private readonly TcpStreamProvider _tcpStreamProvider;
-    private readonly TlsOptions _tlsOptions;
+    private readonly TcpClientProvider _tcpClientProvider = new(options);
     private SslStream? _sslStream;
 
-    public TlsStreamProvider(TlsOptions options)
-    {
-        _tcpStreamProvider = new TcpStreamProvider(options);
-        _tlsOptions = options;
-    }
+    public EndPoint? RemoteEndPoint => _tcpClientProvider.RemoteEndPoint;
 
-    public EndPoint? RemoteEndPoint => _tcpStreamProvider.RemoteEndPoint;
-
-    public async Task<Stream> ConnectAsync(string host, int port, CancellationToken ct = default)
+    public Stream GetStream()
     {
-        var networkStream = await _tcpStreamProvider.ConnectAsync(host, port, ct).ConfigureAwait(false);
+        var networkStream = _tcpClientProvider.GetStream();
         _sslStream = new SslStream(
             networkStream,
             leaveInnerStreamOpen: false,
-            _tlsOptions.ServerCertificateValidationCallback
+            options.ServerCertificateValidationCallback
         );
 
-        var targetHost = _tlsOptions.TargetHost ?? host;
+        var targetHost = options.TargetHost ?? options.Host;
         var authOptions = new SslClientAuthenticationOptions
         {
             TargetHost = targetHost,
-            EnabledSslProtocols = _tlsOptions.EnabledSslProtocols,
-            ClientCertificates = _tlsOptions.ClientCertificates,
+            EnabledSslProtocols = options.EnabledSslProtocols,
+            ClientCertificates = options.ClientCertificates,
         };
 
-        await _sslStream.AuthenticateAsClientAsync(authOptions, ct).ConfigureAwait(false);
-
+        _sslStream.AuthenticateAsClient(authOptions);
         return _sslStream!;
     }
 
@@ -151,7 +134,7 @@ public class TlsStreamProvider : IStreamProvider
             }
         }
 
-        _tcpStreamProvider.Close();
+        _tcpClientProvider.Close();
     }
 }
 
@@ -170,6 +153,6 @@ public record TcpOptions
     public int MaxFrameSize { get; init; } = 128 * 1024;
     public AddressFamily AddressFamily { get; set; } = AddressFamily.Unspecified;
     public TimeSpan ConnectTimeout { get; set; } = TimeSpan.FromSeconds(10);
-    public TimeSpan ReconnetInterval { get; set; } = TimeSpan.FromSeconds(5);
+    public TimeSpan ReconnectInterval { get; set; } = TimeSpan.FromSeconds(5);
     public int MaxReconnectAttempts { get; set; } = 10;
 }

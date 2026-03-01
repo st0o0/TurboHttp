@@ -524,4 +524,711 @@ public sealed class Http11RoundTripTests
         Assert.Equal("application/json", responses[0].Content.Headers.ContentType!.MediaType);
         Assert.Equal("utf-8", responses[0].Content.Headers.ContentType!.CharSet);
     }
+
+    // ── Helpers (extended) ─────────────────────────────────────────────────────
+
+    private static ReadOnlyMemory<byte> Combine(params ReadOnlyMemory<byte>[] parts)
+    {
+        var totalLen = parts.Sum(p => p.Length);
+        var result = new byte[totalLen];
+        var offset = 0;
+        foreach (var part in parts)
+        {
+            part.Span.CopyTo(result.AsSpan(offset));
+            offset += part.Length;
+        }
+
+        return result;
+    }
+
+    // ── Content-Length Scenarios ───────────────────────────────────────────────
+
+    [Fact(DisplayName = "RT-11-021: Content-Length 0 — empty body decoded")]
+    public async Task Should_ReturnEmptyBody_When_ContentLengthZeroRoundTrip()
+    {
+        var decoder = new Http11Decoder();
+        var raw = BuildResponse(200, "OK", "", ("Content-Length", "0"));
+        decoder.TryDecode(raw, out var responses);
+
+        Assert.Single(responses);
+        Assert.Equal(HttpStatusCode.OK, responses[0].StatusCode);
+        Assert.Empty(await responses[0].Content.ReadAsByteArrayAsync());
+    }
+
+    [Fact(DisplayName = "RT-11-022: Content-Length matches UTF-8 byte count exactly")]
+    public async Task Should_DecodeUtf8Body_When_ContentLengthMatchesBytes()
+    {
+        const string text = "日本語テスト";
+        var bodyBytes = Encoding.UTF8.GetBytes(text);
+        var decoder = new Http11Decoder();
+        var raw = BuildBinaryResponse(200, "OK", bodyBytes,
+            ("Content-Length", bodyBytes.Length.ToString()),
+            ("Content-Type", "text/plain; charset=utf-8"));
+        decoder.TryDecode(raw, out var responses);
+
+        Assert.Single(responses);
+        Assert.Equal(bodyBytes, await responses[0].Content.ReadAsByteArrayAsync());
+    }
+
+    [Fact(DisplayName = "RT-11-023: 64KB body round-trip with Content-Length")]
+    public async Task Should_Preserve64KbBody_When_ContentLengthRoundTrip()
+    {
+        var body = new byte[65536];
+        for (var i = 0; i < body.Length; i++) { body[i] = (byte)(i & 0xFF); }
+
+        var decoder = new Http11Decoder(maxBodySize: 65536 + 1024);
+        var raw = BuildBinaryResponse(200, "OK", body, ("Content-Length", body.Length.ToString()));
+        decoder.TryDecode(raw, out var responses);
+
+        Assert.Single(responses);
+        Assert.Equal(body, await responses[0].Content.ReadAsByteArrayAsync());
+    }
+
+    [Fact(DisplayName = "RT-11-024: Three pipelined Content-Length responses decoded in order")]
+    public async Task Should_DecodeAll_When_ThreePipelinedContentLengthRoundTrip()
+    {
+        var r1 = BuildResponse(200, "OK", "one", ("Content-Length", "3"));
+        var r2 = BuildResponse(202, "Accepted", "two", ("Content-Length", "3"));
+        var r3 = BuildResponse(200, "OK", "three", ("Content-Length", "5"));
+        var combined = Combine(r1, r2, r3);
+
+        var decoder = new Http11Decoder();
+        decoder.TryDecode(combined, out var responses);
+
+        Assert.Equal(3, responses.Count);
+        Assert.Equal("one", await responses[0].Content.ReadAsStringAsync());
+        Assert.Equal("two", await responses[1].Content.ReadAsStringAsync());
+        Assert.Equal("three", await responses[2].Content.ReadAsStringAsync());
+    }
+
+    [Fact(DisplayName = "RT-11-025: Content-Length 1 — single byte body decoded")]
+    public async Task Should_DecodeOneByte_When_ContentLengthOneRoundTrip()
+    {
+        var body = new byte[] { 0x42 };
+        var decoder = new Http11Decoder();
+        var raw = BuildBinaryResponse(200, "OK", body, ("Content-Length", "1"));
+        decoder.TryDecode(raw, out var responses);
+
+        Assert.Single(responses);
+        Assert.Equal(body, await responses[0].Content.ReadAsByteArrayAsync());
+    }
+
+    [Fact(DisplayName = "RT-11-026: Reset decoder — second Content-Length response decoded after reset")]
+    public async Task Should_DecodeAfterReset_When_ContentLengthRoundTrip()
+    {
+        var decoder = new Http11Decoder();
+        var r1 = BuildResponse(200, "OK", "first", ("Content-Length", "5"));
+        decoder.TryDecode(r1, out _);
+        decoder.Reset();
+
+        var r2 = BuildResponse(200, "OK", "second", ("Content-Length", "6"));
+        var decoded = decoder.TryDecode(r2, out var responses);
+
+        Assert.True(decoded);
+        Assert.Single(responses);
+        Assert.Equal("second", await responses[0].Content.ReadAsStringAsync());
+    }
+
+    // ── Chunked Transfer Encoding ───────────────────────────────────────────────
+
+    [Fact(DisplayName = "RT-11-027: Single 1-byte chunk decoded correctly")]
+    public async Task Should_DecodeOneByte_When_SingleByteChunkRoundTrip()
+    {
+        var decoder = new Http11Decoder();
+        var raw = BuildChunkedResponse(200, "OK", ["A"]);
+        decoder.TryDecode(raw, out var responses);
+
+        Assert.Single(responses);
+        Assert.Equal("A", await responses[0].Content.ReadAsStringAsync());
+    }
+
+    [Fact(DisplayName = "RT-11-028: Uppercase hex chunk size decoded correctly")]
+    public async Task Should_DecodeBody_When_UppercaseHexChunkSizeRoundTrip()
+    {
+        // "A" = 10 in uppercase hex
+        const string rawResponse =
+            "HTTP/1.1 200 OK\r\n" +
+            "Transfer-Encoding: chunked\r\n" +
+            "\r\n" +
+            "A\r\n" +
+            "0123456789\r\n" +
+            "0\r\n" +
+            "\r\n";
+        var mem = (ReadOnlyMemory<byte>)Encoding.ASCII.GetBytes(rawResponse);
+
+        var decoder = new Http11Decoder();
+        decoder.TryDecode(mem, out var responses);
+
+        Assert.Single(responses);
+        Assert.Equal("0123456789", await responses[0].Content.ReadAsStringAsync());
+    }
+
+    [Fact(DisplayName = "RT-11-029: 20 single-character chunks concatenated correctly")]
+    public async Task Should_ConcatenateAllChunks_When_TwentyTinyChunksRoundTrip()
+    {
+        var chars = Enumerable.Range(0, 20).Select(i => ((char)('a' + i)).ToString()).ToArray();
+        var decoder = new Http11Decoder();
+        var raw = BuildChunkedResponse(200, "OK", chars);
+        decoder.TryDecode(raw, out var responses);
+
+        Assert.Single(responses);
+        var expected = string.Concat(chars);
+        Assert.Equal(expected, await responses[0].Content.ReadAsStringAsync());
+    }
+
+    [Fact(DisplayName = "RT-11-030: 32KB single chunk decoded correctly")]
+    public async Task Should_Preserve32KbChunk_When_LargeChunkRoundTrip()
+    {
+        var body = new string('X', 32768);
+        var decoder = new Http11Decoder(maxBodySize: 32768 + 1024);
+        var raw = BuildChunkedResponse(200, "OK", [body]);
+        decoder.TryDecode(raw, out var responses);
+
+        Assert.Single(responses);
+        var decoded = await responses[0].Content.ReadAsStringAsync();
+        Assert.Equal(32768, decoded.Length);
+        Assert.All(decoded, c => Assert.Equal('X', c));
+    }
+
+    [Fact(DisplayName = "RT-11-031: Chunk with extension token — body decoded correctly (RFC 9112 §7.1.1)")]
+    public async Task Should_DecodeBody_When_ChunkHasExtensionRoundTrip()
+    {
+        const string rawResponse =
+            "HTTP/1.1 200 OK\r\n" +
+            "Transfer-Encoding: chunked\r\n" +
+            "\r\n" +
+            "5;ext=value\r\n" +
+            "Hello\r\n" +
+            "6;checksum=abc\r\n" +
+            " World\r\n" +
+            "0\r\n" +
+            "\r\n";
+        var mem = (ReadOnlyMemory<byte>)Encoding.ASCII.GetBytes(rawResponse);
+
+        var decoder = new Http11Decoder();
+        decoder.TryDecode(mem, out var responses);
+
+        Assert.Single(responses);
+        Assert.Equal("Hello World", await responses[0].Content.ReadAsStringAsync());
+    }
+
+    [Fact(DisplayName = "RT-11-032: Pipelined chunked then Content-Length response decoded")]
+    public async Task Should_DecodeBoth_When_ChunkedThenContentLengthPipelined()
+    {
+        var chunked = BuildChunkedResponse(200, "OK", ["chunk-data"]);
+        var fixedLen = BuildResponse(201, "Created", "fixed", ("Content-Length", "5"));
+        var combined = Combine(chunked, fixedLen);
+
+        var decoder = new Http11Decoder();
+        decoder.TryDecode(combined, out var responses);
+
+        Assert.Equal(2, responses.Count);
+        Assert.Equal("chunk-data", await responses[0].Content.ReadAsStringAsync());
+        Assert.Equal("fixed", await responses[1].Content.ReadAsStringAsync());
+    }
+
+    [Fact(DisplayName = "RT-11-033: Chunked body with two trailer headers round-trip")]
+    public async Task Should_AccessBothTrailers_When_TwoTrailerHeadersRoundTrip()
+    {
+        var decoder = new Http11Decoder();
+        var raw = BuildChunkedResponse(200, "OK",
+            ["part1", "part2"],
+            [("X-Digest", "sha256:abc"), ("X-Request-Id", "req-999")]);
+        decoder.TryDecode(raw, out var responses);
+
+        Assert.Single(responses);
+        Assert.Equal("part1part2", await responses[0].Content.ReadAsStringAsync());
+        Assert.True(responses[0].TrailingHeaders.TryGetValues("X-Digest", out var digest));
+        Assert.Equal("sha256:abc", digest.Single());
+        Assert.True(responses[0].TrailingHeaders.TryGetValues("X-Request-Id", out var reqId));
+        Assert.Equal("req-999", reqId.Single());
+    }
+
+    // ── Pipelining ─────────────────────────────────────────────────────────────
+
+    [Fact(DisplayName = "RT-11-034: Three pipelined responses decoded in order")]
+    public async Task Should_DecodeAllThree_When_ThreePipelinedResponsesRoundTrip()
+    {
+        var r1 = BuildResponse(200, "OK", "alpha", ("Content-Length", "5"));
+        var r2 = BuildResponse(200, "OK", "beta", ("Content-Length", "4"));
+        var r3 = BuildResponse(200, "OK", "gamma", ("Content-Length", "5"));
+        var combined = Combine(r1, r2, r3);
+
+        var decoder = new Http11Decoder();
+        decoder.TryDecode(combined, out var responses);
+
+        Assert.Equal(3, responses.Count);
+        Assert.Equal("alpha", await responses[0].Content.ReadAsStringAsync());
+        Assert.Equal("beta", await responses[1].Content.ReadAsStringAsync());
+        Assert.Equal("gamma", await responses[2].Content.ReadAsStringAsync());
+    }
+
+    [Fact(DisplayName = "RT-11-035: Five pipelined responses all decoded correctly")]
+    public async Task Should_DecodeAllFive_When_FivePipelinedResponsesRoundTrip()
+    {
+        var parts = Enumerable.Range(1, 5)
+            .Select(i => BuildResponse(200, "OK", $"r{i}", ("Content-Length", "2")))
+            .ToArray();
+        var combined = Combine(parts);
+
+        var decoder = new Http11Decoder();
+        decoder.TryDecode(combined, out var decoded);
+
+        Assert.Equal(5, decoded.Count);
+        for (var i = 0; i < 5; i++)
+        {
+            Assert.Equal($"r{i + 1}", await decoded[i].Content.ReadAsStringAsync());
+        }
+    }
+
+    [Fact(DisplayName = "RT-11-036: Pipelined 200 → 404 → 200 — status codes preserved")]
+    public void Should_PreserveStatusCodes_When_MixedStatusPipelined()
+    {
+        var r1 = BuildResponse(200, "OK", "ok", ("Content-Length", "2"));
+        var r2 = BuildResponse(404, "Not Found", "nf", ("Content-Length", "2"));
+        var r3 = BuildResponse(200, "OK", "ok", ("Content-Length", "2"));
+        var combined = Combine(r1, r2, r3);
+
+        var decoder = new Http11Decoder();
+        decoder.TryDecode(combined, out var responses);
+
+        Assert.Equal(3, responses.Count);
+        Assert.Equal(HttpStatusCode.OK, responses[0].StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, responses[1].StatusCode);
+        Assert.Equal(HttpStatusCode.OK, responses[2].StatusCode);
+    }
+
+    [Fact(DisplayName = "RT-11-037: Pipelined 204 → 200 → 204 — no-body responses handled")]
+    public async Task Should_DecodeAll_When_PipelineContainsNoBodyResponses()
+    {
+        var r1 = BuildResponse(204, "No Content", "", ("Content-Length", "0"));
+        var r2 = BuildResponse(200, "OK", "data", ("Content-Length", "4"));
+        var r3 = BuildResponse(204, "No Content", "", ("Content-Length", "0"));
+        var combined = Combine(r1, r2, r3);
+
+        var decoder = new Http11Decoder();
+        decoder.TryDecode(combined, out var responses);
+
+        Assert.Equal(3, responses.Count);
+        Assert.Equal(HttpStatusCode.NoContent, responses[0].StatusCode);
+        Assert.Equal("data", await responses[1].Content.ReadAsStringAsync());
+        Assert.Equal(HttpStatusCode.NoContent, responses[2].StatusCode);
+    }
+
+    [Fact(DisplayName = "RT-11-038: Pipelined chunked → Content-Length → 204 all decoded")]
+    public async Task Should_DecodeAll_When_MixedEncodingsPipelined()
+    {
+        var r1 = BuildChunkedResponse(200, "OK", ["chunked"]);
+        var r2 = BuildResponse(200, "OK", "fixed", ("Content-Length", "5"));
+        var r3 = BuildResponse(204, "No Content", "", ("Content-Length", "0"));
+        var combined = Combine(r1, r2, r3);
+
+        var decoder = new Http11Decoder();
+        decoder.TryDecode(combined, out var responses);
+
+        Assert.Equal(3, responses.Count);
+        Assert.Equal("chunked", await responses[0].Content.ReadAsStringAsync());
+        Assert.Equal("fixed", await responses[1].Content.ReadAsStringAsync());
+        Assert.Equal(HttpStatusCode.NoContent, responses[2].StatusCode);
+    }
+
+    // ── HEAD Requests ──────────────────────────────────────────────────────────
+
+    [Fact(DisplayName = "RT-11-039: TryDecodeHead — Content-Length present but body not consumed")]
+    public async Task Should_ReturnEmptyBody_When_HeadResponseHasContentLength()
+    {
+        const string rawResponse =
+            "HTTP/1.1 200 OK\r\n" +
+            "Content-Length: 100\r\n" +
+            "Content-Type: application/json\r\n" +
+            "\r\n";
+        var mem = (ReadOnlyMemory<byte>)Encoding.ASCII.GetBytes(rawResponse);
+
+        var decoder = new Http11Decoder();
+        var decoded = decoder.TryDecodeHead(mem, out var responses);
+
+        Assert.True(decoded);
+        Assert.Single(responses);
+        Assert.Equal(HttpStatusCode.OK, responses[0].StatusCode);
+        Assert.Empty(await responses[0].Content.ReadAsByteArrayAsync());
+    }
+
+    [Fact(DisplayName = "RT-11-040: TryDecodeHead 404 — empty body returned")]
+    public async Task Should_Return404EmptyBody_When_HeadResponseIs404()
+    {
+        const string rawResponse = "HTTP/1.1 404 Not Found\r\nContent-Length: 50\r\n\r\n";
+        var mem = (ReadOnlyMemory<byte>)Encoding.ASCII.GetBytes(rawResponse);
+
+        var decoder = new Http11Decoder();
+        decoder.TryDecodeHead(mem, out var responses);
+
+        Assert.Single(responses);
+        Assert.Equal(HttpStatusCode.NotFound, responses[0].StatusCode);
+        Assert.Empty(await responses[0].Content.ReadAsByteArrayAsync());
+    }
+
+    [Fact(DisplayName = "RT-11-041: Two pipelined HEAD responses via TryDecodeHead")]
+    public async Task Should_DecodeBothHeads_When_TwoHeadResponsesPipelined()
+    {
+        const string rawResponse =
+            "HTTP/1.1 200 OK\r\nContent-Length: 100\r\n\r\n" +
+            "HTTP/1.1 200 OK\r\nContent-Length: 200\r\n\r\n";
+        var mem = (ReadOnlyMemory<byte>)Encoding.ASCII.GetBytes(rawResponse);
+
+        var decoder = new Http11Decoder();
+        decoder.TryDecodeHead(mem, out var responses);
+
+        Assert.Equal(2, responses.Count);
+        Assert.Empty(await responses[0].Content.ReadAsByteArrayAsync());
+        Assert.Empty(await responses[1].Content.ReadAsByteArrayAsync());
+    }
+
+    [Fact(DisplayName = "RT-11-042: HEAD 200 then GET 200 on same decoder instance")]
+    public async Task Should_DecodeGetAfterHead_When_SameDecoderUsedForBoth()
+    {
+        var decoder = new Http11Decoder();
+
+        const string headRaw = "HTTP/1.1 200 OK\r\nContent-Length: 42\r\n\r\n";
+        decoder.TryDecodeHead((ReadOnlyMemory<byte>)Encoding.ASCII.GetBytes(headRaw), out var headResp);
+        Assert.Single(headResp);
+        Assert.Empty(await headResp[0].Content.ReadAsByteArrayAsync());
+
+        var getRaw = BuildResponse(200, "OK", "actual body", ("Content-Length", "11"));
+        decoder.TryDecode(getRaw, out var getResp);
+        Assert.Single(getResp);
+        Assert.Equal("actual body", await getResp[0].Content.ReadAsStringAsync());
+    }
+
+    // ── No-body Responses ──────────────────────────────────────────────────────
+
+    [Fact(DisplayName = "RT-11-043: 304 Not Modified with ETag — no body, ETag header preserved")]
+    public void Should_Return304NoBody_When_NotModifiedWithETagRoundTrip()
+    {
+        var raw = BuildResponse(304, "Not Modified", "",
+            ("ETag", "\"abc123\""),
+            ("Last-Modified", "Wed, 01 Jan 2025 00:00:00 GMT"));
+
+        var decoder = new Http11Decoder();
+        decoder.TryDecode(raw, out var responses);
+
+        Assert.Single(responses);
+        Assert.Equal(HttpStatusCode.NotModified, responses[0].StatusCode);
+        Assert.True(responses[0].Headers.TryGetValues("ETag", out var etag));
+        Assert.Equal("\"abc123\"", etag.Single());
+    }
+
+    [Fact(DisplayName = "RT-11-044: 204 No Content after DELETE — empty body")]
+    public async Task Should_Return204EmptyBody_When_DeleteReturnsNoContent()
+    {
+        var request = new HttpRequestMessage(HttpMethod.Delete, "http://example.com/resource/99");
+        var (buffer, written) = EncodeRequest(request);
+        Assert.Contains("DELETE", Encoding.ASCII.GetString(buffer, 0, written));
+
+        var decoder = new Http11Decoder();
+        var raw = BuildResponse(204, "No Content", "");
+        decoder.TryDecode(raw, out var responses);
+
+        Assert.Single(responses);
+        Assert.Equal(HttpStatusCode.NoContent, responses[0].StatusCode);
+        Assert.Empty(await responses[0].Content.ReadAsByteArrayAsync());
+    }
+
+    [Fact(DisplayName = "RT-11-045: Pipelined 304 → 200 — body only in 200 decoded")]
+    public async Task Should_DecodeBodyOf200_When_304PrecededIt()
+    {
+        var r304 = BuildResponse(304, "Not Modified", "");
+        var r200 = BuildResponse(200, "OK", "fresh", ("Content-Length", "5"));
+        var combined = Combine(r304, r200);
+
+        var decoder = new Http11Decoder();
+        decoder.TryDecode(combined, out var responses);
+
+        Assert.Equal(2, responses.Count);
+        Assert.Equal(HttpStatusCode.NotModified, responses[0].StatusCode);
+        Assert.Equal("fresh", await responses[1].Content.ReadAsStringAsync());
+    }
+
+    [Fact(DisplayName = "RT-11-046: 102 Processing skipped — only 200 OK returned")]
+    public async Task Should_Skip102_When_FollowedBy200RoundTrip()
+    {
+        const string combined =
+            "HTTP/1.1 102 Processing\r\n\r\n" +
+            "HTTP/1.1 200 OK\r\nContent-Length: 4\r\n\r\ndone";
+        var mem = (ReadOnlyMemory<byte>)Encoding.ASCII.GetBytes(combined);
+
+        var decoder = new Http11Decoder();
+        decoder.TryDecode(mem, out var responses);
+
+        Assert.Single(responses);
+        Assert.Equal(HttpStatusCode.OK, responses[0].StatusCode);
+        Assert.Equal("done", await responses[0].Content.ReadAsStringAsync());
+    }
+
+    [Fact(DisplayName = "RT-11-047: 204 with Content-Type header — empty body returned")]
+    public async Task Should_ReturnEmptyBody_When_204HasContentTypeHeader()
+    {
+        var raw = BuildResponse(204, "No Content", "",
+            ("Content-Type", "application/json"));
+
+        var decoder = new Http11Decoder();
+        decoder.TryDecode(raw, out var responses);
+
+        Assert.Single(responses);
+        Assert.Equal(HttpStatusCode.NoContent, responses[0].StatusCode);
+        Assert.Empty(await responses[0].Content.ReadAsByteArrayAsync());
+    }
+
+    // ── Keep-alive vs. Close ───────────────────────────────────────────────────
+
+    [Fact(DisplayName = "RT-11-048: Connection: close header preserved in decoded response")]
+    public void Should_ReturnConnectionClose_When_ResponseHasConnectionCloseHeader()
+    {
+        var raw = BuildResponse(200, "OK", "data",
+            ("Content-Length", "4"),
+            ("Connection", "close"));
+
+        var decoder = new Http11Decoder();
+        decoder.TryDecode(raw, out var responses);
+
+        Assert.Single(responses);
+        Assert.True(responses[0].Headers.TryGetValues("Connection", out var conn));
+        Assert.Contains("close", conn.Single(), StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact(DisplayName = "RT-11-049: Three sequential keep-alive responses decoded correctly")]
+    public async Task Should_DecodeAllThree_When_SequentialKeepAliveRoundTrip()
+    {
+        var decoder = new Http11Decoder();
+
+        for (var i = 1; i <= 3; i++)
+        {
+            var body = $"resp{i}";
+            var raw = BuildResponse(200, "OK", body,
+                ("Content-Length", body.Length.ToString()),
+                ("Connection", "keep-alive"));
+            decoder.TryDecode(raw, out var responses);
+
+            Assert.Single(responses);
+            Assert.Equal(body, await responses[0].Content.ReadAsStringAsync());
+        }
+    }
+
+    [Fact(DisplayName = "RT-11-050: Reset() clears state — fresh response decoded after reset")]
+    public async Task Should_DecodeCorrectly_When_DecoderResetBetweenConnections()
+    {
+        using var decoder = new Http11Decoder();
+
+        var r1 = BuildResponse(200, "OK", "before", ("Content-Length", "6"));
+        decoder.TryDecode(r1, out _);
+        decoder.Reset();
+
+        var r2 = BuildResponse(200, "OK", "after", ("Content-Length", "5"));
+        var decoded = decoder.TryDecode(r2, out var responses);
+
+        Assert.True(decoded);
+        Assert.Single(responses);
+        Assert.Equal("after", await responses[0].Content.ReadAsStringAsync());
+    }
+
+    [Fact(DisplayName = "RT-11-051: Keep-alive — varying body sizes all decoded correctly")]
+    public async Task Should_DecodeAllSizes_When_KeepAliveVaryingBodySizes()
+    {
+        var decoder = new Http11Decoder();
+        var sizes = new[] { 1, 10, 100, 1000 };
+
+        foreach (var size in sizes)
+        {
+            var body = new string('A', size);
+            var raw = BuildResponse(200, "OK", body, ("Content-Length", size.ToString()));
+            decoder.TryDecode(raw, out var responses);
+
+            Assert.Single(responses);
+            Assert.Equal(size, (await responses[0].Content.ReadAsStringAsync()).Length);
+        }
+    }
+
+    // ── TCP Fragmentation ──────────────────────────────────────────────────────
+
+    [Fact(DisplayName = "RT-11-052: TCP fragment split after status line CRLF — response assembled")]
+    public async Task Should_AssembleResponse_When_SplitAfterStatusLine()
+    {
+        const string full = "HTTP/1.1 200 OK\r\nContent-Length: 5\r\n\r\nhello";
+        var bytes = Encoding.ASCII.GetBytes(full);
+
+        // "HTTP/1.1 200 OK\r\n" = 17 bytes
+        const int splitAt = 17;
+        var part1 = new ReadOnlyMemory<byte>(bytes, 0, splitAt);
+        var part2 = new ReadOnlyMemory<byte>(bytes, splitAt, bytes.Length - splitAt);
+
+        var decoder = new Http11Decoder();
+        var decoded1 = decoder.TryDecode(part1, out _);
+        var decoded2 = decoder.TryDecode(part2, out var responses);
+
+        Assert.False(decoded1);
+        Assert.True(decoded2);
+        Assert.Single(responses);
+        Assert.Equal("hello", await responses[0].Content.ReadAsStringAsync());
+    }
+
+    [Fact(DisplayName = "RT-11-053: TCP fragment split at header-body boundary — response assembled")]
+    public async Task Should_AssembleResponse_When_SplitAtHeaderBodyBoundary()
+    {
+        var headerBytes = Encoding.ASCII.GetBytes("HTTP/1.1 200 OK\r\nContent-Length: 5\r\n\r\n");
+        var bodyBytes = Encoding.ASCII.GetBytes("hello");
+
+        var decoder = new Http11Decoder();
+        decoder.TryDecode(headerBytes, out _);
+        decoder.TryDecode(bodyBytes, out var responses);
+
+        Assert.Single(responses);
+        Assert.Equal("hello", await responses[0].Content.ReadAsStringAsync());
+    }
+
+    [Fact(DisplayName = "RT-11-054: TCP fragment split mid-body — body assembled correctly")]
+    public async Task Should_AssembleBody_When_SplitMidBody()
+    {
+        const string full = "HTTP/1.1 200 OK\r\nContent-Length: 10\r\n\r\n0123456789";
+        var bytes = Encoding.ASCII.GetBytes(full);
+        var headerLen = full.IndexOf("\r\n\r\n") + 4;
+
+        // Split 5 bytes into the body
+        var splitAt = headerLen + 5;
+        var part1 = new ReadOnlyMemory<byte>(bytes, 0, splitAt);
+        var part2 = new ReadOnlyMemory<byte>(bytes, splitAt, bytes.Length - splitAt);
+
+        var decoder = new Http11Decoder();
+        decoder.TryDecode(part1, out _);
+        decoder.TryDecode(part2, out var responses);
+
+        Assert.Single(responses);
+        Assert.Equal("0123456789", await responses[0].Content.ReadAsStringAsync());
+    }
+
+    [Fact(DisplayName = "RT-11-055: Single-byte TCP delivery assembles complete response")]
+    public async Task Should_AssembleResponse_When_SingleByteTcpDelivery()
+    {
+        const string full = "HTTP/1.1 200 OK\r\nContent-Length: 3\r\n\r\nabc";
+        var bytes = Encoding.ASCII.GetBytes(full);
+
+        var decoder = new Http11Decoder();
+        HttpResponseMessage? finalResponse = null;
+
+        for (var i = 0; i < bytes.Length; i++)
+        {
+            var chunk = new ReadOnlyMemory<byte>(bytes, i, 1);
+            if (decoder.TryDecode(chunk, out var r) && r.Count > 0)
+            {
+                finalResponse = r[0];
+            }
+        }
+
+        Assert.NotNull(finalResponse);
+        Assert.Equal("abc", await finalResponse!.Content.ReadAsStringAsync());
+    }
+
+    [Fact(DisplayName = "RT-11-056: TCP fragment split between two chunks — body assembled correctly")]
+    public async Task Should_AssembleChunkedBody_When_SplitBetweenChunks()
+    {
+        var part1 = (ReadOnlyMemory<byte>)Encoding.ASCII.GetBytes(
+            "HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n3\r\nfoo\r\n");
+        var part2 = (ReadOnlyMemory<byte>)Encoding.ASCII.GetBytes(
+            "3\r\nbar\r\n0\r\n\r\n");
+
+        var decoder = new Http11Decoder();
+        decoder.TryDecode(part1, out _);
+        decoder.TryDecode(part2, out var responses);
+
+        Assert.Single(responses);
+        Assert.Equal("foobar", await responses[0].Content.ReadAsStringAsync());
+    }
+
+    // ── Miscellaneous / Edge Cases ─────────────────────────────────────────────
+
+    [Fact(DisplayName = "RT-11-057: 503 Service Unavailable with Retry-After header preserved")]
+    public void Should_Return503WithRetryAfter_When_ServiceUnavailableRoundTrip()
+    {
+        var request = new HttpRequestMessage(HttpMethod.Get, "http://example.com/busy");
+        var (buffer, written) = EncodeRequest(request);
+        Assert.True(written > 0);
+
+        var decoder = new Http11Decoder();
+        var raw = BuildResponse(503, "Service Unavailable", "",
+            ("Content-Length", "0"),
+            ("Retry-After", "120"));
+        decoder.TryDecode(raw, out var responses);
+
+        Assert.Single(responses);
+        Assert.Equal(HttpStatusCode.ServiceUnavailable, responses[0].StatusCode);
+        Assert.True(responses[0].Headers.TryGetValues("Retry-After", out var retryAfter));
+        Assert.Equal("120", retryAfter.Single());
+    }
+
+    [Fact(DisplayName = "RT-11-058: Response with 10 custom headers — all preserved")]
+    public void Should_PreserveAllHeaders_When_ResponseHasTenCustomHeaders()
+    {
+        var headers = new (string Name, string Value)[11];
+        for (var i = 1; i <= 10; i++)
+        {
+            headers[i - 1] = ($"X-Custom-{i}", $"value-{i}");
+        }
+
+        headers[10] = ("Content-Length", "0");
+
+        var decoder = new Http11Decoder();
+        var raw = BuildResponse(200, "OK", "", headers);
+        decoder.TryDecode(raw, out var responses);
+
+        Assert.Single(responses);
+        for (var i = 1; i <= 10; i++)
+        {
+            Assert.True(responses[0].Headers.TryGetValues($"X-Custom-{i}", out var vals));
+            Assert.Equal($"value-{i}", vals.Single());
+        }
+    }
+
+    [Fact(DisplayName = "RT-11-059: UTF-8 body preserved byte-for-byte round-trip")]
+    public async Task Should_PreserveUtf8Bytes_When_Utf8BodyRoundTrip()
+    {
+        const string text = "Hello, 世界! Привет мир!";
+        var bodyBytes = Encoding.UTF8.GetBytes(text);
+
+        var decoder = new Http11Decoder();
+        var raw = BuildBinaryResponse(200, "OK", bodyBytes,
+            ("Content-Length", bodyBytes.Length.ToString()),
+            ("Content-Type", "text/plain; charset=utf-8"));
+        decoder.TryDecode(raw, out var responses);
+
+        Assert.Single(responses);
+        var decoded = Encoding.UTF8.GetString(await responses[0].Content.ReadAsByteArrayAsync());
+        Assert.Equal(text, decoded);
+    }
+
+    [Fact(DisplayName = "RT-11-060: Request URL with query string — path and query preserved")]
+    public void Should_EncodeQueryString_When_RequestHasQueryStringRoundTrip()
+    {
+        var request = new HttpRequestMessage(HttpMethod.Get,
+            "http://example.com/search?q=hello+world&page=1");
+        var (buffer, written) = EncodeRequest(request);
+        var encoded = Encoding.ASCII.GetString(buffer, 0, written);
+
+        Assert.Contains("GET /search?q=hello+world&page=1 HTTP/1.1", encoded);
+    }
+
+    [Fact(DisplayName = "RT-11-061: ETag with quotes and Cache-Control preserved exactly")]
+    public void Should_PreserveETagAndCacheControl_When_ETagResponseRoundTrip()
+    {
+        var raw = BuildResponse(200, "OK", "data",
+            ("Content-Length", "4"),
+            ("ETag", "\"v1.0-abc123\""),
+            ("Cache-Control", "max-age=3600"));
+
+        var decoder = new Http11Decoder();
+        decoder.TryDecode(raw, out var responses);
+
+        Assert.Single(responses);
+        Assert.True(responses[0].Headers.TryGetValues("ETag", out var etag));
+        Assert.Equal("\"v1.0-abc123\"", etag.Single());
+        Assert.True(responses[0].Headers.TryGetValues("Cache-Control", out var cc));
+        Assert.Equal("max-age=3600", cc.Single());
+    }
 }

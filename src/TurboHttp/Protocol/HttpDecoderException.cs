@@ -39,10 +39,10 @@ public sealed class HttpDecoderException : Exception
             "More data required to complete parsing.",
 
         HttpDecodeError.InvalidStatusLine =>
-            "RFC 9112 §4: Invalid status-line. Expected 'HTTP/1.x NNN reason-phrase\\r\\n'.",
+            @"RFC 9112 §4: Invalid status-line. Expected 'HTTP/1.x NNN reason-phrase\r\n'.",
 
         HttpDecodeError.InvalidHeader =>
-            "RFC 9112 §5.1: Invalid header field. Expected 'name: value\\r\\n'; missing or misplaced colon separator.",
+            @"RFC 9112 §5.1: Invalid header field. Expected 'name: value\r\n'; missing or misplaced colon separator.",
 
         HttpDecodeError.InvalidContentLength =>
             "RFC 9112 §6.3: Invalid Content-Length value. Must be a non-negative integer.",
@@ -57,7 +57,7 @@ public sealed class HttpDecoderException : Exception
             "RFC 9112 §2.3: Line length exceeds the configured maximum.",
 
         HttpDecodeError.InvalidRequestLine =>
-            "RFC 9112 §3: Invalid request-line. Expected 'METHOD SP request-target SP HTTP/1.x\\r\\n'.",
+            @"RFC 9112 §3: Invalid request-line. Expected 'METHOD SP request-target SP HTTP/1.x\r\n'.",
 
         HttpDecodeError.InvalidMethodToken =>
             "RFC 9112 §3.1: Invalid HTTP method token. Methods must consist of token characters only.",
@@ -81,7 +81,7 @@ public sealed class HttpDecoderException : Exception
             "RFC 9112 §5.1: Invalid header field name. Names must be token characters with no surrounding whitespace.",
 
         HttpDecodeError.InvalidFieldValue =>
-            "RFC 9112 §5.5: Invalid header field value. Values must not contain CR (\\r), LF (\\n), or NUL (\\0) bytes.",
+            @"RFC 9112 §5.5: Invalid header field value. Values must not contain CR (\r), LF (\n), or NUL (\0) bytes.",
 
         HttpDecodeError.ObsoleteFoldingDetected =>
             "RFC 9112 §5.2: Obsolete line folding detected. Folded header values are not permitted.",

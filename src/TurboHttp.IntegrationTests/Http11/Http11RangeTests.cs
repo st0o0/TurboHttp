@@ -1,7 +1,7 @@
 using System.Net;
 using TurboHttp.IntegrationTests.Shared;
 
-namespace TurboHttp.IntegrationTests.Http11Advanced;
+namespace TurboHttp.IntegrationTests.Http11;
 
 /// <summary>
 /// Phase 14 — HTTP/1.1 Integration Tests: Range requests (RFC 7233).

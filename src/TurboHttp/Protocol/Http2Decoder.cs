@@ -14,8 +14,8 @@ public sealed class Http2Decoder
     private readonly HpackDecoder _hpack = new();
     private ReadOnlyMemory<byte> _remainder = ReadOnlyMemory<byte>.Empty;
     private readonly Dictionary<int, StreamState> _streams = new();
-    private readonly HashSet<int> _closedStreamIds = new();
-    private readonly HashSet<int> _promisedStreamIds = new();
+    private readonly HashSet<int> _closedStreamIds = [];
+    private readonly HashSet<int> _promisedStreamIds = [];
 
     private int _continuationStreamId;
     private byte[]? _continuationBuffer;
