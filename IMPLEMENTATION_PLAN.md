@@ -212,11 +212,11 @@ var headerBlock = _hpack.Encode(headers);
 
 ---
 
-## Phase 31: Http2Encoder — Sensitive Header Handling
+## Phase 31: Http2Encoder — Sensitive Header Handling ✅
 
 **Location**: `src/TurboHttp/Protocol/Http2Encoder.cs` + `HpackEncoder.cs`
 **RFC**: RFC 7541 §7.1.3
-**Tests**: 30+
+**Tests**: 35 (exceeds 30+ requirement) — `Http2EncoderSensitiveHeaderTests.cs`
 
 ### Implementation
 
