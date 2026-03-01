@@ -544,7 +544,9 @@ public sealed class Http11Decoder : IDisposable
             fieldCount++;
             if (fieldCount > _maxHeaderCount)
             {
-                throw new HttpDecoderException(HttpDecodeError.TooManyHeaders);
+                throw new HttpDecoderException(
+                    HttpDecodeError.TooManyHeaders,
+                    $"Received {fieldCount} fields; limit is {_maxHeaderCount}.");
             }
 
             var line = data[pos..lineEnd];
@@ -566,7 +568,9 @@ public sealed class Http11Decoder : IDisposable
             // RFC 9112 §5.5: Header field values MUST NOT contain CR, LF, or NUL characters.
             if (valueStr.IndexOfAny(['\r', '\n', '\0']) >= 0)
             {
-                throw new HttpDecoderException(HttpDecodeError.InvalidFieldValue);
+                throw new HttpDecoderException(
+                    HttpDecodeError.InvalidFieldValue,
+                    $"Header '{nameStr}' contains a CR, LF, or NUL character in its value.");
             }
 
             if (!headers.TryGetValue(nameStr, out var values))
@@ -734,7 +738,9 @@ public sealed class Http11Decoder : IDisposable
             {
                 if (!values[i].Equals(first, StringComparison.Ordinal))
                 {
-                    throw new HttpDecoderException(HttpDecodeError.MultipleContentLengthValues);
+                    throw new HttpDecoderException(
+                        HttpDecodeError.MultipleContentLengthValues,
+                        $"Values '{first}' and '{values[i]}' conflict.");
                 }
             }
         }

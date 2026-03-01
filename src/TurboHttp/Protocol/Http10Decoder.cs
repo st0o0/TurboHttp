@@ -88,12 +88,16 @@ public sealed class Http10Decoder
         var parts = statusLine.Split(' ', 3);
         if (parts.Length < 2 || !int.TryParse(parts[1], out var code))
         {
-            throw new HttpDecoderException(HttpDecodeError.InvalidStatusLine);
+            throw new HttpDecoderException(
+                HttpDecodeError.InvalidStatusLine,
+                $"Line: '{statusLine}'.");
         }
 
         if (code is < 100 or > 999)
         {
-            throw new HttpDecoderException(HttpDecodeError.InvalidStatusLine);
+            throw new HttpDecoderException(
+                HttpDecodeError.InvalidStatusLine,
+                $"Status code {code} is out of the valid range 100–999.");
         }
     }
 
@@ -122,19 +126,25 @@ public sealed class Http10Decoder
             {
                 if (!clValues[i].Equals(first, StringComparison.Ordinal))
                 {
-                    throw new HttpDecoderException(HttpDecodeError.MultipleContentLengthValues);
+                    throw new HttpDecoderException(
+                        HttpDecodeError.MultipleContentLengthValues,
+                        $"Values '{first}' and '{clValues[i]}' conflict.");
                 }
             }
         }
 
         if (!int.TryParse(clValues[0], out var len))
         {
-            throw new HttpDecoderException(HttpDecodeError.InvalidContentLength);
+            throw new HttpDecoderException(
+                HttpDecodeError.InvalidContentLength,
+                $"Value: '{clValues[0]}'.");
         }
 
         if (len < 0)
         {
-            throw new HttpDecoderException(HttpDecodeError.InvalidContentLength);
+            throw new HttpDecoderException(
+                HttpDecodeError.InvalidContentLength,
+                $"Value {len} is negative.");
         }
 
         return len;
