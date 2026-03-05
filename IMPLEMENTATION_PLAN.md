@@ -695,14 +695,14 @@ Implement strict frame layer parser.
 
 ---
 
-## Phase 8–9: SETTINGS Synchronization
+## Phase 8–9: SETTINGS Synchronization ✅
 
 ### MUST
 
-- [ ] Send SETTINGS immediately after preface
-- [ ] Apply peer SETTINGS only after receipt
-- [ ] Send SETTINGS ACK
-- [ ] Validate:
+- [x] Send SETTINGS immediately after preface
+- [x] Apply peer SETTINGS only after receipt
+- [x] Send SETTINGS ACK
+- [x] Validate:
 
     * MAX_CONCURRENT_STREAMS
     * INITIAL_WINDOW_SIZE

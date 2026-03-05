@@ -27,6 +27,7 @@ public sealed class Http2Decoder
     // Security counters (reset per connection via Reset()).
     private int _rstStreamCount;
     private int _emptyDataFrameCount;
+    private int _settingsCount;
 
     // RFC 7540 §6.5.2: Default MAX_FRAME_SIZE is 2^14 (16384).
     private int _maxFrameSize = 16384;
@@ -339,6 +340,7 @@ public sealed class Http2Decoder
         _connectionSendWindow = 65535;
         _rstStreamCount = 0;
         _emptyDataFrameCount = 0;
+        _settingsCount = 0;
         _maxConcurrentStreams = int.MaxValue;
         _activeStreamCount = 0;
     }
@@ -613,6 +615,15 @@ public sealed class Http2Decoder
                     Http2ErrorCode.FrameSizeError);
             }
 
+            // Security: SETTINGS flood protection.
+            _settingsCount++;
+            if (_settingsCount > 100)
+            {
+                throw new Http2Exception(
+                    $"RFC 7540 security: Excessive SETTINGS frames ({_settingsCount}) — possible SETTINGS flood attack.",
+                    Http2ErrorCode.EnhanceYourCalm);
+            }
+
             var settings = ParseSettings(payload.Span);
             settingsList.Add(settings);
             controlFrames.Add(new SettingsFrame(settings));
@@ -797,6 +808,13 @@ public sealed class Http2Decoder
                     // RFC 7540 §6.5.2: No error code is defined for violations of this limit;
                     // the decoder uses REFUSED_STREAM when the limit is exceeded.
                     _maxConcurrentStreams = (int)value;
+                    break;
+
+                case SettingsParameter.HeaderTableSize:
+                    // RFC 7541 §4.2 / RFC 7540 §6.5.2: Apply SETTINGS_HEADER_TABLE_SIZE to the
+                    // HPACK decoder so that dynamic table size updates in subsequent header blocks
+                    // are constrained to the negotiated maximum.
+                    _hpack.SetMaxAllowedTableSize((int)value);
                     break;
 
                 default:
