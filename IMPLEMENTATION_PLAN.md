@@ -851,12 +851,12 @@ Implement strict frame layer parser.
 
 ---
 
-## Phase 23: Header List Size Enforcement
+## Phase 23: Header List Size Enforcement ✅
 
 ### MUST
 
-- [ ] Enforce MAX_HEADER_LIST_SIZE
-- [ ] Abort stream if exceeded
+- [x] Enforce MAX_HEADER_LIST_SIZE
+- [x] Abort stream if exceeded
 
 ---
 

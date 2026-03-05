@@ -960,6 +960,13 @@ public sealed class Http2Decoder
                     _hpack.SetMaxAllowedTableSize((int)value);
                     break;
 
+                case SettingsParameter.MaxHeaderListSize:
+                    // RFC 7540 §6.5.2: SETTINGS_MAX_HEADER_LIST_SIZE is an advisory limit on the
+                    // maximum size of the header list the peer is willing to accept (in octets).
+                    // Exceeding this limit is a COMPRESSION_ERROR (connection-level error).
+                    _hpack.SetMaxHeaderListSize((int)value);
+                    break;
+
                 default:
                     // RFC 7540 §4.1 / §6.5: Unknown or unsupported SETTINGS identifiers MUST be ignored.
                     break;

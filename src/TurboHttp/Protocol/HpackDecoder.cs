@@ -130,6 +130,11 @@ public sealed class HpackDecoder
     // RFC 7541 §4.2: Maximum table size is negotiated via SETTINGS_HEADER_TABLE_SIZE
     private int _maxAllowedTableSize = 4096;
 
+    // RFC 7540 §6.5.2 / RFC 7541: MAX_HEADER_LIST_SIZE — maximum cumulative decoded header list size.
+    // Size is computed as: sum of (name_bytes + value_bytes + 32) per entry.
+    // Default: int.MaxValue (no limit enforced until SETTINGS is received).
+    private int _maxHeaderListSize = int.MaxValue;
+
     // Security: Maximum string literal length for header names and values (prevents resource exhaustion).
     private int _maxStringLength = 65535;
 
@@ -145,6 +150,19 @@ public sealed class HpackDecoder
             throw new HpackException($"Invalid SETTINGS_HEADER_TABLE_SIZE: {size}");
 
         _maxAllowedTableSize = size;
+    }
+
+    /// <summary>
+    /// Sets the MAX_HEADER_LIST_SIZE limit (RFC 7540 §6.5.2).
+    /// When the cumulative decoded header list size (name + value + 32 per entry) exceeds
+    /// this value, <see cref="HpackException"/> is thrown (COMPRESSION_ERROR — connection error).
+    /// </summary>
+    public void SetMaxHeaderListSize(int size)
+    {
+        if (size < 0)
+            throw new HpackException($"Invalid MAX_HEADER_LIST_SIZE: {size}");
+
+        _maxHeaderListSize = size;
     }
 
     /// <summary>
@@ -170,6 +188,10 @@ public sealed class HpackDecoder
         var result = new List<HpackHeader>();
         var pos = 0;
 
+        // RFC 7540 §6.5.2: Track cumulative header list size for MAX_HEADER_LIST_SIZE enforcement.
+        // Size per entry = name_bytes + value_bytes + 32 (RFC 7541 §4.1 overhead).
+        long cumulativeHeaderListSize = 0;
+
         // RFC 7541 §6.3: Table size updates must appear at the start of a header block.
         // Once a non-update entry is encountered, no further size updates are permitted.
         var tableSizeUpdateAllowed = true;
@@ -183,13 +205,16 @@ public sealed class HpackDecoder
             {
                 tableSizeUpdateAllowed = false;
                 var idx = ReadInteger(data, ref pos, 7);
-                result.Add(Lookup(idx));
+                var header = Lookup(idx);
+                CheckHeaderListSize(ref cumulativeHeaderListSize, header);
+                result.Add(header);
             }
             // RFC 7541 §6.2.1: Literal with Incremental Indexing - bit pattern: 01xxxxxx
             else if ((b & 0x40) != 0)
             {
                 tableSizeUpdateAllowed = false;
                 var header = ReadLiteralHeader(data, ref pos, prefixBits: 6, neverIndex: false);
+                CheckHeaderListSize(ref cumulativeHeaderListSize, header);
                 _table.Add(header.Name, header.Value);
                 result.Add(header);
             }
@@ -221,6 +246,7 @@ public sealed class HpackDecoder
                 tableSizeUpdateAllowed = false;
                 // NeverIndex = true: intermediaries must not add this header to any dynamic table
                 var header = ReadLiteralHeader(data, ref pos, prefixBits: 4, neverIndex: true);
+                CheckHeaderListSize(ref cumulativeHeaderListSize, header);
                 result.Add(header);
             }
             // RFC 7541 §6.2.2: Literal without Indexing - bit pattern: 0000xxxx
@@ -228,11 +254,35 @@ public sealed class HpackDecoder
             {
                 tableSizeUpdateAllowed = false;
                 var header = ReadLiteralHeader(data, ref pos, prefixBits: 4, neverIndex: false);
+                CheckHeaderListSize(ref cumulativeHeaderListSize, header);
                 result.Add(header);
             }
         }
 
         return result;
+    }
+
+    /// <summary>
+    /// Accumulates the entry's contribution to the header list size and throws
+    /// <see cref="HpackException"/> if the cumulative total exceeds <see cref="_maxHeaderListSize"/>.
+    /// RFC 7540 §6.5.2: size = name_octets + value_octets + 32 per entry.
+    /// </summary>
+    private void CheckHeaderListSize(ref long cumulative, HpackHeader header)
+    {
+        if (_maxHeaderListSize == int.MaxValue)
+            return;
+
+        var entrySize = Encoding.UTF8.GetByteCount(header.Name)
+                      + Encoding.UTF8.GetByteCount(header.Value)
+                      + 32;
+        cumulative += entrySize;
+
+        if (cumulative > _maxHeaderListSize)
+        {
+            throw new HpackException(
+                $"RFC 7540 §6.5.2 violation: Header list size {cumulative} exceeds " +
+                $"MAX_HEADER_LIST_SIZE ({_maxHeaderListSize}) — COMPRESSION_ERROR.");
+        }
     }
 
     // -------------------------------------------------------------------------
