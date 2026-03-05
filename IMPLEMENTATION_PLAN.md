@@ -427,7 +427,7 @@ Semantically correct redirect behavior.
 
 - [x] Do NOT forward `Authorization` header across origins
 - [x] Optionally block HTTPS → HTTP downgrade
-- [ ] Re-evaluate cookies for each new redirect URI
+- [x] Re-evaluate cookies for each new redirect URI
 
 ---
 

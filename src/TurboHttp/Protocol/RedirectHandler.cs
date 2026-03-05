@@ -210,6 +210,42 @@ public sealed class RedirectHandler
                original.Port != redirect.Port;
     }
 
+    /// <summary>
+    /// Builds a new <see cref="HttpRequestMessage"/> for the redirect location,
+    /// applying RFC 9110 §15.4 semantics, and re-evaluates cookies for the new URI
+    /// using the provided <paramref name="cookieJar"/>.
+    ///
+    /// Cookies are never blindly forwarded on redirect. The jar first processes any
+    /// Set-Cookie headers from the redirect response, then re-applies applicable
+    /// cookies to the new request based on domain, path, Secure, and expiry rules.
+    /// </summary>
+    /// <param name="original">The original request that triggered the redirect.</param>
+    /// <param name="response">The redirect response received.</param>
+    /// <param name="cookieJar">The cookie jar to use for re-evaluation.</param>
+    public HttpRequestMessage BuildRedirectRequest(
+        HttpRequestMessage original,
+        HttpResponseMessage response,
+        CookieJar cookieJar)
+    {
+        ArgumentNullException.ThrowIfNull(cookieJar);
+        ArgumentNullException.ThrowIfNull(original);
+        ArgumentNullException.ThrowIfNull(original.RequestUri, nameof(original.RequestUri));
+
+        // Process Set-Cookie headers from the redirect response into the jar
+        cookieJar.ProcessResponse(original.RequestUri, response);
+
+        // Build the redirect request (Cookie header is stripped by CopyHeaders)
+        var newRequest = BuildRedirectRequest(original, response);
+
+        // Re-apply cookies for the new redirect URI from the jar
+        if (newRequest.RequestUri != null)
+        {
+            cookieJar.AddCookiesToRequest(newRequest.RequestUri, newRequest);
+        }
+
+        return newRequest;
+    }
+
     private static void CopyHeaders(
         HttpRequestMessage original,
         HttpRequestMessage newRequest,
@@ -226,6 +262,14 @@ public sealed class RedirectHandler
 
             // Do not copy Host — it will be set based on the new URI
             if (header.Key.Equals("Host", StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            // RFC 6265 §5.4: Do NOT blindly forward Cookie header on redirect.
+            // Cookies must be re-evaluated per redirect URI (domain, path, Secure, expiry).
+            // Use BuildRedirectRequest(original, response, cookieJar) to re-apply cookies.
+            if (header.Key.Equals("Cookie", StringComparison.OrdinalIgnoreCase))
             {
                 continue;
             }

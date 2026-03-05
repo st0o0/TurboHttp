@@ -593,6 +593,229 @@ public sealed class RedirectHandlerTests
             handler.BuildRedirectRequest(original, null!));
     }
 
+    // ── Cookie re-evaluation on redirect ─────────────────────────────────────
+
+    [Fact(DisplayName = "RH-040: Cookie header is stripped when building redirect request")]
+    public void BuildRedirectRequest_Strips_Cookie_Header()
+    {
+        var handler = new RedirectHandler();
+        var original = new HttpRequestMessage(HttpMethod.Get, "http://example.com/page");
+        original.Headers.TryAddWithoutValidation("Cookie", "session=abc123");
+        var response = BuildRedirect(HttpStatusCode.Found, "http://example.com/new");
+
+        var redirected = handler.BuildRedirectRequest(original, response);
+
+        Assert.False(redirected.Headers.Contains("Cookie"),
+            "Cookie header must not be blindly forwarded — it must be re-evaluated per redirect URI");
+    }
+
+    [Fact(DisplayName = "RH-041: With CookieJar, cookies re-applied for same-origin redirect")]
+    public void BuildRedirectRequest_WithJar_ReappliesCookies_SameOrigin()
+    {
+        var handler = new RedirectHandler();
+        var jar = new CookieJar();
+        // Pre-populate jar with a matching cookie for example.com
+        var setResponse = new HttpResponseMessage(HttpStatusCode.OK);
+        setResponse.Headers.TryAddWithoutValidation("Set-Cookie", "session=abc123; Path=/");
+        jar.ProcessResponse(new Uri("http://example.com/"), setResponse);
+
+        var original = new HttpRequestMessage(HttpMethod.Get, "http://example.com/page");
+        var response = BuildRedirect(HttpStatusCode.Found, "http://example.com/new");
+
+        var redirected = handler.BuildRedirectRequest(original, response, jar);
+
+        Assert.True(redirected.Headers.Contains("Cookie"),
+            "Cookies applicable to the redirect URI should be re-applied");
+        var cookieHeader = string.Join("; ", redirected.Headers.GetValues("Cookie"));
+        Assert.Contains("session=abc123", cookieHeader);
+    }
+
+    [Fact(DisplayName = "RH-042: With CookieJar, cookies NOT re-applied for different domain")]
+    public void BuildRedirectRequest_WithJar_DoesNotReapplyCookies_CrossOrigin()
+    {
+        var handler = new RedirectHandler();
+        var jar = new CookieJar();
+        // Cookie for example.com
+        var setResponse = new HttpResponseMessage(HttpStatusCode.OK);
+        setResponse.Headers.TryAddWithoutValidation("Set-Cookie", "session=abc123; Path=/");
+        jar.ProcessResponse(new Uri("http://example.com/"), setResponse);
+
+        var original = new HttpRequestMessage(HttpMethod.Get, "http://example.com/page");
+        var response = BuildRedirect(HttpStatusCode.Found, "http://other.com/page");
+
+        var redirected = handler.BuildRedirectRequest(original, response, jar);
+
+        Assert.False(redirected.Headers.Contains("Cookie"),
+            "Cookies set for example.com must not be forwarded to other.com");
+    }
+
+    [Fact(DisplayName = "RH-043: With CookieJar, Set-Cookie from redirect response is processed")]
+    public void BuildRedirectRequest_WithJar_ProcessesSetCookieFromRedirectResponse()
+    {
+        var handler = new RedirectHandler();
+        var jar = new CookieJar();
+
+        var original = new HttpRequestMessage(HttpMethod.Get, "http://example.com/login");
+        // Redirect response sets a cookie
+        var response = BuildRedirect(HttpStatusCode.Found, "http://example.com/dashboard");
+        response.Headers.TryAddWithoutValidation("Set-Cookie", "auth=token123; Path=/");
+
+        handler.BuildRedirectRequest(original, response, jar);
+
+        // Cookie should now be in the jar
+        Assert.Equal(1, jar.Count);
+    }
+
+    [Fact(DisplayName = "RH-044: With CookieJar, Set-Cookie from redirect applied to next hop")]
+    public void BuildRedirectRequest_WithJar_SetCookieAppliedToRedirectRequest()
+    {
+        var handler = new RedirectHandler();
+        var jar = new CookieJar();
+
+        var original = new HttpRequestMessage(HttpMethod.Get, "http://example.com/login");
+        // The redirect response both redirects AND sets a cookie
+        var response = BuildRedirect(HttpStatusCode.Found, "http://example.com/dashboard");
+        response.Headers.TryAddWithoutValidation("Set-Cookie", "auth=token123; Path=/");
+
+        var redirected = handler.BuildRedirectRequest(original, response, jar);
+
+        Assert.True(redirected.Headers.Contains("Cookie"),
+            "Cookie set by redirect response should be applied to the redirect request");
+        var cookieHeader = string.Join("; ", redirected.Headers.GetValues("Cookie"));
+        Assert.Contains("auth=token123", cookieHeader);
+    }
+
+    [Fact(DisplayName = "RH-045: With CookieJar, Secure cookies only sent to HTTPS redirect")]
+    public void BuildRedirectRequest_WithJar_SecureCookiesOnlySentToHttps()
+    {
+        var handler = new RedirectHandler();
+        var jar = new CookieJar();
+        // Pre-populate with a Secure cookie
+        var setResponse = new HttpResponseMessage(HttpStatusCode.OK);
+        setResponse.Headers.TryAddWithoutValidation("Set-Cookie", "secret=val; Path=/; Secure");
+        jar.ProcessResponse(new Uri("https://example.com/"), setResponse);
+
+        var original = new HttpRequestMessage(HttpMethod.Get, "https://example.com/page");
+
+        // Redirect to HTTP (downgrade allowed for testing purposes)
+        var policyAllowDowngrade = new RedirectPolicy { AllowHttpsToHttpDowngrade = true };
+        var handlerAllowDowngrade = new RedirectHandler(policyAllowDowngrade);
+        var response = BuildRedirect(HttpStatusCode.Found, "http://example.com/new");
+
+        var redirected = handlerAllowDowngrade.BuildRedirectRequest(original, response, jar);
+
+        Assert.False(redirected.Headers.Contains("Cookie"),
+            "Secure cookies must not be sent over HTTP");
+    }
+
+    [Fact(DisplayName = "RH-046: With CookieJar, Secure cookies sent when redirect stays on HTTPS")]
+    public void BuildRedirectRequest_WithJar_SecureCookiesSentOverHttps()
+    {
+        var handler = new RedirectHandler();
+        var jar = new CookieJar();
+        // Pre-populate with a Secure cookie
+        var setResponse = new HttpResponseMessage(HttpStatusCode.OK);
+        setResponse.Headers.TryAddWithoutValidation("Set-Cookie", "secret=val; Path=/; Secure");
+        jar.ProcessResponse(new Uri("https://example.com/"), setResponse);
+
+        var original = new HttpRequestMessage(HttpMethod.Get, "https://example.com/page");
+        var response = BuildRedirect(HttpStatusCode.Found, "https://example.com/new");
+
+        var redirected = handler.BuildRedirectRequest(original, response, jar);
+
+        Assert.True(redirected.Headers.Contains("Cookie"),
+            "Secure cookies should be sent when redirect stays on HTTPS");
+        var cookieHeader = string.Join("; ", redirected.Headers.GetValues("Cookie"));
+        Assert.Contains("secret=val", cookieHeader);
+    }
+
+    [Fact(DisplayName = "RH-047: With CookieJar, path-restricted cookie not sent for non-matching path")]
+    public void BuildRedirectRequest_WithJar_PathRestrictedCookieNotSentForNonMatchingPath()
+    {
+        var handler = new RedirectHandler();
+        var jar = new CookieJar();
+        // Cookie is only for /admin path
+        var setResponse = new HttpResponseMessage(HttpStatusCode.OK);
+        setResponse.Headers.TryAddWithoutValidation("Set-Cookie", "admin=secret; Path=/admin");
+        jar.ProcessResponse(new Uri("http://example.com/admin"), setResponse);
+
+        var original = new HttpRequestMessage(HttpMethod.Get, "http://example.com/page");
+        var response = BuildRedirect(HttpStatusCode.Found, "http://example.com/public");
+
+        var redirected = handler.BuildRedirectRequest(original, response, jar);
+
+        Assert.False(redirected.Headers.Contains("Cookie"),
+            "Cookie with path=/admin must not be sent to /public");
+    }
+
+    [Fact(DisplayName = "RH-048: With CookieJar, path-restricted cookie sent for matching path")]
+    public void BuildRedirectRequest_WithJar_PathRestrictedCookieSentForMatchingPath()
+    {
+        var handler = new RedirectHandler();
+        var jar = new CookieJar();
+        // Cookie for /admin path
+        var setResponse = new HttpResponseMessage(HttpStatusCode.OK);
+        setResponse.Headers.TryAddWithoutValidation("Set-Cookie", "admin=secret; Path=/admin");
+        jar.ProcessResponse(new Uri("http://example.com/admin"), setResponse);
+
+        var original = new HttpRequestMessage(HttpMethod.Get, "http://example.com/page");
+        var response = BuildRedirect(HttpStatusCode.Found, "http://example.com/admin/dashboard");
+
+        var redirected = handler.BuildRedirectRequest(original, response, jar);
+
+        Assert.True(redirected.Headers.Contains("Cookie"),
+            "Cookie with path=/admin should be sent to /admin/dashboard");
+        var cookieHeader = string.Join("; ", redirected.Headers.GetValues("Cookie"));
+        Assert.Contains("admin=secret", cookieHeader);
+    }
+
+    [Fact(DisplayName = "RH-049: BuildRedirectRequest(jar) throws ArgumentNullException for null jar")]
+    public void BuildRedirectRequest_WithJar_Throws_For_Null_CookieJar()
+    {
+        var handler = new RedirectHandler();
+        var original = new HttpRequestMessage(HttpMethod.Get, "http://example.com/a");
+        var response = BuildRedirect(HttpStatusCode.Found, "http://example.com/b");
+
+        Assert.Throws<ArgumentNullException>(() =>
+            handler.BuildRedirectRequest(original, response, null!));
+    }
+
+    [Fact(DisplayName = "RH-050: With empty CookieJar, no Cookie header added to redirect")]
+    public void BuildRedirectRequest_WithEmptyJar_NosCookieHeader()
+    {
+        var handler = new RedirectHandler();
+        var jar = new CookieJar();
+
+        var original = new HttpRequestMessage(HttpMethod.Get, "http://example.com/page");
+        var response = BuildRedirect(HttpStatusCode.Found, "http://example.com/new");
+
+        var redirected = handler.BuildRedirectRequest(original, response, jar);
+
+        Assert.False(redirected.Headers.Contains("Cookie"),
+            "Empty jar should result in no Cookie header");
+    }
+
+    [Fact(DisplayName = "RH-051: Domain cookie re-evaluated for subdomain redirect")]
+    public void BuildRedirectRequest_WithJar_DomainCookieReappliedForSubdomainRedirect()
+    {
+        var handler = new RedirectHandler();
+        var jar = new CookieJar();
+        // Domain cookie (applies to all subdomains of example.com)
+        var setResponse = new HttpResponseMessage(HttpStatusCode.OK);
+        setResponse.Headers.TryAddWithoutValidation("Set-Cookie", "track=xyz; Domain=example.com; Path=/");
+        jar.ProcessResponse(new Uri("http://example.com/"), setResponse);
+
+        var original = new HttpRequestMessage(HttpMethod.Get, "http://example.com/page");
+        var response = BuildRedirect(HttpStatusCode.Found, "http://sub.example.com/page");
+
+        var redirected = handler.BuildRedirectRequest(original, response, jar);
+
+        Assert.True(redirected.Headers.Contains("Cookie"),
+            "Domain cookie should be re-applied to subdomain redirect");
+        var cookieHeader = string.Join("; ", redirected.Headers.GetValues("Cookie"));
+        Assert.Contains("track=xyz", cookieHeader);
+    }
+
     // ── Helpers ───────────────────────────────────────────────────────────────
 
     private static HttpResponseMessage BuildRedirect(HttpStatusCode statusCode, string location)
