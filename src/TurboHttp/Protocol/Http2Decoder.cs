@@ -16,6 +16,7 @@ public sealed class Http2Decoder
     private readonly Dictionary<int, StreamState> _streams = new();
     private readonly HashSet<int> _closedStreamIds = [];
     private readonly HashSet<int> _promisedStreamIds = [];
+    private readonly Dictionary<int, Http2StreamLifecycleState> _streamLifecycle = new();
 
     private int _continuationStreamId;
     private byte[]? _continuationBuffer;
@@ -58,6 +59,10 @@ public sealed class Http2Decoder
     /// <summary>Returns the receive window for the given stream, or 65535 if the stream is unknown.</summary>
     public int GetStreamReceiveWindow(int streamId) =>
         _streams.TryGetValue(streamId, out var s) ? s.ReceiveWindow : 65535;
+
+    /// <summary>Returns the RFC 9113 §5.1 lifecycle state for the given stream.</summary>
+    public Http2StreamLifecycleState GetStreamLifecycleState(int streamId) =>
+        _streamLifecycle.TryGetValue(streamId, out var state) ? state : Http2StreamLifecycleState.Idle;
 
     /// <summary>
     /// For testing: sets the connection-level receive window so tests can trigger FLOW_CONTROL_ERROR
@@ -220,6 +225,8 @@ public sealed class Http2Decoder
                         }
 
                         _closedStreamIds.Add(streamId);
+                        // RFC 9113 §5.1: RST_STREAM moves stream to closed.
+                        _streamLifecycle[streamId] = Http2StreamLifecycleState.Closed;
 
                         // Security: rapid RST_STREAM cycling protection (mitigates CVE-2023-44487).
                         _rstStreamCount++;
@@ -281,6 +288,7 @@ public sealed class Http2Decoder
         _streams.Clear();
         _closedStreamIds.Clear();
         _promisedStreamIds.Clear();
+        _streamLifecycle.Clear();
         _continuationStreamId = 0;
         _continuationBuffer = null;
         _continuationBufferLength = 0;
@@ -345,7 +353,11 @@ public sealed class Http2Decoder
 
         if (!_streams.TryGetValue(streamId, out var state))
         {
-            return;
+            // RFC 9113 §5.1: A DATA frame on an idle stream (no preceding HEADERS) is a connection
+            // error of type PROTOCOL_ERROR. The stream was never opened by a HEADERS frame.
+            throw new Http2Exception(
+                $"RFC 9113 §5.1: DATA frame received on idle stream {streamId}; no preceding HEADERS frame was received.",
+                Http2ErrorCode.ProtocolError);
         }
 
         // RFC 7540 §5.2: Enforce stream-level receive window.
@@ -367,6 +379,7 @@ public sealed class Http2Decoder
             var response = state.BuildResponse();
             _streams.Remove(streamId);
             _closedStreamIds.Add(streamId);
+            _streamLifecycle[streamId] = Http2StreamLifecycleState.Closed;
             responses.Add((streamId, response));
             _activeStreamCount--;
         }
@@ -422,6 +435,9 @@ public sealed class Http2Decoder
 
             _activeStreamCount++;
         }
+
+        // RFC 9113 §5.1: Track stream lifecycle. HEADERS moves a stream from idle to open.
+        _streamLifecycle[streamId] = Http2StreamLifecycleState.Open;
 
         var data = payload;
 
@@ -688,6 +704,8 @@ public sealed class Http2Decoder
         {
             _activeStreamCount--;
             _closedStreamIds.Add(streamId);
+            // RFC 9113 §5.1: END_STREAM on HEADERS moves stream to closed (half-closed-remote → closed).
+            _streamLifecycle[streamId] = Http2StreamLifecycleState.Closed;
             responses.Add((streamId, state.BuildResponse()));
         }
         else

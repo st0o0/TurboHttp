@@ -655,7 +655,7 @@ Implement strict frame layer parser.
 
 ---
 
-## Phase 5–6: Full Stream Lifecycle
+## Phase 5–6: Full Stream Lifecycle ✅
 
 ### Implement States
 
@@ -666,16 +666,17 @@ Implement strict frame layer parser.
 
 ### MUST
 
-- [ ] Enforce valid transitions
-- [ ] Reject invalid frame per state
-- [ ] Auto-close stream on END_STREAM
-- [ ] Send RST_STREAM when required
+- [x] Enforce valid transitions
+- [x] Reject invalid frame per state
+- [x] Auto-close stream on END_STREAM
+- [x] Send RST_STREAM when required
 
 ### Tests
 
 * Frame on closed stream
 * HEADERS on half-closed
 * DATA before HEADERS
+* 25 tests in `Http2StreamLifecycleTests.cs` (SS-001..SS-025)
 
 ---
 
