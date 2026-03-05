@@ -335,3 +335,5 @@ ASALocalRun/
 # CUSTOM
 .ralph/
 COMMIT.md
+.tools/
+coverage-results/
