@@ -771,6 +771,95 @@ public sealed class Http2Decoder
         promisedStreamIds.Add(promisedStreamId);
     }
 
+    // RFC 9113 §8.3.2: Validates response HEADERS block received from the server.
+    // Enforces:
+    //   - All header names are lowercase (RFC 9113 §8.2)
+    //   - No connection-specific headers (RFC 9113 §8.2.2)
+    //   - :status pseudo-header is present exactly once
+    //   - No request-only pseudo-headers (:method, :path, :scheme, :authority) in responses
+    //   - Pseudo-headers precede all regular headers
+    private static void ValidateResponseHeaders(List<HpackHeader> headers)
+    {
+        var seenStatus = false;
+        var seenRegularHeader = false;
+
+        foreach (var header in headers)
+        {
+            var name = header.Name;
+
+            // RFC 9113 §8.2: Header field names MUST be lowercase in HTTP/2.
+            foreach (var c in name)
+            {
+                if (c >= 'A' && c <= 'Z')
+                {
+                    throw new Http2Exception(
+                        $"RFC 9113 §8.2: Header field name '{name}' contains uppercase character '{c}'; all names MUST be lowercase.",
+                        Http2ErrorCode.ProtocolError);
+                }
+            }
+
+            if (name.StartsWith(':'))
+            {
+                // RFC 9113 §8.3: Pseudo-headers MUST NOT appear after regular header fields.
+                if (seenRegularHeader)
+                {
+                    throw new Http2Exception(
+                        $"RFC 9113 §8.3: Pseudo-header '{name}' appears after regular header fields; PROTOCOL_ERROR.",
+                        Http2ErrorCode.ProtocolError);
+                }
+
+                switch (name)
+                {
+                    case ":status":
+                        if (seenStatus)
+                        {
+                            throw new Http2Exception(
+                                "RFC 9113 §8.3.2: Duplicate ':status' pseudo-header in response; PROTOCOL_ERROR.",
+                                Http2ErrorCode.ProtocolError);
+                        }
+
+                        seenStatus = true;
+                        break;
+
+                    case ":method":
+                    case ":path":
+                    case ":scheme":
+                    case ":authority":
+                        // RFC 9113 §8.3.2: Request pseudo-headers MUST NOT appear in responses.
+                        throw new Http2Exception(
+                            $"RFC 9113 §8.3.2: Request pseudo-header '{name}' is forbidden in response HEADERS; PROTOCOL_ERROR.",
+                            Http2ErrorCode.ProtocolError);
+
+                    default:
+                        // RFC 9113 §8.3: Unknown pseudo-headers are invalid.
+                        throw new Http2Exception(
+                            $"RFC 9113 §8.3: Unknown pseudo-header '{name}' is invalid; PROTOCOL_ERROR.",
+                            Http2ErrorCode.ProtocolError);
+                }
+            }
+            else
+            {
+                seenRegularHeader = true;
+
+                // RFC 9113 §8.2.2: Connection-specific header fields MUST NOT appear in HTTP/2.
+                if (name is "connection" or "keep-alive" or "proxy-connection" or "transfer-encoding" or "upgrade")
+                {
+                    throw new Http2Exception(
+                        $"RFC 9113 §8.2.2: Connection-specific header '{name}' is forbidden in HTTP/2; PROTOCOL_ERROR.",
+                        Http2ErrorCode.ProtocolError);
+                }
+            }
+        }
+
+        // RFC 9113 §8.3.2: Responses MUST contain a ':status' pseudo-header field.
+        if (!seenStatus)
+        {
+            throw new Http2Exception(
+                "RFC 9113 §8.3.2: Response HEADERS block is missing required ':status' pseudo-header; PROTOCOL_ERROR.",
+                Http2ErrorCode.ProtocolError);
+        }
+    }
+
     private void ProcessCompleteHeaders(
         ReadOnlySpan<byte> headerBlock,
         byte flags,
@@ -778,6 +867,7 @@ public sealed class Http2Decoder
         ImmutableList<(int, HttpResponseMessage)>.Builder responses)
     {
         var decodedHeaders = _hpack.Decode(headerBlock);
+        ValidateResponseHeaders(decodedHeaders);
         var state = new StreamState(decodedHeaders);
         var endStream = (flags & (byte)HeadersFlags.EndStream) != 0;
 

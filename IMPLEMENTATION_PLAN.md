@@ -749,25 +749,23 @@ Implement strict frame layer parser.
 
 ---
 
-## Phase 12–13: HEADERS Validation
+## Phase 12–13: HEADERS Validation ✅
 
 ### MUST
 
-- [ ] Pseudo-headers first
-- [ ] No duplicate pseudo-headers
-- [ ] No uppercase header names
-- [ ] No connection-specific headers
-- [ ] Validate required pseudo-headers:
+- [x] Pseudo-headers first
+- [x] No duplicate pseudo-headers
+- [x] No uppercase header names
+- [x] No connection-specific headers
+- [x] Validate required pseudo-headers:
 
-    * :method
-    * :scheme
-    * :path
-    * :authority
+    * :status (response decoder — RFC 9113 §8.3.2)
+    * :method/:path/:scheme/:authority rejected as forbidden in responses
 
 ### MUST NOT
 
-- [ ] Allow pseudo-header after normal header
-- [ ] Allow invalid ordering
+- [x] Allow pseudo-header after normal header
+- [x] Allow invalid ordering
 
 ---
 
