@@ -831,12 +831,12 @@ Implement strict frame layer parser.
 
 ---
 
-## Phase 21–22: Huffman Decoder
+## Phase 21–22: Huffman Decoder ✅
 
 ### MUST
 
-- [ ] Implement canonical Huffman tree
-- [ ] Reject:
+- [x] Implement canonical Huffman tree
+- [x] Reject:
 
     * Invalid code
     * EOS misuse
