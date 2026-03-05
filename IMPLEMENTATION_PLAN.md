@@ -1037,28 +1037,29 @@ DuplicateRemovalReport.md
 
 ---
 
-# 🏗 Step 3 — RFC-Based Folder Structure
+# 🏗 Step 3 — RFC-Based Folder Structure ✅
 
 Restructure tests into:
 
 ```
 /Tests
   /RFC9113
-    01_ConnectionPrefaceTests.cs
-    02_FrameParsingTests.cs
-    03_StreamStateMachineTests.cs
-    04_SettingsTests.cs
-    05_FlowControlTests.cs
-    06_HeadersTests.cs
-    07_ErrorHandlingTests.cs
-    08_GoAwayTests.cs
+    01_ConnectionPrefaceTests.cs  ✅ (was Http2ConnectionPrefaceTests.cs)
+    02_FrameParsingTests.cs       ✅ (was Http2FrameParsingCoreTests.cs)
+    03_StreamStateMachineTests.cs ✅ (was Http2StreamLifecycleTests.cs)
+    04_SettingsTests.cs           ✅ (was Http2SettingsSynchronizationTests.cs)
+    05_FlowControlTests.cs        ✅ (was Http2FlowControlTests.cs)
+    06_HeadersTests.cs            ✅ (was Http2DecoderHeadersValidationTests.cs)
+    07_ErrorHandlingTests.cs      ✅ (was Http2ErrorMappingTests.cs)
+    08_GoAwayTests.cs             ✅ (was Http2GoAwayRstStreamTests.cs)
+    09_ContinuationFrameTests.cs  ✅ (was Http2ContinuationFrameTests.cs)
   /RFC7541
-    01_StaticTableTests.cs
-    02_DynamicTableTests.cs
-    03_IntegerEncodingTests.cs
-    04_HuffmanTests.cs
-    05_HeaderBlockDecodingTests.cs
-    06_TableSizeUpdateTests.cs
+    01_StaticTableTests.cs        ✅ (was HpackStaticTableTests.cs)
+    02_DynamicTableTests.cs       ✅ (was HpackDynamicTableTests.cs)
+    03_IntegerEncodingTests.cs    (deferred — no dedicated file; covered in 05)
+    04_HuffmanTests.cs            ✅ (was HuffmanDecoderTests.cs)
+    05_HeaderBlockDecodingTests.cs ✅ (was HpackHeaderBlockDecodingTests.cs)
+    06_TableSizeTests.cs          ✅ (was HpackHeaderListSizeTests.cs)
 ```
 
 ---
