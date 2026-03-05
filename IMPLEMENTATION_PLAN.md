@@ -415,18 +415,18 @@ Semantically correct redirect behavior.
 
 ## MUST Requirements
 
-- [ ] Support: 301, 302, 303, 307, 308
-- [ ] 303 → always switch to GET
-- [ ] 307/308 → preserve method and body
-- [ ] 301/302 → historical GET rewrite handled intentionally
-- [ ] Resolve relative `Location` headers correctly
-- [ ] Enforce `MaxRedirects`
-- [ ] Detect redirect loops
+- [x] Support: 301, 302, 303, 307, 308
+- [x] 303 → always switch to GET
+- [x] 307/308 → preserve method and body
+- [x] 301/302 → historical GET rewrite handled intentionally
+- [x] Resolve relative `Location` headers correctly
+- [x] Enforce `MaxRedirects`
+- [x] Detect redirect loops
 
 ## Security Requirements
 
-- [ ] Do NOT forward `Authorization` header across origins
-- [ ] Optionally block HTTPS → HTTP downgrade
+- [x] Do NOT forward `Authorization` header across origins
+- [x] Optionally block HTTPS → HTTP downgrade
 - [ ] Re-evaluate cookies for each new redirect URI
 
 ---
