@@ -1276,15 +1276,16 @@ public sealed class Http2DecoderTests
         var decoder = new Http2Decoder();
         decoder.TryDecode(settingsFrame, out _);
 
-        // Now a frame of 20000 bytes (> 16384 default, ≤ 32768 new) should be accepted.
-        const int frameSize = 20000;
+        // Now a frame of 19998 bytes (> 16384 default, ≤ 32768 new) should be accepted.
+        // 19998 = 3333 × 6 — a valid SETTINGS payload length (RFC 7540 §6.5: must be multiple of 6).
+        const int frameSize = 19998;
         var bigFrame = new byte[9 + frameSize];
         bigFrame[0] = (byte)(frameSize >> 16);
         bigFrame[1] = (byte)(frameSize >> 8);
         bigFrame[2] = (byte)(frameSize & 0xFF);
         bigFrame[3] = 0x04; // SETTINGS
         bigFrame[4] = 0x00;
-        // stream=0, payload = empty SETTINGS entries (frameSize/6 entries of zeros).
+        // stream=0, payload = SETTINGS entries (each 6 bytes, all zeros = HeaderTableSize=0).
 
         // This should NOT throw FRAME_SIZE_ERROR.
         decoder.TryDecode(bigFrame, out var result);

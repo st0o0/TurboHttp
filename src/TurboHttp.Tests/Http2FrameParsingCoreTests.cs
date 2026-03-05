@@ -1,0 +1,568 @@
+#nullable enable
+
+using System;
+using System.Buffers.Binary;
+using TurboHttp.Protocol;
+using Xunit;
+
+namespace TurboHttp.Tests;
+
+/// <summary>
+/// RFC 7540 §4 — HTTP/2 Frame Layer
+/// Phase 3-4: Frame Parsing Core — strict frame header and payload validation.
+///
+/// Covers:
+///   - 9-byte frame header parsing (RFC 7540 §4.1)
+///   - 24-bit length field enforcement
+///   - Frame size limits: SETTINGS_MAX_FRAME_SIZE (RFC 7540 §4.2 / §6.5.2)
+///   - Stream ID rules: R-bit, stream 0 requirements (RFC 7540 §4.1 / §6.5 / §6.7 / §6.8)
+///   - Unknown frame types silently ignored (RFC 7540 §4.1)
+///   - Frame-specific payload size: SETTINGS, PING, WINDOW_UPDATE, RST_STREAM (RFC 7540 §6.4/§6.5/§6.7/§6.9)
+///   - Unknown flags silently ignored (RFC 7540 §4.1)
+///   - MUST NOT accept invalid frame in stream state
+/// </summary>
+public sealed class Http2FrameParsingCoreTests
+{
+    // =========================================================================
+    // Frame Header Parsing (RFC 7540 §4.1)
+    // =========================================================================
+
+    [Fact(DisplayName = "RFC7540-4.1-FP-001: Zero bytes returns false (NeedMoreData)")]
+    public void FrameHeader_ZeroBytes_ReturnsFalse()
+    {
+        var decoder = new Http2Decoder();
+        var ok = decoder.TryDecode(ReadOnlyMemory<byte>.Empty, out _);
+        Assert.False(ok);
+    }
+
+    [Fact(DisplayName = "RFC7540-4.1-FP-002: 8 bytes (one short of frame header) returns false")]
+    public void FrameHeader_EightBytes_ReturnsFalse()
+    {
+        var decoder = new Http2Decoder();
+        var partial = new byte[8]; // 9 bytes needed for a complete frame header
+        var ok = decoder.TryDecode(partial, out _);
+        Assert.False(ok);
+    }
+
+    [Fact(DisplayName = "RFC7540-4.1-FP-003: Exactly 9 bytes with zero-length payload is decoded")]
+    public void FrameHeader_Exactly9BytesEmptyPayload_IsDecoded()
+    {
+        // SETTINGS ACK: 9-byte header with zero payload
+        var frame = SettingsFrame.SettingsAck();
+        Assert.Equal(9, frame.Length);
+
+        var decoder = new Http2Decoder();
+        var ok = decoder.TryDecode(frame, out var result);
+        Assert.True(ok);
+        Assert.False(result.HasNewSettings);
+    }
+
+    [Fact(DisplayName = "RFC7540-4.1-FP-004: Frame with 0 payload length field accepted")]
+    public void FrameHeader_ZeroLengthField_IsAccepted()
+    {
+        // A SETTINGS ACK has length=0 in the 24-bit field.
+        var frame = new byte[]
+        {
+            0x00, 0x00, 0x00, // length = 0
+            0x04,             // type = SETTINGS
+            0x01,             // flags = ACK
+            0x00, 0x00, 0x00, 0x00  // stream = 0
+        };
+        var decoder = new Http2Decoder();
+        var ok = decoder.TryDecode(frame, out _);
+        Assert.True(ok);
+    }
+
+    [Fact(DisplayName = "RFC7540-4.1-FP-005: Frame buffered across two TryDecode calls (fragmented)")]
+    public void FrameHeader_FragmentedAcrossCallsReassembled()
+    {
+        var ping = new PingFrame(new byte[8], isAck: false).Serialize();
+        var chunk1 = ping[..5];
+        var chunk2 = ping[5..];
+
+        var decoder = new Http2Decoder();
+        var ok1 = decoder.TryDecode(chunk1, out _);
+        var ok2 = decoder.TryDecode(chunk2, out var result);
+
+        Assert.False(ok1);
+        Assert.True(ok2);
+        Assert.Single(result.PingRequests);
+    }
+
+    // =========================================================================
+    // 24-Bit Length Field (RFC 7540 §4.1)
+    // =========================================================================
+
+    [Fact(DisplayName = "RFC7540-4.1-FP-006: Length field uses all 24 bits (payload > 65535)")]
+    public void FrameHeader_LargePayloadUses24BitLength()
+    {
+        // Build a SETTINGS frame with 66006 bytes payload (11001 entries × 6 = 66006).
+        const int payloadLen = 66006;
+        var buf = new byte[9 + payloadLen];
+        buf[0] = (byte)(payloadLen >> 16);
+        buf[1] = (byte)((payloadLen >> 8) & 0xFF);
+        buf[2] = (byte)(payloadLen & 0xFF);
+        buf[3] = 0x04; // SETTINGS
+        buf[4] = 0x00; // no flags
+        // stream = 0 (bytes 5–8 remain zero)
+        for (var i = 0; i < payloadLen; i += 6)
+        {
+            buf[9 + i + 1] = 0x01; // HeaderTableSize
+        }
+
+        // Raise max frame size to accept the large frame.
+        var maxSizeSettings = new SettingsFrame([(SettingsParameter.MaxFrameSize, (uint)(payloadLen + 100))]).Serialize();
+        var decoder = new Http2Decoder();
+        decoder.TryDecode(maxSizeSettings, out _);
+
+        var ok = decoder.TryDecode(buf, out var result);
+        Assert.True(ok);
+        Assert.True(result.HasNewSettings);
+        Assert.True(result.ReceivedSettings[0].Count > 0);
+    }
+
+    // =========================================================================
+    // Frame Size Limits (RFC 7540 §4.2, §6.5.2)
+    // =========================================================================
+
+    [Fact(DisplayName = "RFC7540-4.2-FP-007: Default MAX_FRAME_SIZE is 16384 (2^14)")]
+    public void FrameSize_DefaultMaxIs16384()
+    {
+        // A DATA frame with exactly 16384 bytes payload on stream 1 should NOT throw.
+        // We need a live stream first; use a HEADERS frame to open stream 1.
+        var hpack = new HpackEncoder(useHuffman: false);
+        var headerBlock = hpack.Encode([(":status", "200")]);
+        var headersFrame = new HeadersFrame(1, headerBlock, endStream: false, endHeaders: true).Serialize();
+
+        var decoder = new Http2Decoder();
+        decoder.TryDecode(headersFrame, out _);
+        decoder.SetConnectionReceiveWindow(int.MaxValue);
+        decoder.SetStreamReceiveWindow(1, int.MaxValue);
+
+        // DATA frame: 9-byte header + 16384-byte payload
+        const int maxPayload = 16384;
+        var dataFrame = new byte[9 + maxPayload];
+        dataFrame[0] = (byte)(maxPayload >> 16);
+        dataFrame[1] = (byte)((maxPayload >> 8) & 0xFF);
+        dataFrame[2] = (byte)(maxPayload & 0xFF);
+        dataFrame[3] = 0x00; // DATA
+        dataFrame[4] = 0x01; // END_STREAM
+        dataFrame[5] = 0; dataFrame[6] = 0; dataFrame[7] = 0; dataFrame[8] = 1; // stream = 1
+
+        var ex = Record.Exception(() => decoder.TryDecode(dataFrame, out _));
+        Assert.Null(ex);
+    }
+
+    [Fact(DisplayName = "RFC7540-4.2-FP-008: Frame 1 byte over MAX_FRAME_SIZE causes FRAME_SIZE_ERROR")]
+    public void FrameSize_OneBeyondMax_ThrowsFrameSizeError()
+    {
+        const int overSize = 16385;
+        var frame = new byte[9 + overSize];
+        frame[0] = (byte)(overSize >> 16);
+        frame[1] = (byte)(overSize >> 8);
+        frame[2] = (byte)(overSize & 0xFF);
+        frame[3] = 0x04; // SETTINGS
+        frame[4] = 0x00;
+        // stream = 0
+
+        var decoder = new Http2Decoder();
+        var ex = Assert.Throws<Http2Exception>(() => decoder.TryDecode(frame, out _));
+        Assert.Equal(Http2ErrorCode.FrameSizeError, ex.ErrorCode);
+    }
+
+    [Fact(DisplayName = "RFC7540-4.2-FP-009: After SETTINGS update, larger frames are accepted")]
+    public void FrameSize_AfterSettingsUpdate_LargerFrameAccepted()
+    {
+        // Raise max frame size to 32768, then send a 32768-byte SETTINGS frame.
+        const int newMax = 32768;
+        const int payloadLen = 32766; // closest multiple of 6 ≤ 32768
+        var maxSizeSettings = new SettingsFrame([(SettingsParameter.MaxFrameSize, (uint)newMax)]).Serialize();
+
+        var decoder = new Http2Decoder();
+        decoder.TryDecode(maxSizeSettings, out _);
+
+        var buf = new byte[9 + payloadLen];
+        buf[0] = (byte)(payloadLen >> 16);
+        buf[1] = (byte)((payloadLen >> 8) & 0xFF);
+        buf[2] = (byte)(payloadLen & 0xFF);
+        buf[3] = 0x04; // SETTINGS
+        buf[4] = 0x00;
+        // stream = 0
+        for (var i = 0; i < payloadLen; i += 6)
+        {
+            buf[9 + i + 1] = 0x01; // HeaderTableSize
+        }
+
+        var ex = Record.Exception(() => decoder.TryDecode(buf, out _));
+        Assert.Null(ex);
+    }
+
+    [Fact(DisplayName = "RFC7540-4.2-FP-010: SETTINGS_MAX_FRAME_SIZE below 16384 is PROTOCOL_ERROR")]
+    public void FrameSize_MaxFrameSizeBelowMin_ThrowsProtocolError()
+    {
+        var settings = new SettingsFrame([(SettingsParameter.MaxFrameSize, 16383u)]).Serialize();
+        var decoder = new Http2Decoder();
+        var ex = Assert.Throws<Http2Exception>(() => decoder.TryDecode(settings, out _));
+        Assert.Equal(Http2ErrorCode.ProtocolError, ex.ErrorCode);
+    }
+
+    [Fact(DisplayName = "RFC7540-4.2-FP-011: SETTINGS_MAX_FRAME_SIZE above 16777215 is PROTOCOL_ERROR")]
+    public void FrameSize_MaxFrameSizeAboveMax_ThrowsProtocolError()
+    {
+        var settings = new SettingsFrame([(SettingsParameter.MaxFrameSize, 16777216u)]).Serialize();
+        var decoder = new Http2Decoder();
+        var ex = Assert.Throws<Http2Exception>(() => decoder.TryDecode(settings, out _));
+        Assert.Equal(Http2ErrorCode.ProtocolError, ex.ErrorCode);
+    }
+
+    [Fact(DisplayName = "RFC7540-4.2-FP-012: SETTINGS_MAX_FRAME_SIZE of exactly 16777215 is accepted")]
+    public void FrameSize_MaxFrameSizeAtMaxBoundary_IsAccepted()
+    {
+        var settings = new SettingsFrame([(SettingsParameter.MaxFrameSize, 16777215u)]).Serialize();
+        var decoder = new Http2Decoder();
+        var ex = Record.Exception(() => decoder.TryDecode(settings, out _));
+        Assert.Null(ex);
+    }
+
+    // =========================================================================
+    // Unknown Frame Types (RFC 7540 §4.1)
+    // =========================================================================
+
+    [Fact(DisplayName = "RFC7540-4.1-FP-013: Unknown frame type 0x0F is silently ignored")]
+    public void FrameType_Unknown0x0F_IsIgnored()
+    {
+        var frame = new byte[]
+        {
+            0x00, 0x00, 0x04, // length = 4
+            0x0F,             // type = unknown
+            0x00,             // flags = none
+            0x00, 0x00, 0x00, 0x01, // stream = 1
+            0x00, 0x00, 0x00, 0x00
+        };
+        var decoder = new Http2Decoder();
+        var ok = decoder.TryDecode(frame, out var result);
+        Assert.True(ok);
+        Assert.False(result.HasResponses);
+        Assert.False(result.HasNewSettings);
+    }
+
+    [Fact(DisplayName = "RFC7540-4.1-FP-014: Multiple unknown frame types in sequence are all ignored")]
+    public void FrameType_MultipleUnknown_AllIgnored()
+    {
+        // Two unknown frames: type 0xAA and 0xBB
+        var frame1 = new byte[] { 0x00, 0x00, 0x00, 0xAA, 0x00, 0x00, 0x00, 0x00, 0x01 };
+        var frame2 = new byte[] { 0x00, 0x00, 0x00, 0xBB, 0xFF, 0x00, 0x00, 0x00, 0x01 };
+        var combined = new byte[frame1.Length + frame2.Length];
+        frame1.CopyTo(combined, 0);
+        frame2.CopyTo(combined, frame1.Length);
+
+        var decoder = new Http2Decoder();
+        var ok = decoder.TryDecode(combined, out var result);
+        Assert.True(ok);
+        Assert.False(result.HasResponses);
+        Assert.False(result.HasNewSettings);
+    }
+
+    [Fact(DisplayName = "RFC7540-4.1-FP-015: Unknown frame type with maximum payload is ignored")]
+    public void FrameType_UnknownWithLargePayload_IsIgnored()
+    {
+        // Unknown frame with 16384-byte payload (within default max)
+        const int payloadLen = 16384;
+        var frame = new byte[9 + payloadLen];
+        frame[0] = (byte)(payloadLen >> 16);
+        frame[1] = (byte)((payloadLen >> 8) & 0xFF);
+        frame[2] = (byte)(payloadLen & 0xFF);
+        frame[3] = 0xEE; // unknown type
+        frame[4] = 0x00;
+        frame[5] = 0; frame[6] = 0; frame[7] = 0; frame[8] = 1; // stream = 1
+
+        var decoder = new Http2Decoder();
+        var ok = decoder.TryDecode(frame, out var result);
+        Assert.True(ok);
+        Assert.False(result.HasResponses);
+    }
+
+    // =========================================================================
+    // Stream ID Rules (RFC 7540 §4.1, §6.5, §6.7, §6.8)
+    // =========================================================================
+
+    [Fact(DisplayName = "RFC7540-6.5-FP-016: SETTINGS on non-zero stream causes PROTOCOL_ERROR")]
+    public void Settings_OnNonZeroStream_ThrowsProtocolError()
+    {
+        var frame = new byte[]
+        {
+            0x00, 0x00, 0x00, // length = 0
+            0x04,             // type = SETTINGS
+            0x00,             // flags = none
+            0x00, 0x00, 0x00, 0x01  // stream = 1 (MUST be 0)
+        };
+        var decoder = new Http2Decoder();
+        var ex = Assert.Throws<Http2Exception>(() => decoder.TryDecode(frame, out _));
+        Assert.Equal(Http2ErrorCode.ProtocolError, ex.ErrorCode);
+        Assert.Contains("stream 1", ex.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact(DisplayName = "RFC7540-6.7-FP-017: PING on non-zero stream causes PROTOCOL_ERROR")]
+    public void Ping_OnNonZeroStream_ThrowsProtocolError()
+    {
+        var frame = new byte[]
+        {
+            0x00, 0x00, 0x08, // length = 8
+            0x06,             // type = PING
+            0x00,             // flags = none
+            0x00, 0x00, 0x00, 0x01, // stream = 1 (MUST be 0)
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 // 8-byte payload
+        };
+        var decoder = new Http2Decoder();
+        var ex = Assert.Throws<Http2Exception>(() => decoder.TryDecode(frame, out _));
+        Assert.Equal(Http2ErrorCode.ProtocolError, ex.ErrorCode);
+    }
+
+    [Fact(DisplayName = "RFC7540-6.8-FP-018: GOAWAY on non-zero stream causes PROTOCOL_ERROR")]
+    public void GoAway_OnNonZeroStream_ThrowsProtocolError()
+    {
+        // GOAWAY: 9-byte header + 8-byte payload (lastStreamId + errorCode)
+        var frame = new byte[9 + 8];
+        frame[0] = 0; frame[1] = 0; frame[2] = 8; // length = 8
+        frame[3] = 0x07; // GOAWAY
+        frame[4] = 0x00; // flags
+        frame[5] = 0; frame[6] = 0; frame[7] = 0; frame[8] = 1; // stream = 1 (MUST be 0)
+        // payload: lastStreamId=0, errorCode=0 (8 bytes remain zero)
+
+        var decoder = new Http2Decoder();
+        var ex = Assert.Throws<Http2Exception>(() => decoder.TryDecode(frame, out _));
+        Assert.Equal(Http2ErrorCode.ProtocolError, ex.ErrorCode);
+    }
+
+    [Fact(DisplayName = "RFC7540-6.9-FP-019: WINDOW_UPDATE on stream 0 (connection-level) is accepted")]
+    public void WindowUpdate_OnStream0_IsAccepted()
+    {
+        var frame = new WindowUpdateFrame(0, 1024).Serialize();
+        var decoder = new Http2Decoder();
+        var ex = Record.Exception(() => decoder.TryDecode(frame, out _));
+        Assert.Null(ex);
+    }
+
+    [Fact(DisplayName = "RFC7540-6.9-FP-020: WINDOW_UPDATE on non-zero stream (stream-level) is accepted")]
+    public void WindowUpdate_OnNonZeroStream_IsAccepted()
+    {
+        var frame = new WindowUpdateFrame(3, 4096).Serialize();
+        var decoder = new Http2Decoder();
+        var ex = Record.Exception(() => decoder.TryDecode(frame, out _));
+        Assert.Null(ex);
+    }
+
+    // =========================================================================
+    // Frame-Specific Payload Size Validation (RFC 7540 §6.4/§6.5/§6.7/§6.9)
+    // =========================================================================
+
+    [Fact(DisplayName = "RFC7540-6.5-FP-021: SETTINGS payload not multiple of 6 is FRAME_SIZE_ERROR")]
+    public void Settings_NonMultipleOf6Payload_ThrowsFrameSizeError()
+    {
+        // Build a raw SETTINGS frame with 7-byte payload (not a multiple of 6).
+        var frame = new byte[]
+        {
+            0x00, 0x00, 0x07, // length = 7
+            0x04,             // SETTINGS
+            0x00,             // no flags
+            0x00, 0x00, 0x00, 0x00, // stream = 0
+            0x00, 0x01, 0x00, 0x00, 0x10, 0x00, 0x00 // 7 bytes (invalid)
+        };
+        var decoder = new Http2Decoder();
+        var ex = Assert.Throws<Http2Exception>(() => decoder.TryDecode(frame, out _));
+        Assert.Equal(Http2ErrorCode.FrameSizeError, ex.ErrorCode);
+    }
+
+    [Fact(DisplayName = "RFC7540-6.5-FP-022: SETTINGS ACK with non-empty payload is FRAME_SIZE_ERROR")]
+    public void Settings_AckWithNonEmptyPayload_ThrowsFrameSizeError()
+    {
+        var frame = new byte[]
+        {
+            0x00, 0x00, 0x06, // length = 6
+            0x04,             // SETTINGS
+            0x01,             // ACK flag
+            0x00, 0x00, 0x00, 0x00, // stream = 0
+            0x00, 0x01, 0x00, 0x00, 0x10, 0x00  // 6-byte payload (invalid for ACK)
+        };
+        var decoder = new Http2Decoder();
+        var ex = Assert.Throws<Http2Exception>(() => decoder.TryDecode(frame, out _));
+        Assert.Equal(Http2ErrorCode.FrameSizeError, ex.ErrorCode);
+    }
+
+    [Fact(DisplayName = "RFC7540-6.7-FP-023: PING with 7-byte payload is FRAME_SIZE_ERROR")]
+    public void Ping_SevenBytePayload_ThrowsFrameSizeError()
+    {
+        var frame = new byte[]
+        {
+            0x00, 0x00, 0x07, // length = 7
+            0x06,             // PING
+            0x00,             // no flags
+            0x00, 0x00, 0x00, 0x00, // stream = 0
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 // 7 bytes (must be exactly 8)
+        };
+        var decoder = new Http2Decoder();
+        var ex = Assert.Throws<Http2Exception>(() => decoder.TryDecode(frame, out _));
+        Assert.Equal(Http2ErrorCode.FrameSizeError, ex.ErrorCode);
+    }
+
+    [Fact(DisplayName = "RFC7540-6.7-FP-024: PING with 9-byte payload is FRAME_SIZE_ERROR")]
+    public void Ping_NineBytePayload_ThrowsFrameSizeError()
+    {
+        var frame = new byte[]
+        {
+            0x00, 0x00, 0x09, // length = 9
+            0x06,             // PING
+            0x00,             // no flags
+            0x00, 0x00, 0x00, 0x00, // stream = 0
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 // 9 bytes
+        };
+        var decoder = new Http2Decoder();
+        var ex = Assert.Throws<Http2Exception>(() => decoder.TryDecode(frame, out _));
+        Assert.Equal(Http2ErrorCode.FrameSizeError, ex.ErrorCode);
+    }
+
+    [Fact(DisplayName = "RFC7540-6.9-FP-025: WINDOW_UPDATE with 3-byte payload is FRAME_SIZE_ERROR")]
+    public void WindowUpdate_ThreeBytePayload_ThrowsFrameSizeError()
+    {
+        var frame = new byte[]
+        {
+            0x00, 0x00, 0x03, // length = 3
+            0x08,             // WINDOW_UPDATE
+            0x00,             // no flags
+            0x00, 0x00, 0x00, 0x00, // stream = 0
+            0x00, 0x00, 0x01 // 3 bytes (must be exactly 4)
+        };
+        var decoder = new Http2Decoder();
+        var ex = Assert.Throws<Http2Exception>(() => decoder.TryDecode(frame, out _));
+        Assert.Equal(Http2ErrorCode.FrameSizeError, ex.ErrorCode);
+    }
+
+    [Fact(DisplayName = "RFC7540-6.4-FP-026: RST_STREAM with 3-byte payload is FRAME_SIZE_ERROR")]
+    public void RstStream_ThreeBytePayload_ThrowsFrameSizeError()
+    {
+        var frame = new byte[]
+        {
+            0x00, 0x00, 0x03, // length = 3
+            0x03,             // RST_STREAM
+            0x00,             // no flags
+            0x00, 0x00, 0x00, 0x01, // stream = 1
+            0x00, 0x00, 0x01 // 3 bytes (must be exactly 4)
+        };
+        var decoder = new Http2Decoder();
+        var ex = Assert.Throws<Http2Exception>(() => decoder.TryDecode(frame, out _));
+        Assert.Equal(Http2ErrorCode.FrameSizeError, ex.ErrorCode);
+    }
+
+    [Fact(DisplayName = "RFC7540-6.4-FP-027: RST_STREAM with 5-byte payload is FRAME_SIZE_ERROR")]
+    public void RstStream_FiveBytePayload_ThrowsFrameSizeError()
+    {
+        var frame = new byte[]
+        {
+            0x00, 0x00, 0x05, // length = 5
+            0x03,             // RST_STREAM
+            0x00,             // no flags
+            0x00, 0x00, 0x00, 0x01, // stream = 1
+            0x00, 0x00, 0x00, 0x00, 0x00 // 5 bytes
+        };
+        var decoder = new Http2Decoder();
+        var ex = Assert.Throws<Http2Exception>(() => decoder.TryDecode(frame, out _));
+        Assert.Equal(Http2ErrorCode.FrameSizeError, ex.ErrorCode);
+    }
+
+    // =========================================================================
+    // Unknown Flags Are Silently Ignored (RFC 7540 §4.1)
+    // =========================================================================
+
+    [Fact(DisplayName = "RFC7540-4.1-FP-028: SETTINGS with unknown flag bits set is processed normally")]
+    public void Settings_UnknownFlagBits_AreIgnored()
+    {
+        // Build a SETTINGS frame with unknown flags (bits 1–7 except Ack bit 0)
+        var frame = new byte[]
+        {
+            0x00, 0x00, 0x06, // length = 6
+            0x04,             // SETTINGS
+            0xFE,             // unknown flags (all bits except ACK bit 0)
+            0x00, 0x00, 0x00, 0x00, // stream = 0
+            0x00, 0x03, 0x00, 0x00, 0x00, 0x64 // MaxConcurrentStreams = 100
+        };
+        var decoder = new Http2Decoder();
+        var ok = decoder.TryDecode(frame, out var result);
+        Assert.True(ok);
+        Assert.True(result.HasNewSettings);
+    }
+
+    [Fact(DisplayName = "RFC7540-4.1-FP-029: PING ACK with unknown flag bits set is processed normally")]
+    public void Ping_UnknownFlagBitsOnAck_AreIgnored()
+    {
+        // PING with ACK flag (0x01) plus unknown bits (0xFE)
+        var frame = new byte[]
+        {
+            0x00, 0x00, 0x08, // length = 8
+            0x06,             // PING
+            0xFF,             // ACK bit + all unknown bits
+            0x00, 0x00, 0x00, 0x00, // stream = 0
+            0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08 // 8-byte payload
+        };
+        var decoder = new Http2Decoder();
+        var ok = decoder.TryDecode(frame, out var result);
+        Assert.True(ok);
+        Assert.Single(result.PingAcks);
+    }
+
+    [Fact(DisplayName = "RFC7540-4.1-FP-030: GoAway frame with debug data parsed correctly")]
+    public void GoAway_WithDebugData_ParsedCorrectly()
+    {
+        // GOAWAY with lastStreamId=5, errorCode=0, debug="shutdown"
+        var debugData = "shutdown"u8.ToArray();
+        var frame = new GoAwayFrame(5, Http2ErrorCode.NoError, debugData).Serialize();
+
+        var decoder = new Http2Decoder();
+        decoder.TryDecode(frame, out var result);
+
+        Assert.True(result.HasGoAway);
+        Assert.Equal(5, result.GoAway!.LastStreamId);
+        Assert.Equal(Http2ErrorCode.NoError, result.GoAway.ErrorCode);
+    }
+
+    // =========================================================================
+    // Invalid Frame in Stream State (RFC 7540 §5.1)
+    // =========================================================================
+
+    [Fact(DisplayName = "RFC7540-5.1-FP-031: CONTINUATION without preceding HEADERS causes PROTOCOL_ERROR")]
+    public void Continuation_WithoutPrecedingHeaders_ThrowsProtocolError()
+    {
+        // Send a CONTINUATION frame with no pending header block.
+        var frame = new byte[]
+        {
+            0x00, 0x00, 0x01, // length = 1
+            0x09,             // CONTINUATION
+            0x04,             // END_HEADERS
+            0x00, 0x00, 0x00, 0x01, // stream = 1
+            0x88               // HPACK :status 200
+        };
+        var decoder = new Http2Decoder();
+        var ex = Assert.Throws<Http2Exception>(() => decoder.TryDecode(frame, out _));
+        Assert.Equal(Http2ErrorCode.ProtocolError, ex.ErrorCode);
+    }
+
+    [Fact(DisplayName = "RFC7540-5.1-FP-032: Non-CONTINUATION frame after HEADERS without END_HEADERS causes PROTOCOL_ERROR")]
+    public void NonContinuation_AfterHeadersWithoutEndHeaders_ThrowsProtocolError()
+    {
+        var hpack = new HpackEncoder(useHuffman: false);
+        var headerBlock = hpack.Encode([(":status", "200")]);
+
+        // HEADERS without END_HEADERS — starts a header block sequence
+        var headersFrame = new HeadersFrame(1, headerBlock, endStream: false, endHeaders: false).Serialize();
+
+        // PING instead of CONTINUATION — violates the "only CONTINUATION allowed" rule
+        var pingFrame = new PingFrame(new byte[8], isAck: false).Serialize();
+
+        var combined = new byte[headersFrame.Length + pingFrame.Length];
+        headersFrame.CopyTo(combined, 0);
+        pingFrame.CopyTo(combined, headersFrame.Length);
+
+        var decoder = new Http2Decoder();
+        var ex = Assert.Throws<Http2Exception>(() => decoder.TryDecode(combined, out _));
+        Assert.Equal(Http2ErrorCode.ProtocolError, ex.ErrorCode);
+    }
+}

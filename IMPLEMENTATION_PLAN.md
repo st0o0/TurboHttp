@@ -623,7 +623,7 @@ Your client is **HTTP Core compliant** when:
 
 ---
 
-## Phase 3–4: Frame Parsing Core
+## Phase 3–4: Frame Parsing Core ✅
 
 ### Objectives
 
@@ -631,23 +631,23 @@ Implement strict frame layer parser.
 
 ### MUST
 
-- [ ] Parse 9-byte frame header exactly
-- [ ] Enforce 24-bit length
-- [ ] Validate frame type
-- [ ] Validate stream ID rules
-- [ ] Reject frames > SETTINGS_MAX_FRAME_SIZE
+- [x] Parse 9-byte frame header exactly
+- [x] Enforce 24-bit length
+- [x] Validate frame type
+- [x] Validate stream ID rules
+- [x] Reject frames > SETTINGS_MAX_FRAME_SIZE
 
 ### MUST NOT
 
-- [ ] Accept unknown flag combinations
-- [ ] Accept invalid frame in stream state
+- [x] Accept unknown flag combinations
+- [x] Accept invalid frame in stream state
 
 ### Tests
 
-* Oversized frame
-* Invalid type
-* Stream ID misuse
-* Zero-length violations
+* 32 tests in `Http2FrameParsingCoreTests.cs` (FP-001..FP-032)
+* Oversized frame, invalid type, stream ID misuse, zero-length violations
+* SETTINGS/PING/GOAWAY stream-0 enforcement, payload-size validation
+* RFC 7540 §6.5.2 MaxFrameSize range validation (16384–16777215)
 
 ---
 

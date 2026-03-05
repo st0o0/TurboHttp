@@ -190,11 +190,11 @@ public sealed class Http2Decoder
                     break;
 
                 case FrameType.Settings:
-                    HandleSettings(flags, payload, payloadLength, settingsList, controlFrames, settingsAcksToSend);
+                    HandleSettings(flags, payload, payloadLength, streamId, settingsList, controlFrames, settingsAcksToSend);
                     break;
 
                 case FrameType.Ping:
-                    HandlePing(flags, payload, controlFrames, pingAcks, pingAcksToSend);
+                    HandlePing(flags, payload, streamId, controlFrames, pingAcks, pingAcksToSend);
                     break;
 
                 case FrameType.WindowUpdate:
@@ -202,7 +202,13 @@ public sealed class Http2Decoder
                     break;
 
                 case FrameType.RstStream:
-                    if (payload.Length >= 4)
+                    // RFC 7540 §6.4: RST_STREAM payload MUST be exactly 4 bytes.
+                    if (payload.Length != 4)
+                    {
+                        throw new Http2Exception(
+                            $"RFC 7540 §6.4: RST_STREAM payload must be exactly 4 bytes; got {payload.Length}.",
+                            Http2ErrorCode.FrameSizeError);
+                    }
                     {
                         var error = (Http2ErrorCode)BinaryPrimitives.ReadUInt32BigEndian(payload.Span);
                         rstStreams.Add((streamId, error));
@@ -228,6 +234,14 @@ public sealed class Http2Decoder
                     break;
 
                 case FrameType.GoAway:
+                    // RFC 7540 §6.8: GOAWAY frames MUST be on stream 0.
+                    if (streamId != 0)
+                    {
+                        throw new Http2Exception(
+                            $"RFC 7540 §6.8: GOAWAY frame received on stream {streamId}; MUST be on stream 0.",
+                            Http2ErrorCode.ProtocolError);
+                    }
+
                     goAway = ParseGoAway(payload);
                     _receivedGoAway = true;
                     break;
@@ -511,10 +525,19 @@ public sealed class Http2Decoder
         byte flags,
         ReadOnlyMemory<byte> payload,
         int payloadLength,
+        int streamId,
         ImmutableList<IReadOnlyList<(SettingsParameter, uint)>>.Builder settingsList,
         ImmutableList<Http2Frame>.Builder controlFrames,
         ImmutableList<byte[]>.Builder settingsAcksToSend)
     {
+        // RFC 7540 §6.5: SETTINGS frames MUST be on stream 0.
+        if (streamId != 0)
+        {
+            throw new Http2Exception(
+                $"RFC 7540 §6.5: SETTINGS frame received on stream {streamId}; MUST be on stream 0.",
+                Http2ErrorCode.ProtocolError);
+        }
+
         if ((flags & (byte)SettingsFlags.Ack) != 0)
         {
             // RFC 7540 §6.5: A SETTINGS ACK frame MUST have an empty payload.
@@ -527,6 +550,14 @@ public sealed class Http2Decoder
         }
         else
         {
+            // RFC 7540 §6.5: A SETTINGS frame with a length not a multiple of 6 is a FRAME_SIZE_ERROR.
+            if (payloadLength % 6 != 0)
+            {
+                throw new Http2Exception(
+                    $"RFC 7540 §6.5: SETTINGS payload length {payloadLength} is not a multiple of 6 octets.",
+                    Http2ErrorCode.FrameSizeError);
+            }
+
             var settings = ParseSettings(payload.Span);
             settingsList.Add(settings);
             controlFrames.Add(new SettingsFrame(settings));
@@ -538,10 +569,27 @@ public sealed class Http2Decoder
     private static void HandlePing(
         byte flags,
         ReadOnlyMemory<byte> payload,
+        int streamId,
         ImmutableList<Http2Frame>.Builder controlFrames,
         ImmutableList<byte[]>.Builder pingAcks,
         ImmutableList<byte[]>.Builder pingAcksToSend)
     {
+        // RFC 7540 §6.7: PING frames MUST be on stream 0.
+        if (streamId != 0)
+        {
+            throw new Http2Exception(
+                $"RFC 7540 §6.7: PING frame received on stream {streamId}; MUST be on stream 0.",
+                Http2ErrorCode.ProtocolError);
+        }
+
+        // RFC 7540 §6.7: PING payload MUST be exactly 8 bytes.
+        if (payload.Length != 8)
+        {
+            throw new Http2Exception(
+                $"RFC 7540 §6.7: PING payload must be exactly 8 bytes; got {payload.Length}.",
+                Http2ErrorCode.FrameSizeError);
+        }
+
         if ((flags & (byte)PingFlags.Ack) != 0)
         {
             pingAcks.Add(payload.ToArray());
@@ -559,7 +607,13 @@ public sealed class Http2Decoder
         int streamId,
         ImmutableList<(int StreamId, int Increment)>.Builder windowUpdates)
     {
-        if (payload.Length < 4) return;
+        // RFC 7540 §6.9: WINDOW_UPDATE payload MUST be exactly 4 bytes.
+        if (payload.Length != 4)
+        {
+            throw new Http2Exception(
+                $"RFC 7540 §6.9: WINDOW_UPDATE payload must be exactly 4 bytes; got {payload.Length}.",
+                Http2ErrorCode.FrameSizeError);
+        }
 
         var raw = BinaryPrimitives.ReadUInt32BigEndian(payload.Span);
         var increment = (int)(raw & 0x7FFFFFFFu);
@@ -649,6 +703,14 @@ public sealed class Http2Decoder
             switch (param)
             {
                 case SettingsParameter.MaxFrameSize:
+                    // RFC 7540 §6.5.2: MAX_FRAME_SIZE must be between 2^14 (16384) and 2^24-1 (16777215).
+                    if (value < 16384 || value > 16777215)
+                    {
+                        throw new Http2Exception(
+                            $"RFC 7540 §6.5.2: SETTINGS_MAX_FRAME_SIZE {value} is outside the valid range [16384, 16777215].",
+                            Http2ErrorCode.ProtocolError);
+                    }
+
                     _maxFrameSize = (int)value;
                     break;
 
