@@ -1352,12 +1352,12 @@ No cross-layer duplication.
 
 All tests must:
 
-- [ ] Assert exact error code
-- [ ] Assert connection vs stream error
-- [ ] Assert stream state after failure
-- [ ] Assert no memory leak (where possible)
-- [ ] Avoid timing-based flakiness
-- [ ] Avoid network dependency unless integration category
+- [x] Assert exact error code
+- [x] Assert connection vs stream error
+- [x] Assert stream state after failure
+- [x] Assert no memory leak (where possible)
+- [x] Avoid timing-based flakiness
+- [x] Avoid network dependency unless integration category
 
 ---
 

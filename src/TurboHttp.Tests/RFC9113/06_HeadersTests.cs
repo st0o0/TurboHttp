@@ -65,6 +65,7 @@ public sealed class Http2DecoderHeadersValidationTests
         var ex = Assert.Throws<Http2Exception>(() => decoder.TryDecode(frame, out _));
         Assert.Equal(Http2ErrorCode.ProtocolError, ex.ErrorCode);
         Assert.Contains(":status", ex.Message);
+        Assert.True(ex.IsConnectionError);
     }
 
     // ── HV-004: Duplicate :status pseudo-header ───────────────────────────────
@@ -106,6 +107,7 @@ public sealed class Http2DecoderHeadersValidationTests
         Assert.Equal(Http2ErrorCode.ProtocolError, ex.ErrorCode);
         Assert.Contains(":status", ex.Message);
         Assert.Contains("Duplicate", ex.Message);
+        Assert.True(ex.IsConnectionError);
     }
 
     // ── HV-005: Request pseudo-header :method in response is PROTOCOL_ERROR ──
@@ -119,6 +121,7 @@ public sealed class Http2DecoderHeadersValidationTests
         var ex = Assert.Throws<Http2Exception>(() => decoder.TryDecode(frame, out _));
         Assert.Equal(Http2ErrorCode.ProtocolError, ex.ErrorCode);
         Assert.Contains(":method", ex.Message);
+        Assert.True(ex.IsConnectionError);
     }
 
     // ── HV-006: Request pseudo-header :path in response is PROTOCOL_ERROR ────
@@ -132,6 +135,7 @@ public sealed class Http2DecoderHeadersValidationTests
         var ex = Assert.Throws<Http2Exception>(() => decoder.TryDecode(frame, out _));
         Assert.Equal(Http2ErrorCode.ProtocolError, ex.ErrorCode);
         Assert.Contains(":path", ex.Message);
+        Assert.True(ex.IsConnectionError);
     }
 
     // ── HV-007: Request pseudo-header :scheme in response is PROTOCOL_ERROR ──
@@ -145,6 +149,7 @@ public sealed class Http2DecoderHeadersValidationTests
         var ex = Assert.Throws<Http2Exception>(() => decoder.TryDecode(frame, out _));
         Assert.Equal(Http2ErrorCode.ProtocolError, ex.ErrorCode);
         Assert.Contains(":scheme", ex.Message);
+        Assert.True(ex.IsConnectionError);
     }
 
     // ── HV-008: Request pseudo-header :authority in response is PROTOCOL_ERROR
@@ -158,6 +163,7 @@ public sealed class Http2DecoderHeadersValidationTests
         var ex = Assert.Throws<Http2Exception>(() => decoder.TryDecode(frame, out _));
         Assert.Equal(Http2ErrorCode.ProtocolError, ex.ErrorCode);
         Assert.Contains(":authority", ex.Message);
+        Assert.True(ex.IsConnectionError);
     }
 
     // ── HV-009: Unknown pseudo-header is PROTOCOL_ERROR ──────────────────────
@@ -192,6 +198,7 @@ public sealed class Http2DecoderHeadersValidationTests
         var ex = Assert.Throws<Http2Exception>(() => decoder.TryDecode(frame, out _));
         Assert.Equal(Http2ErrorCode.ProtocolError, ex.ErrorCode);
         Assert.Contains(":custom", ex.Message);
+        Assert.True(ex.IsConnectionError);
     }
 
     // ── HV-010: Pseudo-header after regular header is PROTOCOL_ERROR ──────────
@@ -228,6 +235,7 @@ public sealed class Http2DecoderHeadersValidationTests
         Assert.Equal(Http2ErrorCode.ProtocolError, ex.ErrorCode);
         Assert.Contains(":status", ex.Message);
         Assert.Contains("after regular header", ex.Message);
+        Assert.True(ex.IsConnectionError);
     }
 
     // ── HV-011: Uppercase header name is PROTOCOL_ERROR ──────────────────────
@@ -262,6 +270,7 @@ public sealed class Http2DecoderHeadersValidationTests
         var ex = Assert.Throws<Http2Exception>(() => decoder.TryDecode(frame, out _));
         Assert.Equal(Http2ErrorCode.ProtocolError, ex.ErrorCode);
         Assert.Contains("uppercase", ex.Message.ToLower());
+        Assert.True(ex.IsConnectionError);
     }
 
     // ── HV-012: Uppercase in pseudo-header is PROTOCOL_ERROR ─────────────────
@@ -284,6 +293,7 @@ public sealed class Http2DecoderHeadersValidationTests
 
         var ex = Assert.Throws<Http2Exception>(() => decoder.TryDecode(frame, out _));
         Assert.Equal(Http2ErrorCode.ProtocolError, ex.ErrorCode);
+        Assert.True(ex.IsConnectionError);
     }
 
     // ── HV-013: connection header is forbidden ────────────────────────────────
@@ -297,6 +307,7 @@ public sealed class Http2DecoderHeadersValidationTests
         var ex = Assert.Throws<Http2Exception>(() => decoder.TryDecode(frame, out _));
         Assert.Equal(Http2ErrorCode.ProtocolError, ex.ErrorCode);
         Assert.Contains("connection", ex.Message);
+        Assert.True(ex.IsConnectionError);
     }
 
     // ── HV-014: keep-alive header is forbidden ────────────────────────────────
@@ -310,6 +321,7 @@ public sealed class Http2DecoderHeadersValidationTests
         var ex = Assert.Throws<Http2Exception>(() => decoder.TryDecode(frame, out _));
         Assert.Equal(Http2ErrorCode.ProtocolError, ex.ErrorCode);
         Assert.Contains("keep-alive", ex.Message);
+        Assert.True(ex.IsConnectionError);
     }
 
     // ── HV-015: proxy-connection header is forbidden ──────────────────────────
@@ -323,6 +335,7 @@ public sealed class Http2DecoderHeadersValidationTests
         var ex = Assert.Throws<Http2Exception>(() => decoder.TryDecode(frame, out _));
         Assert.Equal(Http2ErrorCode.ProtocolError, ex.ErrorCode);
         Assert.Contains("proxy-connection", ex.Message);
+        Assert.True(ex.IsConnectionError);
     }
 
     // ── HV-016: transfer-encoding header is forbidden ─────────────────────────
@@ -336,6 +349,7 @@ public sealed class Http2DecoderHeadersValidationTests
         var ex = Assert.Throws<Http2Exception>(() => decoder.TryDecode(frame, out _));
         Assert.Equal(Http2ErrorCode.ProtocolError, ex.ErrorCode);
         Assert.Contains("transfer-encoding", ex.Message);
+        Assert.True(ex.IsConnectionError);
     }
 
     // ── HV-017: upgrade header is forbidden ───────────────────────────────────
@@ -349,6 +363,7 @@ public sealed class Http2DecoderHeadersValidationTests
         var ex = Assert.Throws<Http2Exception>(() => decoder.TryDecode(frame, out _));
         Assert.Equal(Http2ErrorCode.ProtocolError, ex.ErrorCode);
         Assert.Contains("upgrade", ex.Message);
+        Assert.True(ex.IsConnectionError);
     }
 
     // ── HV-018: Valid response with multiple regular headers ──────────────────
@@ -427,6 +442,7 @@ public sealed class Http2DecoderHeadersValidationTests
         var frame = new HeadersFrame(1, block.ToArray().AsMemory(), endStream: true, endHeaders: true).Serialize();
         var ex = Assert.Throws<Http2Exception>(() => decoder.TryDecode(frame, out _));
         Assert.Contains("X-Custom", ex.Message);
+        Assert.True(ex.IsConnectionError);
     }
 
     // ── HV-022: Error message for connection-specific includes header name ─────
@@ -440,6 +456,7 @@ public sealed class Http2DecoderHeadersValidationTests
         var ex = Assert.Throws<Http2Exception>(() => decoder.TryDecode(frame, out _));
         Assert.Contains("transfer-encoding", ex.Message);
         Assert.Contains("forbidden", ex.Message.ToLower());
+        Assert.True(ex.IsConnectionError);
     }
 
     // ── HV-023: Continuation frames — validation applies to full header block ─
@@ -472,6 +489,7 @@ public sealed class Http2DecoderHeadersValidationTests
         var ex = Assert.Throws<Http2Exception>(() => decoder.TryDecode(combined, out _));
         Assert.Equal(Http2ErrorCode.ProtocolError, ex.ErrorCode);
         Assert.Contains("X-Bad", ex.Message);
+        Assert.True(ex.IsConnectionError);
     }
 
     // ── HV-024: Multiple streams — each validated independently ───────────────
@@ -489,6 +507,7 @@ public sealed class Http2DecoderHeadersValidationTests
         var badFrame = MakeHeadersFrame(3, [("content-type", "text/plain")]);
         var ex = Assert.Throws<Http2Exception>(() => decoder.TryDecode(badFrame, out _));
         Assert.Equal(Http2ErrorCode.ProtocolError, ex.ErrorCode);
+        Assert.True(ex.IsConnectionError);
     }
 
     // ── HV-025: 1xx informational response ───────────────────────────────────
@@ -559,6 +578,7 @@ public sealed class Http2DecoderHeadersValidationTests
         var frame = new HeadersFrame(1, block.ToArray().AsMemory(), endStream: true, endHeaders: true).Serialize();
         var ex = Assert.Throws<Http2Exception>(() => decoder.TryDecode(frame, out _));
         Assert.Equal(Http2ErrorCode.ProtocolError, ex.ErrorCode);
+        Assert.True(ex.IsConnectionError);
     }
 
     // ── HV-028: Empty header block is PROTOCOL_ERROR (no :status) ────────────
@@ -573,5 +593,6 @@ public sealed class Http2DecoderHeadersValidationTests
         var ex = Assert.Throws<Http2Exception>(() => decoder.TryDecode(frame, out _));
         Assert.Equal(Http2ErrorCode.ProtocolError, ex.ErrorCode);
         Assert.Contains(":status", ex.Message);
+        Assert.True(ex.IsConnectionError);
     }
 }

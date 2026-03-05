@@ -86,6 +86,7 @@ public sealed class Http2SettingsSynchronizationTests
         var decoder = new Http2Decoder();
         var ex = Assert.Throws<Http2Exception>(() => decoder.TryDecode(frame, out _));
         Assert.Equal(Http2ErrorCode.ProtocolError, ex.ErrorCode);
+        Assert.True(ex.IsConnectionError);
     }
 
     /// RFC 7540 §6.5.2 — MaxFrameSize=16777216 is PROTOCOL_ERROR
@@ -96,6 +97,7 @@ public sealed class Http2SettingsSynchronizationTests
         var decoder = new Http2Decoder();
         var ex = Assert.Throws<Http2Exception>(() => decoder.TryDecode(frame, out _));
         Assert.Equal(Http2ErrorCode.ProtocolError, ex.ErrorCode);
+        Assert.True(ex.IsConnectionError);
     }
 
     /// RFC 7540 §6.5.2 — After MaxFrameSize update, larger frames are accepted
@@ -139,6 +141,7 @@ public sealed class Http2SettingsSynchronizationTests
         var decoder = new Http2Decoder();
         var ex = Assert.Throws<Http2Exception>(() => decoder.TryDecode(frame, out _));
         Assert.Equal(Http2ErrorCode.FlowControlError, ex.ErrorCode);
+        Assert.True(ex.IsConnectionError);
     }
 
     /// RFC 7540 §6.5.2 — InitialWindowSize of exactly 2^31-1 is accepted
@@ -183,6 +186,7 @@ public sealed class Http2SettingsSynchronizationTests
         var decoder = new Http2Decoder();
         var ex = Assert.Throws<Http2Exception>(() => decoder.TryDecode(frame, out _));
         Assert.Equal(Http2ErrorCode.ProtocolError, ex.ErrorCode);
+        Assert.True(ex.IsConnectionError);
     }
 
     // =========================================================================
@@ -202,6 +206,9 @@ public sealed class Http2SettingsSynchronizationTests
         var headers = BuildMinimalHeadersFrame(streamId: 1, endStream: true);
         var ex = Assert.Throws<Http2Exception>(() => decoder.TryDecode(headers, out _));
         Assert.Equal(Http2ErrorCode.RefusedStream, ex.ErrorCode);
+        Assert.Equal(Http2ErrorScope.Stream, ex.Scope);
+        Assert.Equal(1, ex.StreamId);
+        Assert.Equal(Http2StreamLifecycleState.Idle, decoder.GetStreamLifecycleState(1));
     }
 
     /// RFC 7540 §6.5.2 — MaxConcurrentStreams=1 allows exactly one stream
@@ -349,6 +356,7 @@ public sealed class Http2SettingsSynchronizationTests
         // 101st should throw
         var ex = Assert.Throws<Http2Exception>(() => decoder.TryDecode(frame, out _));
         Assert.Equal(Http2ErrorCode.EnhanceYourCalm, ex.ErrorCode);
+        Assert.True(ex.IsConnectionError);
     }
 
     /// RFC 7540 security — SETTINGS ACK frames do not count toward flood limit

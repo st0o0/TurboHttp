@@ -129,6 +129,7 @@ public sealed class Http2StreamLifecycleTests
         var data = MakeDataFrame(streamId: 1, endStream: false);
         var ex = Assert.Throws<Http2Exception>(() => decoder.TryDecode(data, out _));
         Assert.Equal(Http2ErrorCode.ProtocolError, ex.ErrorCode);
+        Assert.True(ex.IsConnectionError);
     }
 
     /// RFC 9113 §5.1 — DATA on closed stream is STREAM_CLOSED error
@@ -144,6 +145,8 @@ public sealed class Http2StreamLifecycleTests
         var data = MakeDataFrame(streamId: 1, endStream: false);
         var ex = Assert.Throws<Http2Exception>(() => decoder.TryDecode(data, out _));
         Assert.Equal(Http2ErrorCode.StreamClosed, ex.ErrorCode);
+        Assert.Equal(Http2ErrorScope.Stream, ex.Scope);
+        Assert.Equal(1, ex.StreamId);
     }
 
     /// RFC 9113 §5.1 — HEADERS on closed stream is connection error STREAM_CLOSED (RFC 7540 §6.2)
@@ -304,6 +307,8 @@ public sealed class Http2StreamLifecycleTests
         var data = MakeDataFrame(streamId: 1, endStream: false);
         var ex = Assert.Throws<Http2Exception>(() => decoder.TryDecode(data, out _));
         Assert.Equal(Http2ErrorCode.StreamClosed, ex.ErrorCode);
+        Assert.Equal(Http2ErrorScope.Stream, ex.Scope);
+        Assert.Equal(1, ex.StreamId);
     }
 
     /// RFC 9113 §5.1 — HEADERS after RST_STREAM on same stream is connection error STREAM_CLOSED (RFC 7540 §6.2)
@@ -337,6 +342,8 @@ public sealed class Http2StreamLifecycleTests
         var extra = MakeDataFrame(streamId: 1, endStream: false);
         var ex = Assert.Throws<Http2Exception>(() => decoder.TryDecode(extra, out _));
         Assert.Equal(Http2ErrorCode.StreamClosed, ex.ErrorCode);
+        Assert.Equal(Http2ErrorScope.Stream, ex.Scope);
+        Assert.Equal(1, ex.StreamId);
     }
 
     // =========================================================================
@@ -394,6 +401,7 @@ public sealed class Http2StreamLifecycleTests
         };
         var ex = Assert.Throws<Http2Exception>(() => decoder.TryDecode(frame, out _));
         Assert.Equal(Http2ErrorCode.ProtocolError, ex.ErrorCode);
+        Assert.True(ex.IsConnectionError);
     }
 
     /// RFC 9113 §5.1 — HEADERS on stream 0 is PROTOCOL_ERROR
@@ -407,6 +415,7 @@ public sealed class Http2StreamLifecycleTests
         var decoder = new Http2Decoder();
         var ex = Assert.Throws<Http2Exception>(() => decoder.TryDecode(frame, out _));
         Assert.Equal(Http2ErrorCode.ProtocolError, ex.ErrorCode);
+        Assert.True(ex.IsConnectionError);
     }
 
     /// RFC 9113 §5.1 — DATA on a different idle stream than already-open streams throws PROTOCOL_ERROR
@@ -422,6 +431,7 @@ public sealed class Http2StreamLifecycleTests
         var data = MakeDataFrame(streamId: 3, endStream: false);
         var ex = Assert.Throws<Http2Exception>(() => decoder.TryDecode(data, out _));
         Assert.Equal(Http2ErrorCode.ProtocolError, ex.ErrorCode);
+        Assert.True(ex.IsConnectionError);
     }
 
     /// RFC 9113 §5.1 — Five streams each with distinct lifecycle states are tracked correctly
@@ -466,5 +476,7 @@ public sealed class Http2StreamLifecycleTests
         var data = MakeDataFrame(1, endStream: false);
         var ex = Assert.Throws<Http2Exception>(() => decoder.TryDecode(data, out _));
         Assert.Equal(Http2ErrorCode.StreamClosed, ex.ErrorCode);
+        Assert.Equal(Http2ErrorScope.Stream, ex.Scope);
+        Assert.Equal(1, ex.StreamId);
     }
 }

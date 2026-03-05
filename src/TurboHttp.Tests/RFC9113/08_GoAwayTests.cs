@@ -101,6 +101,7 @@ public sealed class Http2GoAwayRstStreamTests
         var headers = MakeHeadersFrame(streamId: 3);
         var ex = Assert.Throws<Http2Exception>(() => decoder.TryDecode(headers, out _));
         Assert.Equal(Http2ErrorCode.ProtocolError, ex.ErrorCode);
+        Assert.True(ex.IsConnectionError);
     }
 
     /// RFC 7540 §6.8 — GOAWAY with lastStreamId=0 blocks all new streams
@@ -112,6 +113,7 @@ public sealed class Http2GoAwayRstStreamTests
 
         var ex = Assert.Throws<Http2Exception>(() => decoder.TryDecode(MakeHeadersFrame(streamId: 1), out _));
         Assert.Equal(Http2ErrorCode.ProtocolError, ex.ErrorCode);
+        Assert.True(ex.IsConnectionError);
     }
 
     /// RFC 7540 §6.8 — Second GOAWAY updates lastStreamId
@@ -185,6 +187,9 @@ public sealed class Http2GoAwayRstStreamTests
         var ex = Assert.Throws<Http2Exception>(() =>
             decoder.TryDecode(MakeDataFrame(streamId: 5, endStream: true), out _));
         Assert.Equal(Http2ErrorCode.StreamClosed, ex.ErrorCode);
+        Assert.Equal(Http2ErrorScope.Stream, ex.Scope);
+        Assert.Equal(5, ex.StreamId);
+        Assert.Equal(Http2StreamLifecycleState.Closed, decoder.GetStreamLifecycleState(5));
     }
 
     /// RFC 7540 §6.8 — DATA for stream ≤ lastStreamId after GOAWAY is still processed
@@ -287,6 +292,7 @@ public sealed class Http2GoAwayRstStreamTests
 
         var ex = Assert.Throws<Http2Exception>(() => decoder.TryDecode(frame, out _));
         Assert.Equal(Http2ErrorCode.ProtocolError, ex.ErrorCode);
+        Assert.True(ex.IsConnectionError);
     }
 
     /// RFC 7540 §6.8 — GOAWAY with debug data does not affect stream cleanup

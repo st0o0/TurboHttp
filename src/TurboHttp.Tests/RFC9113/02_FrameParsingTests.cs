@@ -176,6 +176,7 @@ public sealed class Http2FrameParsingCoreTests
         var decoder = new Http2Decoder();
         var ex = Assert.Throws<Http2Exception>(() => decoder.TryDecode(frame, out _));
         Assert.Equal(Http2ErrorCode.FrameSizeError, ex.ErrorCode);
+        Assert.True(ex.IsConnectionError);
     }
 
     /// RFC 7540 §4.2 — After SETTINGS update, larger frames are accepted
@@ -214,6 +215,7 @@ public sealed class Http2FrameParsingCoreTests
         var decoder = new Http2Decoder();
         var ex = Assert.Throws<Http2Exception>(() => decoder.TryDecode(settings, out _));
         Assert.Equal(Http2ErrorCode.ProtocolError, ex.ErrorCode);
+        Assert.True(ex.IsConnectionError);
     }
 
     /// RFC 7540 §4.2 — SETTINGS_MAX_FRAME_SIZE above 16777215 is PROTOCOL_ERROR
@@ -224,6 +226,7 @@ public sealed class Http2FrameParsingCoreTests
         var decoder = new Http2Decoder();
         var ex = Assert.Throws<Http2Exception>(() => decoder.TryDecode(settings, out _));
         Assert.Equal(Http2ErrorCode.ProtocolError, ex.ErrorCode);
+        Assert.True(ex.IsConnectionError);
     }
 
     /// RFC 7540 §4.2 — SETTINGS_MAX_FRAME_SIZE of exactly 16777215 is accepted
@@ -315,6 +318,7 @@ public sealed class Http2FrameParsingCoreTests
         var decoder = new Http2Decoder();
         var ex = Assert.Throws<Http2Exception>(() => decoder.TryDecode(frame, out _));
         Assert.Equal(Http2ErrorCode.ProtocolError, ex.ErrorCode);
+        Assert.True(ex.IsConnectionError);
         Assert.Contains("stream 1", ex.Message, StringComparison.OrdinalIgnoreCase);
     }
 
@@ -333,6 +337,7 @@ public sealed class Http2FrameParsingCoreTests
         var decoder = new Http2Decoder();
         var ex = Assert.Throws<Http2Exception>(() => decoder.TryDecode(frame, out _));
         Assert.Equal(Http2ErrorCode.ProtocolError, ex.ErrorCode);
+        Assert.True(ex.IsConnectionError);
     }
 
     /// RFC 7540 §6.8 — GOAWAY on non-zero stream causes PROTOCOL_ERROR
@@ -350,6 +355,7 @@ public sealed class Http2FrameParsingCoreTests
         var decoder = new Http2Decoder();
         var ex = Assert.Throws<Http2Exception>(() => decoder.TryDecode(frame, out _));
         Assert.Equal(Http2ErrorCode.ProtocolError, ex.ErrorCode);
+        Assert.True(ex.IsConnectionError);
     }
 
     /// RFC 7540 §6.9 — WINDOW_UPDATE on stream 0 (connection-level) is accepted
@@ -392,6 +398,7 @@ public sealed class Http2FrameParsingCoreTests
         var decoder = new Http2Decoder();
         var ex = Assert.Throws<Http2Exception>(() => decoder.TryDecode(frame, out _));
         Assert.Equal(Http2ErrorCode.FrameSizeError, ex.ErrorCode);
+        Assert.True(ex.IsConnectionError);
     }
 
     /// RFC 7540 §6.5 — SETTINGS ACK with non-empty payload is FRAME_SIZE_ERROR
@@ -409,6 +416,7 @@ public sealed class Http2FrameParsingCoreTests
         var decoder = new Http2Decoder();
         var ex = Assert.Throws<Http2Exception>(() => decoder.TryDecode(frame, out _));
         Assert.Equal(Http2ErrorCode.FrameSizeError, ex.ErrorCode);
+        Assert.True(ex.IsConnectionError);
     }
 
     /// RFC 7540 §6.7 — PING with 7-byte payload is FRAME_SIZE_ERROR
@@ -426,6 +434,7 @@ public sealed class Http2FrameParsingCoreTests
         var decoder = new Http2Decoder();
         var ex = Assert.Throws<Http2Exception>(() => decoder.TryDecode(frame, out _));
         Assert.Equal(Http2ErrorCode.FrameSizeError, ex.ErrorCode);
+        Assert.True(ex.IsConnectionError);
     }
 
     /// RFC 7540 §6.7 — PING with 9-byte payload is FRAME_SIZE_ERROR
@@ -443,6 +452,7 @@ public sealed class Http2FrameParsingCoreTests
         var decoder = new Http2Decoder();
         var ex = Assert.Throws<Http2Exception>(() => decoder.TryDecode(frame, out _));
         Assert.Equal(Http2ErrorCode.FrameSizeError, ex.ErrorCode);
+        Assert.True(ex.IsConnectionError);
     }
 
     /// RFC 7540 §6.9 — WINDOW_UPDATE with 3-byte payload is FRAME_SIZE_ERROR
@@ -460,6 +470,7 @@ public sealed class Http2FrameParsingCoreTests
         var decoder = new Http2Decoder();
         var ex = Assert.Throws<Http2Exception>(() => decoder.TryDecode(frame, out _));
         Assert.Equal(Http2ErrorCode.FrameSizeError, ex.ErrorCode);
+        Assert.True(ex.IsConnectionError);
     }
 
     /// RFC 7540 §6.4 — RST_STREAM with 3-byte payload is FRAME_SIZE_ERROR
@@ -477,6 +488,7 @@ public sealed class Http2FrameParsingCoreTests
         var decoder = new Http2Decoder();
         var ex = Assert.Throws<Http2Exception>(() => decoder.TryDecode(frame, out _));
         Assert.Equal(Http2ErrorCode.FrameSizeError, ex.ErrorCode);
+        Assert.True(ex.IsConnectionError);
     }
 
     /// RFC 7540 §6.4 — RST_STREAM with 5-byte payload is FRAME_SIZE_ERROR
@@ -494,6 +506,7 @@ public sealed class Http2FrameParsingCoreTests
         var decoder = new Http2Decoder();
         var ex = Assert.Throws<Http2Exception>(() => decoder.TryDecode(frame, out _));
         Assert.Equal(Http2ErrorCode.FrameSizeError, ex.ErrorCode);
+        Assert.True(ex.IsConnectionError);
     }
 
     // =========================================================================
@@ -574,6 +587,7 @@ public sealed class Http2FrameParsingCoreTests
         var decoder = new Http2Decoder();
         var ex = Assert.Throws<Http2Exception>(() => decoder.TryDecode(frame, out _));
         Assert.Equal(Http2ErrorCode.ProtocolError, ex.ErrorCode);
+        Assert.True(ex.IsConnectionError);
     }
 
     /// RFC 7540 §5.1 — Non-CONTINUATION frame after HEADERS without END_HEADERS causes PROTOCOL_ERROR
@@ -596,5 +610,6 @@ public sealed class Http2FrameParsingCoreTests
         var decoder = new Http2Decoder();
         var ex = Assert.Throws<Http2Exception>(() => decoder.TryDecode(combined, out _));
         Assert.Equal(Http2ErrorCode.ProtocolError, ex.ErrorCode);
+        Assert.True(ex.IsConnectionError);
     }
 }

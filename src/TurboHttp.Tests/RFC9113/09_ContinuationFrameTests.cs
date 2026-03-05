@@ -177,6 +177,7 @@ public sealed class Http2ContinuationFrameTests
 
         var ex = Assert.Throws<Http2Exception>(() => decoder.TryDecode(dataFrame, out _));
         Assert.Equal(Http2ErrorCode.ProtocolError, ex.ErrorCode);
+        Assert.True(ex.IsConnectionError);
     }
 
     /// RFC 9113 §6.10 — PING frame interleaved while awaiting CONTINUATION is PROTOCOL_ERROR
@@ -192,6 +193,7 @@ public sealed class Http2ContinuationFrameTests
 
         var ex = Assert.Throws<Http2Exception>(() => decoder.TryDecode(pingFrame, out _));
         Assert.Equal(Http2ErrorCode.ProtocolError, ex.ErrorCode);
+        Assert.True(ex.IsConnectionError);
     }
 
     /// RFC 9113 §6.10 — SETTINGS frame interleaved while awaiting CONTINUATION is PROTOCOL_ERROR
@@ -207,6 +209,7 @@ public sealed class Http2ContinuationFrameTests
 
         var ex = Assert.Throws<Http2Exception>(() => decoder.TryDecode(settingsFrame, out _));
         Assert.Equal(Http2ErrorCode.ProtocolError, ex.ErrorCode);
+        Assert.True(ex.IsConnectionError);
     }
 
     /// RFC 9113 §6.10 — RST_STREAM frame interleaved while awaiting CONTINUATION is PROTOCOL_ERROR
@@ -222,6 +225,7 @@ public sealed class Http2ContinuationFrameTests
 
         var ex = Assert.Throws<Http2Exception>(() => decoder.TryDecode(rstFrame, out _));
         Assert.Equal(Http2ErrorCode.ProtocolError, ex.ErrorCode);
+        Assert.True(ex.IsConnectionError);
     }
 
     /// RFC 9113 §6.10 — WINDOW_UPDATE frame interleaved while awaiting CONTINUATION is PROTOCOL_ERROR
@@ -237,6 +241,7 @@ public sealed class Http2ContinuationFrameTests
 
         var ex = Assert.Throws<Http2Exception>(() => decoder.TryDecode(windowUpdate, out _));
         Assert.Equal(Http2ErrorCode.ProtocolError, ex.ErrorCode);
+        Assert.True(ex.IsConnectionError);
     }
 
     /// RFC 9113 §6.10 — GOAWAY frame interleaved while awaiting CONTINUATION is PROTOCOL_ERROR
@@ -252,6 +257,7 @@ public sealed class Http2ContinuationFrameTests
 
         var ex = Assert.Throws<Http2Exception>(() => decoder.TryDecode(goAwayFrame, out _));
         Assert.Equal(Http2ErrorCode.ProtocolError, ex.ErrorCode);
+        Assert.True(ex.IsConnectionError);
     }
 
     /// RFC 9113 §6.10 — HEADERS frame for a different stream while awaiting CONTINUATION is PROTOCOL_ERROR
@@ -269,6 +275,7 @@ public sealed class Http2ContinuationFrameTests
 
         var ex = Assert.Throws<Http2Exception>(() => decoder.TryDecode(headersFrame3, out _));
         Assert.Equal(Http2ErrorCode.ProtocolError, ex.ErrorCode);
+        Assert.True(ex.IsConnectionError);
     }
 
     // ── Reject interleaved frames ─────────────────────────────────────────────
@@ -292,6 +299,7 @@ public sealed class Http2ContinuationFrameTests
 
         var ex = Assert.Throws<Http2Exception>(() => decoder.TryDecode(contOnStream0, out _));
         Assert.Equal(Http2ErrorCode.ProtocolError, ex.ErrorCode);
+        Assert.True(ex.IsConnectionError);
     }
 
     /// RFC 9113 §6.10 — CONTINUATION on different stream than HEADERS is PROTOCOL_ERROR
@@ -307,6 +315,7 @@ public sealed class Http2ContinuationFrameTests
 
         var ex = Assert.Throws<Http2Exception>(() => decoder.TryDecode(contOnStream3, out _));
         Assert.Equal(Http2ErrorCode.ProtocolError, ex.ErrorCode);
+        Assert.True(ex.IsConnectionError);
     }
 
     /// RFC 9113 §6.10 — CONTINUATION without preceding HEADERS is PROTOCOL_ERROR
@@ -319,6 +328,7 @@ public sealed class Http2ContinuationFrameTests
         var decoder = new Http2Decoder();
         var ex = Assert.Throws<Http2Exception>(() => decoder.TryDecode(contFrame, out _));
         Assert.Equal(Http2ErrorCode.ProtocolError, ex.ErrorCode);
+        Assert.True(ex.IsConnectionError);
     }
 
     /// RFC 9113 §6.10 — CONTINUATION after completed header block is PROTOCOL_ERROR
@@ -336,6 +346,7 @@ public sealed class Http2ContinuationFrameTests
 
         var ex = Assert.Throws<Http2Exception>(() => decoder.TryDecode(contFrame, out _));
         Assert.Equal(Http2ErrorCode.ProtocolError, ex.ErrorCode);
+        Assert.True(ex.IsConnectionError);
     }
 
     // ── Combined delivery ────────────────────────────────────────────────────
@@ -436,6 +447,7 @@ public sealed class Http2ContinuationFrameTests
         Assert.Equal(Http2ErrorCode.ProtocolError, ex.ErrorCode);
         // Error message should mention stream IDs involved.
         Assert.Contains("5", ex.Message);
+        Assert.True(ex.IsConnectionError);
     }
 
     /// RFC 9113 §6.10 — CONTINUATION flood protection triggers at 1000 frames
@@ -457,6 +469,7 @@ public sealed class Http2ContinuationFrameTests
             }
         });
         Assert.Equal(Http2ErrorCode.ProtocolError, ex.ErrorCode);
+        Assert.True(ex.IsConnectionError);
     }
 
     /// RFC 9113 §6.10 — END_STREAM on HEADERS is carried through to reassembled response

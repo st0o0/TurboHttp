@@ -165,6 +165,7 @@ public sealed class Http2ConnectionPrefaceTests
         var decoder = new Http2Decoder();
         var ex = Assert.Throws<Http2Exception>(() => decoder.ValidateServerPreface(buf));
         Assert.Equal(Http2ErrorCode.ProtocolError, ex.ErrorCode);
+        Assert.True(ex.IsConnectionError);
     }
 
     /// RFC 9113 §3.4 — HEADERS frame as first frame throws PROTOCOL_ERROR
@@ -178,6 +179,7 @@ public sealed class Http2ConnectionPrefaceTests
         var decoder = new Http2Decoder();
         var ex = Assert.Throws<Http2Exception>(() => decoder.ValidateServerPreface(buf));
         Assert.Equal(Http2ErrorCode.ProtocolError, ex.ErrorCode);
+        Assert.True(ex.IsConnectionError);
     }
 
     /// RFC 9113 §3.4 — PING frame as first frame throws PROTOCOL_ERROR
@@ -189,6 +191,7 @@ public sealed class Http2ConnectionPrefaceTests
         var decoder = new Http2Decoder();
         var ex = Assert.Throws<Http2Exception>(() => decoder.ValidateServerPreface(ping));
         Assert.Equal(Http2ErrorCode.ProtocolError, ex.ErrorCode);
+        Assert.True(ex.IsConnectionError);
     }
 
     /// RFC 9113 §3.4 — GOAWAY frame as first frame throws PROTOCOL_ERROR
@@ -200,6 +203,7 @@ public sealed class Http2ConnectionPrefaceTests
         var decoder = new Http2Decoder();
         var ex = Assert.Throws<Http2Exception>(() => decoder.ValidateServerPreface(goAway));
         Assert.Equal(Http2ErrorCode.ProtocolError, ex.ErrorCode);
+        Assert.True(ex.IsConnectionError);
     }
 
     /// RFC 9113 §3.4 — RST_STREAM frame as first frame throws PROTOCOL_ERROR
@@ -211,6 +215,7 @@ public sealed class Http2ConnectionPrefaceTests
         var decoder = new Http2Decoder();
         var ex = Assert.Throws<Http2Exception>(() => decoder.ValidateServerPreface(rst));
         Assert.Equal(Http2ErrorCode.ProtocolError, ex.ErrorCode);
+        Assert.True(ex.IsConnectionError);
     }
 
     /// RFC 9113 §3.4 — WINDOW_UPDATE frame as first frame throws PROTOCOL_ERROR
@@ -222,6 +227,7 @@ public sealed class Http2ConnectionPrefaceTests
         var decoder = new Http2Decoder();
         var ex = Assert.Throws<Http2Exception>(() => decoder.ValidateServerPreface(wu));
         Assert.Equal(Http2ErrorCode.ProtocolError, ex.ErrorCode);
+        Assert.True(ex.IsConnectionError);
     }
 
     /// RFC 9113 §3.4 — SETTINGS frame on non-zero stream throws PROTOCOL_ERROR
@@ -237,6 +243,7 @@ public sealed class Http2ConnectionPrefaceTests
         var decoder = new Http2Decoder();
         var ex = Assert.Throws<Http2Exception>(() => decoder.ValidateServerPreface(buf));
         Assert.Equal(Http2ErrorCode.ProtocolError, ex.ErrorCode);
+        Assert.True(ex.IsConnectionError);
     }
 
     /// RFC 9113 §3.4 — Exactly 9 bytes of SETTINGS on stream 0 is accepted
@@ -269,7 +276,9 @@ public sealed class Http2ConnectionPrefaceTests
         Assert.True(decoder1.ValidateServerPreface(validFrame));
 
         // decoder2 rejects PING
-        Assert.Throws<Http2Exception>(() => decoder2.ValidateServerPreface(ping));
+        var ex2 = Assert.Throws<Http2Exception>(() => decoder2.ValidateServerPreface(ping));
+        Assert.Equal(Http2ErrorCode.ProtocolError, ex2.ErrorCode);
+        Assert.True(ex2.IsConnectionError);
 
         // decoder1 was not affected by decoder2's exception
         Assert.True(decoder1.ValidateServerPreface(validFrame));
@@ -286,6 +295,7 @@ public sealed class Http2ConnectionPrefaceTests
         var decoder = new Http2Decoder();
         var ex = Assert.Throws<Http2Exception>(() => decoder.ValidateServerPreface(buf));
         Assert.Equal(Http2ErrorCode.ProtocolError, ex.ErrorCode);
+        Assert.True(ex.IsConnectionError);
     }
 
     /// RFC 9113 §3.4 — PRIORITY frame as first frame throws PROTOCOL_ERROR
@@ -299,6 +309,7 @@ public sealed class Http2ConnectionPrefaceTests
         var decoder = new Http2Decoder();
         var ex = Assert.Throws<Http2Exception>(() => decoder.ValidateServerPreface(buf));
         Assert.Equal(Http2ErrorCode.ProtocolError, ex.ErrorCode);
+        Assert.True(ex.IsConnectionError);
     }
 
     // =========================================================================

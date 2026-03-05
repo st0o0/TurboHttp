@@ -102,6 +102,7 @@ public sealed class Http2FlowControlTests
 
         var ex = Assert.Throws<Http2Exception>(() => decoder.TryDecode(dataFrame, out _));
         Assert.Equal(Http2ErrorCode.FlowControlError, ex.ErrorCode);
+        Assert.True(ex.IsConnectionError);
     }
 
     /// RFC 7540 §5.2 — FlowControlError when DATA exceeds stream window but not connection window
@@ -117,6 +118,9 @@ public sealed class Http2FlowControlTests
 
         var ex = Assert.Throws<Http2Exception>(() => decoder.TryDecode(dataFrame, out _));
         Assert.Equal(Http2ErrorCode.FlowControlError, ex.ErrorCode);
+        Assert.Equal(Http2ErrorScope.Stream, ex.Scope);
+        Assert.Equal(1, ex.StreamId);
+        Assert.Equal(Http2StreamLifecycleState.Open, decoder.GetStreamLifecycleState(1));
     }
 
     /// RFC 7540 §5.2 — No FlowControlError when DATA is exactly at connection window limit
@@ -171,6 +175,9 @@ public sealed class Http2FlowControlTests
 
         var ex = Assert.Throws<Http2Exception>(() => decoder.TryDecode(dataFrame, out _));
         Assert.Equal(Http2ErrorCode.FlowControlError, ex.ErrorCode);
+        Assert.Equal(Http2ErrorScope.Stream, ex.Scope);
+        Assert.Equal(1, ex.StreamId);
+        Assert.Equal(Http2StreamLifecycleState.Open, decoder.GetStreamLifecycleState(1));
     }
 
     /// RFC 7540 §5.2 — SetStreamReceiveWindow updates stream window correctly
@@ -233,6 +240,7 @@ public sealed class Http2FlowControlTests
 
         var ex = Assert.Throws<Http2Exception>(() => decoder.TryDecode(wuFrame, out _));
         Assert.Equal(Http2ErrorCode.FlowControlError, ex.ErrorCode);
+        Assert.True(ex.IsConnectionError);
     }
 
     /// RFC 7540 §5.2 — Connection send window at exactly 2^31-1 is accepted
@@ -294,6 +302,8 @@ public sealed class Http2FlowControlTests
         var ex = Assert.Throws<Http2Exception>(() => decoder.TryDecode(wuFrame, out _));
         Assert.Equal(Http2ErrorCode.FlowControlError, ex.ErrorCode);
         Assert.Contains("stream 1", ex.Message);
+        Assert.Equal(Http2ErrorScope.Stream, ex.Scope);
+        Assert.Equal(1, ex.StreamId);
     }
 
     /// RFC 7540 §5.2 — Stream send window at exactly 2^31-1 is accepted
@@ -320,6 +330,7 @@ public sealed class Http2FlowControlTests
 
         var ex = Assert.Throws<Http2Exception>(() => decoder.TryDecode(wuFrame, out _));
         Assert.Equal(Http2ErrorCode.ProtocolError, ex.ErrorCode);
+        Assert.True(ex.IsConnectionError);
     }
 
     /// RFC 7540 §5.2 — Zero-increment WINDOW UPDATE on stream N is a PROTOCOL ERROR
@@ -332,6 +343,7 @@ public sealed class Http2FlowControlTests
 
         var ex = Assert.Throws<Http2Exception>(() => decoder.TryDecode(wuFrame, out _));
         Assert.Equal(Http2ErrorCode.ProtocolError, ex.ErrorCode);
+        Assert.True(ex.IsConnectionError);
     }
 
     /// RFC 7540 §5.2 — WINDOW UPDATE with wrong payload size is a FRAME SIZE ERROR
@@ -344,6 +356,7 @@ public sealed class Http2FlowControlTests
 
         var ex = Assert.Throws<Http2Exception>(() => decoder.TryDecode(wuFrame, out _));
         Assert.Equal(Http2ErrorCode.FrameSizeError, ex.ErrorCode);
+        Assert.True(ex.IsConnectionError);
     }
 
     // ── FC-024..028: Automatic WINDOW_UPDATE Generation ───────────────────────
@@ -488,6 +501,7 @@ public sealed class Http2FlowControlTests
 
         var ex = Assert.Throws<Http2Exception>(() => decoder.TryDecode(settingsFrame, out _));
         Assert.Equal(Http2ErrorCode.FlowControlError, ex.ErrorCode);
+        Assert.True(ex.IsConnectionError);
     }
 
     // ── FC-033..035: Reset Clears All Flow Control State ──────────────────────
