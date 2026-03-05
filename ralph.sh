@@ -415,6 +415,7 @@ for ((i=1; i<=ITERATIONS; i++)); do
   echo "Iteration $i complete"
 
   # commit message in shell script to hide co-author
+  sed -i '/Co-Authored-By/d' COMMIT.md 
   git commit -F COMMIT.md
 
   # Run L3 verification gate if L3 was claimed
