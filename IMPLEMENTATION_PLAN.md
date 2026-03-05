@@ -793,19 +793,19 @@ Implement strict frame layer parser.
 
 ---
 
-## Phase 17–18: Dynamic Table Engine
+## Phase 17–18: Dynamic Table Engine ✅
 
 ### MUST
 
-- [ ] FIFO eviction
-- [ ] Track table size precisely
-- [ ] Enforce HEADER_TABLE_SIZE limit
-- [ ] Apply size updates only at allowed position
+- [x] FIFO eviction
+- [x] Track table size precisely
+- [x] Enforce HEADER_TABLE_SIZE limit
+- [x] Apply size updates only at allowed position
 
 ### MUST NOT
 
-- [ ] Allow table size overflow
-- [ ] Desync encoder/decoder
+- [x] Allow table size overflow
+- [x] Desync encoder/decoder
 
 ---
 
