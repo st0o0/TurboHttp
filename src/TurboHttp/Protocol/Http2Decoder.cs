@@ -811,12 +811,43 @@ public sealed class Http2Decoder
                     _bodyBuffer.AsSpan(0, _bodyLength).CopyTo(bodyBytes);
                 }
 
+                // Decompress body if Content-Encoding is set (RFC 9110 §8.4)
+                var ceHeader = headers.FirstOrDefault(h =>
+                    h.Name.Equals("content-encoding", StringComparison.OrdinalIgnoreCase));
+                var contentEncoding = ceHeader.Name != null ? ceHeader.Value : null;
+
+                var decompressed = !string.IsNullOrWhiteSpace(contentEncoding) &&
+                                   !contentEncoding.Equals("identity", StringComparison.OrdinalIgnoreCase);
+
+                if (decompressed)
+                {
+                    bodyBytes = ContentEncodingDecoder.Decompress(bodyBytes, contentEncoding);
+                }
+
                 response.Content = new ByteArrayContent(bodyBytes);
 
                 foreach (var header in headers.Where(header =>
                              !header.Name.StartsWith(':') && IsContentHeader(header.Name)))
                 {
+                    // Remove Content-Encoding after decompression (RFC 9110 §8.4)
+                    if (decompressed && header.Name.Equals("content-encoding", StringComparison.OrdinalIgnoreCase))
+                    {
+                        continue;
+                    }
+
+                    // Skip original Content-Length; will set updated value below
+                    if (decompressed && header.Name.Equals("content-length", StringComparison.OrdinalIgnoreCase))
+                    {
+                        continue;
+                    }
+
                     response.Content.Headers.TryAddWithoutValidation(header.Name, header.Value);
+                }
+
+                // Set updated Content-Length after decompression
+                if (decompressed)
+                {
+                    response.Content.Headers.ContentLength = bodyBytes.Length;
                 }
             }
 

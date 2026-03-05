@@ -50,10 +50,13 @@ public static class Http11Encoder
         // Check if chunked encoding is requested
         var isChunked = request.Headers.TransferEncodingChunked == true;
 
-        // 3. Request headers (excluding Host which we already wrote)
+        // 3. Accept-Encoding (RFC 9110 §8.4: advertise supported decodings unless already set)
+        bytesWritten += WriteAcceptEncodingIfNeeded(request.Headers, ref buffer);
+
+        // 4. Request headers (excluding Host which we already wrote)
         bytesWritten += WriteHeaders(request.Headers, ref buffer, skipHost: true);
 
-        // 4. Content headers (if body present)
+        // 5. Content headers (if body present)
         if (request.Content != null)
         {
             // Ensure Content-Length is set for content with known length
@@ -70,13 +73,13 @@ public static class Http11Encoder
             bytesWritten += WriteContentHeaders(request.Content.Headers, ref buffer, isChunked);
         }
 
-        // 5. Connection header (if not already set, default to keep-alive)
+        // 6. Connection header (if not already set, default to keep-alive)
         bytesWritten += WriteConnectionHeaderIfNeeded(request.Headers, ref buffer);
 
-        // 6. Header/body separator
+        // 7. Header/body separator
         bytesWritten += WriteCrlf(ref buffer);
 
-        // 7. Body (if present)
+        // 8. Body (if present)
         if (request.Content != null)
         {
             if (isChunked)
@@ -258,6 +261,17 @@ public static class Http11Encoder
         }
 
         return bytesWritten;
+    }
+
+    private static int WriteAcceptEncodingIfNeeded(HttpRequestHeaders headers, ref Span<byte> buffer)
+    {
+        // RFC 9110 §8.4: Advertise supported content-encodings unless caller already set the header.
+        if (headers.AcceptEncoding.Count > 0)
+        {
+            return 0;
+        }
+
+        return WriteBytes(ref buffer, "Accept-Encoding: gzip, deflate, br\r\n"u8);
     }
 
     private static int WriteConnectionHeaderIfNeeded(HttpRequestHeaders headers, ref Span<byte> buffer)

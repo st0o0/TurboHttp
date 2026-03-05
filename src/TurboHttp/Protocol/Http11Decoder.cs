@@ -441,16 +441,48 @@ public sealed class Http11Decoder : IDisposable
             return HttpDecodeResult.Incomplete();
         }
 
-        // 7. Create content
+        // 7. Decompress body if Content-Encoding is set (RFC 9110 §8.4)
+        var contentEncoding = GetSingleHeader(headers, "Content-Encoding");
+        if (!string.IsNullOrWhiteSpace(contentEncoding) &&
+            !contentEncoding.Equals("identity", StringComparison.OrdinalIgnoreCase))
+        {
+            bodyBytes = ContentEncodingDecoder.Decompress(bodyBytes, contentEncoding);
+        }
+
+        // 8. Create content
         var content = new ByteArrayContent(bodyBytes);
 
         foreach (var (name, values) in headers)
         {
             if (!IsContentHeader(name)) continue;
+
+            // Remove Content-Encoding after successful decompression (RFC 9110 §8.4)
+            if (name.Equals("Content-Encoding", StringComparison.OrdinalIgnoreCase) &&
+                !string.IsNullOrWhiteSpace(contentEncoding) &&
+                !contentEncoding.Equals("identity", StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            // Update Content-Length to match decompressed size (skip the original value)
+            if (name.Equals("Content-Length", StringComparison.OrdinalIgnoreCase) &&
+                !string.IsNullOrWhiteSpace(contentEncoding) &&
+                !contentEncoding.Equals("identity", StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
             foreach (var value in values)
             {
                 content.Headers.TryAddWithoutValidation(name, value);
             }
+        }
+
+        // Set updated Content-Length after decompression
+        if (!string.IsNullOrWhiteSpace(contentEncoding) &&
+            !contentEncoding.Equals("identity", StringComparison.OrdinalIgnoreCase))
+        {
+            content.Headers.ContentLength = bodyBytes.Length;
         }
 
         // 8. Add trailer headers

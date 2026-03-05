@@ -221,6 +221,19 @@ public sealed class Http10Decoder
             Version = new Version(1, 0)
         };
 
+        // Decompress body if Content-Encoding is set (RFC 9110 §8.4)
+        var contentEncoding = headers.TryGetValue("Content-Encoding", out var ceValues) && ceValues.Count > 0
+            ? ceValues[0]
+            : null;
+
+        var decompressed = !string.IsNullOrWhiteSpace(contentEncoding) &&
+                           !contentEncoding.Equals("identity", StringComparison.OrdinalIgnoreCase);
+
+        if (decompressed)
+        {
+            body = ContentEncodingDecoder.Decompress(body, contentEncoding);
+        }
+
         var content = new ByteArrayContent(body);
         response.Content = content;
 
@@ -228,6 +241,18 @@ public sealed class Http10Decoder
         {
             foreach (var value in values)
             {
+                // Remove Content-Encoding after decompression (RFC 9110 §8.4)
+                if (decompressed && name.Equals("Content-Encoding", StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                // Update Content-Length to decompressed size (skip original value)
+                if (decompressed && name.Equals("Content-Length", StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
                 if (ContentHeaders.Contains(name))
                 {
                     content.Headers.TryAddWithoutValidation(name, value);
@@ -237,6 +262,12 @@ public sealed class Http10Decoder
                     response.Headers.TryAddWithoutValidation(name, value);
                 }
             }
+        }
+
+        // Set updated Content-Length after decompression
+        if (decompressed)
+        {
+            content.Headers.ContentLength = body.Length;
         }
 
         return response;

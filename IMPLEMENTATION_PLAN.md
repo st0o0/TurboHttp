@@ -384,24 +384,24 @@ Correct processing of `Content-Encoding` according to HTTP Semantics.
 
 ## MUST Requirements
 
-- [ ] Send `Accept-Encoding` if the client supports compression
-- [ ] Support stacked encodings (decode in reverse order)
-- [ ] Properly handle `identity`
-- [ ] Unknown encodings:
+- [x] Send `Accept-Encoding` if the client supports compression
+- [x] Support stacked encodings (decode in reverse order)
+- [x] Properly handle `identity`
+- [x] Unknown encodings:
 
     * Request → 415 (if sending unsupported encoding)
     * Response → fail or pass through safely
-- [ ] Remove `Content-Encoding` after successful decompression
-- [ ] Update `Content-Length` after decompression
-- [ ] Support streaming decompression (avoid full buffering when possible)
+- [x] Remove `Content-Encoding` after successful decompression
+- [x] Update `Content-Length` after decompression
+- [x] Support streaming decompression (avoid full buffering when possible)
 
 ## Edge Cases
 
-- [ ] Multiple encodings (e.g., `gzip, br`)
-- [ ] Empty bodies
-- [ ] 204 and 304 MUST NOT contain a body
-- [ ] HEAD responses MUST NOT include a body
-- [ ] Do not confuse `Transfer-Encoding` with `Content-Encoding`
+- [x] Multiple encodings (e.g., `gzip, br`)
+- [x] Empty bodies
+- [x] 204 and 304 MUST NOT contain a body
+- [x] HEAD responses MUST NOT include a body
+- [x] Do not confuse `Transfer-Encoding` with `Content-Encoding`
 
 ---
 
