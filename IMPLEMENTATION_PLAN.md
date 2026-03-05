@@ -492,9 +492,9 @@ Correct persistent connection behavior.
 
 ## MUST NOT
 
-- [ ] Log sensitive headers (Authorization, Cookie)
-- [ ] Log full bodies by default
-- [ ] Alter request/response semantics
+- [x] Log sensitive headers (Authorization, Cookie)
+- [x] Log full bodies by default
+- [x] Alter request/response semantics
 
 ---
 
