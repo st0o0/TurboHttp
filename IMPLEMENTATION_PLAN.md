@@ -680,14 +680,14 @@ Implement strict frame layer parser.
 
 ---
 
-## Phase 7: GOAWAY & RST_STREAM Handling
+## Phase 7: GOAWAY & RST_STREAM Handling ✅
 
 ### MUST
 
-- [ ] Stop new streams after GOAWAY
-- [ ] Process streams ≤ last-stream-id
-- [ ] Immediately terminate on connection-level error
-- [ ] Clean up stream resources
+- [x] Stop new streams after GOAWAY
+- [x] Process streams ≤ last-stream-id
+- [x] Immediately terminate on connection-level error
+- [x] Clean up stream resources
 
 ---
 

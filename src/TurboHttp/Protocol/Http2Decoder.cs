@@ -44,6 +44,10 @@ public sealed class Http2Decoder
     // Set to true after we receive a GOAWAY frame; blocks new stream creation.
     private bool _receivedGoAway;
 
+    // RFC 7540 §6.8: The last stream ID from the most recent GOAWAY frame.
+    // int.MaxValue means no GOAWAY has been received yet.
+    private int _goAwayLastStreamId = int.MaxValue;
+
     /// <summary>Returns the current number of active (open) streams.</summary>
     public int GetActiveStreamCount() => _activeStreamCount;
 
@@ -63,6 +67,16 @@ public sealed class Http2Decoder
     /// <summary>Returns the RFC 9113 §5.1 lifecycle state for the given stream.</summary>
     public Http2StreamLifecycleState GetStreamLifecycleState(int streamId) =>
         _streamLifecycle.TryGetValue(streamId, out var state) ? state : Http2StreamLifecycleState.Idle;
+
+    /// <summary>
+    /// Returns the last-stream-id from the most recent GOAWAY frame received,
+    /// or int.MaxValue if no GOAWAY has been received.
+    /// Streams with ID greater than this value were NOT processed by the peer.
+    /// </summary>
+    public int GetGoAwayLastStreamId() => _goAwayLastStreamId;
+
+    /// <summary>Returns true if a GOAWAY frame has been received from the peer.</summary>
+    public bool IsGoingAway => _receivedGoAway;
 
     /// <summary>
     /// For testing: sets the connection-level receive window so tests can trigger FLOW_CONTROL_ERROR
@@ -251,6 +265,30 @@ public sealed class Http2Decoder
 
                     goAway = ParseGoAway(payload);
                     _receivedGoAway = true;
+                    _goAwayLastStreamId = goAway.LastStreamId;
+
+                    // RFC 7540 §6.8: Streams with IDs greater than lastStreamId were NOT
+                    // processed by the peer and MUST be retried on a new connection.
+                    // Clean them up so no further processing is attempted.
+                    {
+                        var toCancel = new List<int>();
+                        foreach (var sid in _streams.Keys)
+                        {
+                            if (sid > _goAwayLastStreamId)
+                            {
+                                toCancel.Add(sid);
+                            }
+                        }
+
+                        foreach (var sid in toCancel)
+                        {
+                            _streams.Remove(sid);
+                            _closedStreamIds.Add(sid);
+                            _streamLifecycle[sid] = Http2StreamLifecycleState.Closed;
+                            _activeStreamCount--;
+                        }
+                    }
+
                     break;
 
                 case FrameType.PushPromise:
@@ -295,6 +333,7 @@ public sealed class Http2Decoder
         _continuationFrameCount = 0;
         _continuationEndStream = false;
         _receivedGoAway = false;
+        _goAwayLastStreamId = int.MaxValue;
         _maxFrameSize = 16384;
         _connectionReceiveWindow = 65535;
         _connectionSendWindow = 65535;
