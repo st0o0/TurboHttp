@@ -1104,9 +1104,9 @@ Structure:
 
 Then:
 
-- [ ] Identify uncovered MUST statements
-- [ ] Add missing tests
-- [ ] Mark SHOULD separately
+- [x] Identify uncovered MUST statements
+- [x] Add missing tests
+- [x] Mark SHOULD separately
 
 ---
 
