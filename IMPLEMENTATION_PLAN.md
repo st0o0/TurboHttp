@@ -978,9 +978,9 @@ At the end of this phase, every test can be mapped to a specific RFC section.
 
 ## Task: Extract & Classify
 
-- [ ] Enumerate all test files
-- [ ] Enumerate all test methods
-- [ ] Extract:
+- [x] Enumerate all test files
+- [x] Enumerate all test methods
+- [x] Extract:
 
     * Target component
     * Covered feature
