@@ -1145,50 +1145,50 @@ RFC7541_4_2_Huffman_MustRejectEOSMisuse
 
 ### Message Semantics Violations
 
-- [ ] Body present in 204 response
-- [ ] Body present in 304 response
-- [ ] Body present in HEAD response
-- [ ] Missing required pseudo-semantics (e.g. no method)
-- [ ] Invalid method token (illegal characters)
-- [ ] Unknown method incorrectly rejected (must allow extension methods)
-- [ ] Invalid status code (non 3-digit)
-- [ ] 1xx treated as final response
-- [ ] Multiple final responses processed
-- [ ] Conflicting Content-Length vs actual body size
-- [ ] Multiple differing Content-Length headers
-- [ ] Content-Length + Transfer-Encoding both present (invalid combination)
+- [x] Body present in 204 response — RFC9110-15-204-001 (Http11NegativePathTests)
+- [x] Body present in 304 response — RFC9110-15-304-001 (Http11NegativePathTests)
+- [x] Body present in HEAD response — dec4-nb-002 (TryDecodeHead ignores body)
+- [ ] Missing required pseudo-semantics (e.g. no method) — N/A: client decodes responses, not requests
+- [ ] Invalid method token (illegal characters) — N/A: client-side encoder only
+- [ ] Unknown method incorrectly rejected (must allow extension methods) — N/A: encoder scope
+- [x] Invalid status code (non 3-digit) — 7231-6.1-007, RFC9112-4-SL-004, RFC9112-4-SL-005
+- [x] 1xx treated as final response — dec4-1xx-002 (1xx correctly skipped)
+- [x] Multiple final responses processed — RFC 7230 pipelining tests (two responses decoded in order)
+- [x] Conflicting Content-Length vs actual body size — dec4-frag-00x (NeedMoreData on short body)
+- [x] Multiple differing Content-Length headers — 7230-3.3-005, RFC9112-9-SMUG-002
+- [x] Content-Length + Transfer-Encoding both present (invalid combination) — 7230-3.3-004, SEC-005a, RFC9112-9-SMUG-003
 
 ---
 
 ### Header Handling Errors
 
-- [ ] Header names treated case-sensitive
-- [ ] Invalid header field name characters
-- [ ] obs-fold (obsolete line folding) accepted incorrectly
-- [ ] Connection-specific header forwarded incorrectly
-- [ ] Duplicate single-value headers not rejected where required
-- [ ] Invalid media type syntax accepted
-- [ ] Invalid Content-Encoding accepted without error
+- [x] Header names treated case-sensitive — 7230-3.2-007 (case-insensitive lookup verified)
+- [x] Invalid header field name characters — 7230-3.2-008 (space in name rejected)
+- [x] obs-fold (obsolete line folding) accepted incorrectly — 7230-3.2-005 (rejected)
+- [ ] Connection-specific header forwarded incorrectly — N/A: client reads responses, does not forward
+- [ ] Duplicate single-value headers not rejected where required — RFC allows; most headers permit multiple values
+- [ ] Invalid media type syntax accepted — pass-through (caller responsibility)
+- [x] Invalid Content-Encoding accepted without error — ContentEncodingTests (DecompressionFailed on unsupported)
 
 ---
 
 ### Redirect Semantics Violations
 
-- [ ] 303 not rewritten to GET
-- [ ] 307/308 incorrectly changing method
-- [ ] Redirect without Location header accepted
-- [ ] Infinite redirect loop not detected
-- [ ] Authorization leaked across origins
-- [ ] HTTPS → HTTP downgrade allowed unintentionally
+- [x] 303 not rewritten to GET — RedirectHandlerTests (full coverage)
+- [x] 307/308 incorrectly changing method — RedirectHandlerTests
+- [x] Redirect without Location header accepted — RedirectHandlerTests
+- [x] Infinite redirect loop not detected — RedirectHandlerTests
+- [x] Authorization leaked across origins — RedirectHandlerTests
+- [x] HTTPS → HTTP downgrade allowed unintentionally — RedirectHandlerTests
 
 ---
 
 ### Retry & Idempotency Violations
 
-- [ ] POST automatically retried
-- [ ] Partial body retried without rewind
-- [ ] Retry-After ignored
-- [ ] Non-idempotent method retried on network failure
+- [x] POST automatically retried — RetryEvaluatorTests
+- [x] Partial body retried without rewind — RetryEvaluatorTests
+- [x] Retry-After ignored — RetryEvaluatorTests
+- [x] Non-idempotent method retried on network failure — RetryEvaluatorTests
 
 ---
 
@@ -1215,52 +1215,52 @@ RFC7541_4_2_Huffman_MustRejectEOSMisuse
 
 ### Start-Line Parsing
 
-- [ ] Invalid request line format accepted
-- [ ] Invalid HTTP version accepted
-- [ ] Multiple spaces in start line misparsed
-- [ ] Overlong request line not rejected
-- [ ] Invalid CRLF handling
-- [ ] LF without CR accepted
+- [x] Invalid request line format accepted — RFC9112-4-SL-001..005 (Http11NegativePathTests)
+- [x] Invalid HTTP version accepted — RFC9112-4-SL-001 (HTTP/2.0), RFC9112-4-SL-002 (HTTPS/1.1)
+- [x] Multiple spaces in start line misparsed — RFC9112-4-SL-003 (double space rejected)
+- [x] Overlong request line not rejected — RFC9112-4-SL-007 (caught by 8KB header section limit)
+- [x] Invalid CRLF handling — RFC9112-4-SL-006 (bare LF never decoded)
+- [x] LF without CR accepted — RFC9112-4-SL-006 (bare-LF response returns false/NeedMoreData)
 
 ---
 
 ### Header Parsing
 
-- [ ] Invalid header delimiter accepted
-- [ ] Missing colon accepted
-- [ ] Leading whitespace incorrectly accepted
-- [ ] Header size limit not enforced
-- [ ] Total header size unlimited
-- [ ] Invalid chunked trailer parsing
+- [x] Invalid header delimiter accepted — 7230-3.2-006 (no colon → InvalidHeader)
+- [x] Missing colon accepted — 7230-3.2-006
+- [x] Leading whitespace incorrectly accepted — 7230-3.2-005 (obs-fold rejected)
+- [x] Header size limit not enforced — SEC-002b/002c (8KB limit enforced)
+- [x] Total header size unlimited — SEC-002b (total header block size limited)
+- [x] Invalid chunked trailer parsing — RFC9112-5-HDR-001/002 (Http11NegativePathTests)
 
 ---
 
 ### Transfer-Encoding Violations
 
-- [ ] Invalid chunk size accepted
-- [ ] Non-hex chunk size accepted
-- [ ] Missing terminating chunk not rejected
-- [ ] Chunk extensions misparsed
-- [ ] Body read beyond declared Content-Length
-- [ ] Transfer-Encoding other than chunked accepted incorrectly
+- [x] Invalid chunk size accepted — 7230-4.1-005 (non-hex → InvalidChunkSize)
+- [x] Non-hex chunk size accepted — 7230-4.1-005
+- [x] Missing terminating chunk not rejected — 7230-4.1-006 (NeedMoreData until 0-chunk)
+- [x] Chunk extensions misparsed — Http11DecoderChunkExtensionTests (35 tests)
+- [x] Body read beyond declared Content-Length — RFC9112-6-TE-002 (pipelined bytes correct)
+- [x] Transfer-Encoding other than chunked accepted incorrectly — RFC9112-6-TE-001 (empty body)
 
 ---
 
 ### Persistent Connection Violations
 
-- [ ] Connection reused after protocol error
-- [ ] Connection reused when body not fully read
-- [ ] Connection reused after Connection: close
-- [ ] Keep-Alive parameters ignored incorrectly
+- [x] Connection reused after protocol error — CM-016/017 (ConnectionReuseEvaluatorTests)
+- [x] Connection reused when body not fully read — CM-015
+- [x] Connection reused after Connection: close — CM-007
+- [x] Keep-Alive parameters ignored incorrectly — CM-010/011 (timeout/max parsed)
 
 ---
 
 ### Request Smuggling Protection
 
-- [ ] Content-Length ambiguity not rejected
-- [ ] TE/CL conflict not rejected
-- [ ] Multiple Content-Length values not validated
-- [ ] Trailing CRLF injection accepted
+- [x] Content-Length ambiguity not rejected — RFC9112-9-SMUG-002 (different values rejected)
+- [x] TE/CL conflict not rejected — 7230-3.3-004, SEC-005a, RFC9112-9-SMUG-003
+- [x] Multiple Content-Length values not validated — 7230-3.3-005, RFC9112-9-SMUG-001/002
+- [x] Trailing CRLF injection accepted — SEC-005b (CR/LF in header value rejected)
 
 ---
 
@@ -1268,27 +1268,27 @@ RFC7541_4_2_Huffman_MustRejectEOSMisuse
 
 (Expanding your list)
 
-- [ ] Invalid frame length
-- [ ] Invalid stream ID
-- [ ] Frame on closed stream
-- [ ] Flow control overflow
-- [ ] CONTINUATION interleaving
-- [ ] Missing END_HEADERS
-- [ ] SETTINGS applied before ACK
-- [ ] SETTINGS with invalid value accepted
-- [ ] WINDOW_UPDATE overflow > 2^31-1
-- [ ] DATA sent when window = 0
-- [ ] Pseudo-header after regular header
-- [ ] Duplicate pseudo-header
-- [ ] Uppercase header name accepted
-- [ ] Connection-specific header allowed
-- [ ] PRIORITY dependency loop
-- [ ] GOAWAY ignored
-- [ ] New stream created after GOAWAY
-- [ ] RST_STREAM not terminating stream
-- [ ] HPACK error treated as stream error (must be connection error)
-- [ ] Frame size > SETTINGS_MAX_FRAME_SIZE accepted
-- [ ] CONTINUATION without preceding HEADERS accepted
+- [x] Invalid frame length — RFC9113/02_FrameParsingTests.cs (FP-021..032)
+- [x] Invalid stream ID — RFC9113/02_FrameParsingTests.cs
+- [x] Frame on closed stream — RFC9113/03_StreamStateMachineTests.cs
+- [x] Flow control overflow — RFC9113/05_FlowControlTests.cs (FC-001..038)
+- [x] CONTINUATION interleaving — RFC9113/09_ContinuationFrameTests.cs (CF-007..013)
+- [x] Missing END_HEADERS — RFC9113/09_ContinuationFrameTests.cs (CF-002)
+- [ ] SETTINGS applied before ACK — not explicitly isolated (conservative: leave open)
+- [x] SETTINGS with invalid value accepted — RFC9113/04_SettingsTests.cs (SS-006..013)
+- [x] WINDOW_UPDATE overflow > 2^31-1 — RFC9113/05_FlowControlTests.cs
+- [x] DATA sent when window = 0 — RFC9113/05_FlowControlTests.cs
+- [x] Pseudo-header after regular header — RFC9113/06_HeadersTests.cs
+- [x] Duplicate pseudo-header — RFC9113/06_HeadersTests.cs
+- [x] Uppercase header name accepted — RFC9113/06_HeadersTests.cs
+- [x] Connection-specific header allowed — RFC9113/06_HeadersTests.cs
+- [ ] PRIORITY dependency loop — PRIORITY frames deprecated in RFC 9113; not implemented
+- [x] GOAWAY ignored — RFC9113/08_GoAwayTests.cs
+- [x] New stream created after GOAWAY — RFC9113/08_GoAwayTests.cs
+- [x] RST_STREAM not terminating stream — RFC9113/03_StreamStateMachineTests.cs
+- [ ] HPACK error treated as stream error (must be connection error) — partial coverage
+- [x] Frame size > SETTINGS_MAX_FRAME_SIZE accepted — RFC9113/02_FrameParsingTests.cs
+- [x] CONTINUATION without preceding HEADERS accepted — RFC9113/09_ContinuationFrameTests.cs (CF-016)
 
 ---
 
@@ -1296,21 +1296,21 @@ RFC7541_4_2_Huffman_MustRejectEOSMisuse
 
 (Expanding your list)
 
-- [ ] Invalid static index
-- [ ] Dynamic table overflow
-- [ ] Illegal size update position
-- [ ] Invalid Huffman padding
-- [ ] Integer overflow in prefix decoding
-- [ ] Huffman EOS symbol misused
-- [ ] Incomplete Huffman code accepted
-- [ ] Overlong padding not rejected
-- [ ] Dynamic table size update exceeding limit
-- [ ] Negative effective table size
-- [ ] Decoder state desync across header blocks
-- [ ] Index 0 accepted
-- [ ] Index > table size accepted
-- [ ] Header block exceeding MAX_HEADER_LIST_SIZE not rejected
-- [ ] Excessive dynamic table churn not bounded
+- [x] Invalid static index — RFC7541/01_StaticTableTests.cs
+- [x] Dynamic table overflow — RFC7541/02_DynamicTableTests.cs
+- [x] Illegal size update position — RFC7541/06_TableSizeTests.cs
+- [x] Invalid Huffman padding — RFC7541/04_HuffmanTests.cs
+- [ ] Integer overflow in prefix decoding — not explicitly isolated
+- [x] Huffman EOS symbol misused — RFC7541/04_HuffmanTests.cs
+- [x] Incomplete Huffman code accepted — RFC7541/04_HuffmanTests.cs
+- [x] Overlong padding not rejected — RFC7541/04_HuffmanTests.cs
+- [x] Dynamic table size update exceeding limit — RFC7541/06_TableSizeTests.cs
+- [ ] Negative effective table size — not explicitly tested
+- [ ] Decoder state desync across header blocks — complex scenario; not isolated
+- [x] Index 0 accepted — RFC7541/01_StaticTableTests.cs (index 0 rejected)
+- [x] Index > table size accepted — RFC7541/01_StaticTableTests.cs + 02_DynamicTableTests.cs
+- [x] Header block exceeding MAX_HEADER_LIST_SIZE not rejected — RFC7541/06_TableSizeTests.cs (Phase 23)
+- [x] Excessive dynamic table churn not bounded — Http2ResourceExhaustionTests.cs (Phase 24-25)
 
 ---
 
@@ -1318,16 +1318,16 @@ RFC7541_4_2_Huffman_MustRejectEOSMisuse
 
 These should exist regardless of protocol:
 
-- [ ] Header injection via CRLF
-- [ ] Response splitting
-- [ ] Compression bomb
-- [ ] Memory exhaustion via headers
-- [ ] CPU exhaustion via pathological Huffman
-- [ ] Stream exhaustion attack
-- [ ] SETTINGS flood
-- [ ] Rapid reset attack
-- [ ] Large header list attack
-- [ ] Frame flood
+- [x] Header injection via CRLF — SEC-005b (CRLF in header value rejected)
+- [ ] Response splitting — not explicitly tested as standalone attack scenario
+- [ ] Compression bomb — decompression size limits enforced at I/O layer
+- [x] Memory exhaustion via headers — SEC-001b/c (header count), SEC-002b/c (header size)
+- [x] CPU exhaustion via pathological Huffman — Http2FuzzHarnessTests.cs (FZ-001..025)
+- [x] Stream exhaustion attack — Http2ResourceExhaustionTests.cs (Phase 24-25)
+- [x] SETTINGS flood — Http2ResourceExhaustionTests.cs (RE-010+)
+- [x] Rapid reset attack — Http2ResourceExhaustionTests.cs (CVE-2023-44487)
+- [x] Large header list attack — RFC7541/06_TableSizeTests.cs (MAX_HEADER_LIST_SIZE)
+- [x] Frame flood — Http2ResourceExhaustionTests.cs
 
 ---
 
