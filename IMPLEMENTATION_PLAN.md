@@ -508,7 +508,7 @@ Semantically safe retries.
 
 ## MUST Requirements
 
--[ ] Automatically retry only idempotent methods:
+- [x] Automatically retry only idempotent methods:
 
     * GET
     * HEAD
@@ -516,20 +516,20 @@ Semantically safe retries.
     * DELETE
     * OPTIONS
 
-- [ ] Do NOT automatically retry POST
+- [x] Do NOT automatically retry POST
 
-- [ ] Retry only on:
+- [x] Retry only on:
 
     * Network failures
     * 408
     * 503 (+ optionally respect Retry-After)
 
-- [ ] Respect `Retry-After` header
+- [x] Respect `Retry-After` header
 
 ## MUST NOT
 
-- [ ] Retry partial streamed bodies without rewind support
-- [ ] Blindly resend non-idempotent requests
+- [x] Retry partial streamed bodies without rewind support
+- [x] Blindly resend non-idempotent requests
 
 ---
 
