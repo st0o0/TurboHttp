@@ -139,18 +139,19 @@ public sealed class Http2StreamLifecycleTests
         Assert.Equal(Http2ErrorCode.StreamClosed, ex.ErrorCode);
     }
 
-    [Fact(DisplayName = "RFC9113-5.1-SS-008: HEADERS on closed stream is PROTOCOL_ERROR")]
-    public void Headers_OnClosedStream_ThrowsProtocolError()
+    [Fact(DisplayName = "RFC9113-5.1-SS-008: HEADERS on closed stream is connection error STREAM_CLOSED (RFC 7540 §6.2)")]
+    public void Headers_OnClosedStream_ThrowsStreamClosed()
     {
         var decoder = new Http2Decoder();
         // Close stream via HEADERS+END_STREAM.
         decoder.TryDecode(MakeResponseHeadersFrame(streamId: 1, endStream: true), out _);
         Assert.Equal(Http2StreamLifecycleState.Closed, decoder.GetStreamLifecycleState(1));
 
-        // Attempt a second HEADERS on the same closed stream.
+        // RFC 7540 §6.2: HEADERS on a closed stream is a connection error of type STREAM_CLOSED.
         var headers2 = MakeResponseHeadersFrame(streamId: 1, endStream: false);
         var ex = Assert.Throws<Http2Exception>(() => decoder.TryDecode(headers2, out _));
-        Assert.Equal(Http2ErrorCode.ProtocolError, ex.ErrorCode);
+        Assert.Equal(Http2ErrorCode.StreamClosed, ex.ErrorCode);
+        Assert.True(ex.IsConnectionError);
     }
 
     // =========================================================================
@@ -289,8 +290,8 @@ public sealed class Http2StreamLifecycleTests
         Assert.Equal(Http2ErrorCode.StreamClosed, ex.ErrorCode);
     }
 
-    [Fact(DisplayName = "RFC9113-5.1-SS-017: HEADERS after RST_STREAM on same stream throws PROTOCOL_ERROR")]
-    public void Headers_AfterRstStream_ThrowsProtocolError()
+    [Fact(DisplayName = "RFC9113-5.1-SS-017: HEADERS after RST_STREAM on same stream is connection error STREAM_CLOSED (RFC 7540 §6.2)")]
+    public void Headers_AfterRstStream_ThrowsStreamClosed()
     {
         var decoder = new Http2Decoder();
         decoder.TryDecode(MakeResponseHeadersFrame(streamId: 1, endStream: false), out _);
@@ -298,9 +299,11 @@ public sealed class Http2StreamLifecycleTests
         var rst = new RstStreamFrame(1, Http2ErrorCode.Cancel).Serialize();
         decoder.TryDecode(rst, out _);
 
+        // RFC 7540 §6.2: HEADERS on a closed stream is a connection error of type STREAM_CLOSED.
         var headers2 = MakeResponseHeadersFrame(streamId: 1, endStream: false);
         var ex = Assert.Throws<Http2Exception>(() => decoder.TryDecode(headers2, out _));
-        Assert.Equal(Http2ErrorCode.ProtocolError, ex.ErrorCode);
+        Assert.Equal(Http2ErrorCode.StreamClosed, ex.ErrorCode);
+        Assert.True(ex.IsConnectionError);
     }
 
     [Fact(DisplayName = "RFC9113-5.1-SS-018: DATA on stream with only DATA+END_STREAM received (half-closed-remote) throws STREAM_CLOSED")]

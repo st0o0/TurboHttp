@@ -138,8 +138,8 @@ public sealed class Http2ErrorTests
         Assert.Equal(Http2ErrorCode.ProtocolError, ex.ErrorCode);
     }
 
-    [Fact(DisplayName = "IT-2-087: HEADERS on previously closed stream → decoder throws PROTOCOL_ERROR")]
-    public void Should_ThrowProtocolError_When_HeadersSentOnClosedStream()
+    [Fact(DisplayName = "IT-2-087: HEADERS on previously closed stream → decoder throws STREAM_CLOSED (RFC 7540 §6.2)")]
+    public void Should_ThrowStreamClosed_When_HeadersSentOnClosedStream()
     {
         var decoder = new Http2Decoder();
 
@@ -150,14 +150,15 @@ public sealed class Http2ErrorTests
         Http2FrameWriter.WriteHeadersFrame(frame1, streamId: 1, headerBlock, endStream: true, endHeaders: true);
         decoder.TryDecode(frame1.AsMemory(), out _); // closes stream 1
 
-        // Now send another HEADERS on stream 1 (closed) — should throw PROTOCOL_ERROR.
+        // RFC 7540 §6.2: HEADERS on a closed stream is a connection error of type STREAM_CLOSED.
         var frame2 = new byte[9 + headerBlock.Length];
         Http2FrameWriter.WriteHeadersFrame(frame2, streamId: 1, headerBlock, endStream: true, endHeaders: true);
 
         var ex = Assert.Throws<Http2Exception>(() =>
             decoder.TryDecode(frame2.AsMemory(), out _));
 
-        Assert.Equal(Http2ErrorCode.ProtocolError, ex.ErrorCode);
+        Assert.Equal(Http2ErrorCode.StreamClosed, ex.ErrorCode);
+        Assert.True(ex.IsConnectionError);
     }
 
     // ── SETTINGS Violations ───────────────────────────────────────────────────
@@ -258,32 +259,25 @@ public sealed class Http2ErrorTests
 
     // ── Response without :status ──────────────────────────────────────────────
 
-    [Fact(DisplayName = "IT-2-093: Response HEADERS without :status — decoder defaults to 200 OK")]
-    public void Should_DefaultTo200_When_StatusPseudoHeaderMissing()
+    [Fact(DisplayName = "IT-2-093: Response HEADERS without :status → decoder throws PROTOCOL_ERROR (RFC 9113 §8.3.2)")]
+    public void Should_ThrowProtocolError_When_StatusPseudoHeaderMissing()
     {
-        // RFC 7540 §8.1.2.4: Responses must include :status.
-        // Current decoder falls back to 200 if :status is absent (permissive behavior).
+        // RFC 9113 §8.3.2: Responses MUST include exactly one :status pseudo-header.
+        // Absence of :status is a PROTOCOL_ERROR — the connection must be terminated.
         var decoder = new Http2Decoder();
 
-        // A minimal literal header block with just content-type (no :status).
-        // Using HPACK literal header representation (index 0, not indexed):
-        // 0x00 = new name, not indexed
-        // 0x0C = name length 12 = "content-type"
-        // 0x04 = value length 4 = "text"
         var hpackEncoder = new HpackEncoder(useHuffman: false);
-        var headerBlock = hpackEncoder.Encode([("content-type", "text/plain")]);
+        var headerBlock = hpackEncoder.Encode([("content-type", "text/plain")]); // no :status
 
         var frameBytes = new byte[9 + headerBlock.Length];
         Http2FrameWriter.WriteHeadersFrame(
             frameBytes, streamId: 1, headerBlock.Span,
             endStream: true, endHeaders: true);
 
-        var decoded = decoder.TryDecode(frameBytes.AsMemory(), out var result);
+        var ex = Assert.Throws<Http2Exception>(() =>
+            decoder.TryDecode(frameBytes.AsMemory(), out _));
 
-        Assert.True(decoded);
-        Assert.Single(result.Responses);
-        // Decoder falls back to 200 when :status is absent.
-        Assert.Equal(HttpStatusCode.OK, result.Responses[0].Response.StatusCode);
+        Assert.Equal(Http2ErrorCode.ProtocolError, ex.ErrorCode);
     }
 
     // ── Frame size exceeded ───────────────────────────────────────────────────

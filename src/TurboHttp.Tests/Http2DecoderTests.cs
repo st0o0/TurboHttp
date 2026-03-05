@@ -759,8 +759,8 @@ public sealed class Http2DecoderTests
         Assert.Equal(Http2ErrorCode.StreamClosed, ex.ErrorCode);
     }
 
-    [Fact(DisplayName = "7540-5.1-007: Reusing closed stream ID causes PROTOCOL_ERROR")]
-    public void StreamState_ReuseClosedStreamId_ThrowsProtocolError()
+    [Fact(DisplayName = "7540-5.1-007: HEADERS on closed stream is connection error STREAM_CLOSED (RFC 7540 §6.2)")]
+    public void StreamState_ReuseClosedStreamId_ThrowsStreamClosed()
     {
         var hpack = new HpackEncoder(useHuffman: false);
         var headerBlock = hpack.Encode([(":status", "200")]);
@@ -769,11 +769,12 @@ public sealed class Http2DecoderTests
         var decoder = new Http2Decoder();
         decoder.TryDecode(headersFrame, out _);
 
-        // Attempt to open stream 1 again.
+        // RFC 7540 §6.2: HEADERS on a closed stream is a connection error of type STREAM_CLOSED.
         var headerBlock2 = hpack.Encode([(":status", "200")]);
         var headersFrame2 = new HeadersFrame(1, headerBlock2, endStream: true, endHeaders: true).Serialize();
         var ex = Assert.Throws<Http2Exception>(() => decoder.TryDecode(headersFrame2, out _));
-        Assert.Equal(Http2ErrorCode.ProtocolError, ex.ErrorCode);
+        Assert.Equal(Http2ErrorCode.StreamClosed, ex.ErrorCode);
+        Assert.Equal(Http2ErrorScope.Connection, ex.Scope);
     }
 
     [Fact(DisplayName = "7540-5.1-008: Client even stream ID causes PROTOCOL_ERROR")]

@@ -879,12 +879,12 @@ Implement strict frame layer parser.
 
 ---
 
-## Phase 26: Error Mapping & Correct Codes
+## Phase 26: Error Mapping & Correct Codes ✅
 
 ### MUST
 
-- [ ] Distinguish stream vs connection errors
-- [ ] Map correctly:
+- [x] Distinguish stream vs connection errors
+- [x] Map correctly:
 
     * PROTOCOL_ERROR
     * FLOW_CONTROL_ERROR
@@ -892,6 +892,8 @@ Implement strict frame layer parser.
     * INTERNAL_ERROR
     * REFUSED_STREAM
     * CANCEL
+
+**Tests**: 25 in `Http2ErrorMappingTests.cs` (EM-001..EM-025)
 
 ---
 

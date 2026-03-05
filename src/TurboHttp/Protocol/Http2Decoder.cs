@@ -393,12 +393,14 @@ public sealed class Http2Decoder
                 Http2ErrorCode.ProtocolError);
         }
 
-        // RFC 7540 §6.1 / §5.1: DATA on a closed stream is a STREAM_CLOSED error.
+        // RFC 7540 §6.1 / §5.1: DATA on a closed stream is a stream error of type STREAM_CLOSED.
         if (_closedStreamIds.Contains(streamId))
         {
             throw new Http2Exception(
                 $"RFC 7540 §6.1: DATA received on closed stream {streamId}.",
-                Http2ErrorCode.StreamClosed);
+                Http2ErrorCode.StreamClosed,
+                Http2ErrorScope.Stream,
+                streamId);
         }
 
         var data = StripPadding(payload, flags, padded: (flags & 0x8) != 0);
@@ -433,11 +435,14 @@ public sealed class Http2Decoder
         }
 
         // RFC 7540 §5.2: Enforce stream-level receive window.
+        // Per RFC 7540 §6.9.1: stream-level flow control violations are stream errors.
         if (data.Length > state.ReceiveWindow)
         {
             throw new Http2Exception(
                 $"RFC 7540 §5.2: Peer sent {data.Length} bytes but stream {streamId} receive window is {state.ReceiveWindow}.",
-                Http2ErrorCode.FlowControlError);
+                Http2ErrorCode.FlowControlError,
+                Http2ErrorScope.Stream,
+                streamId);
         }
 
         // Deduct from receive windows.
@@ -481,12 +486,12 @@ public sealed class Http2Decoder
                 Http2ErrorCode.ProtocolError);
         }
 
-        // RFC 7540 §5.1: Reusing a previously closed stream ID is PROTOCOL_ERROR.
+        // RFC 7540 §6.2 / §5.1: HEADERS on an already-closed stream is a connection error of type STREAM_CLOSED.
         if (_closedStreamIds.Contains(streamId))
         {
             throw new Http2Exception(
-                $"RFC 7540 §5.1: HEADERS received on closed stream {streamId}; reusing a closed stream ID is PROTOCOL_ERROR.",
-                Http2ErrorCode.ProtocolError);
+                $"RFC 7540 §6.2: HEADERS received on closed stream {streamId}; this is a connection error of type STREAM_CLOSED.",
+                Http2ErrorCode.StreamClosed);
         }
 
         // RFC 7540 §5.1.1: Server-initiated (even) stream IDs must be pre-announced via PUSH_PROMISE.
@@ -506,13 +511,16 @@ public sealed class Http2Decoder
         }
 
         // RFC 7540 §5.1.2 / §6.5.2: Enforce MAX_CONCURRENT_STREAMS for new streams.
+        // Exceeding this limit is a stream error of type REFUSED_STREAM (only this stream is refused).
         if (!_streams.ContainsKey(streamId))
         {
             if (_activeStreamCount >= _maxConcurrentStreams)
             {
                 throw new Http2Exception(
                     $"RFC 7540 §6.5.2: MAX_CONCURRENT_STREAMS limit ({_maxConcurrentStreams}) exceeded on stream {streamId}.",
-                    Http2ErrorCode.RefusedStream);
+                    Http2ErrorCode.RefusedStream,
+                    Http2ErrorScope.Stream,
+                    streamId);
             }
 
             _activeStreamCount++;
@@ -762,9 +770,12 @@ public sealed class Http2Decoder
             var newWindow = current + increment;
             if (newWindow > 0x7FFFFFFF)
             {
+                // RFC 7540 §6.9.1: Stream-level window overflow is a stream error of type FLOW_CONTROL_ERROR.
                 throw new Http2Exception(
                     $"RFC 7540 §6.9.1: WINDOW_UPDATE would overflow stream {streamId} send window ({current} + {increment}).",
-                    Http2ErrorCode.FlowControlError);
+                    Http2ErrorCode.FlowControlError,
+                    Http2ErrorScope.Stream,
+                    streamId);
             }
 
             _streamSendWindows[streamId] = newWindow;
