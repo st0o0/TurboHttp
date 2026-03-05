@@ -917,15 +917,17 @@ Implement strict frame layer parser.
 
 ---
 
-## Phase 29: Fuzz Harness
+## Phase 29: Fuzz Harness ✅
 
 ### Include
 
-* Random frame ordering
-* Invalid lengths
-* Invalid header encodings
-* Window overflow attempts
-* Table resizing storms
+* Random frame ordering ✅
+* Invalid lengths ✅
+* Invalid header encodings ✅
+* Window overflow attempts ✅
+* Table resizing storms ✅
+
+**Tests**: 25 in `Http2FuzzHarnessTests.cs` (FZ-001..FZ-025)
 
 ---
 
