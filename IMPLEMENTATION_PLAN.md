@@ -783,13 +783,13 @@ Implement strict frame layer parser.
 
 ---
 
-## Phase 15–16: Static Table
+## Phase 15–16: Static Table ✅
 
 ### MUST
 
-- [ ] Implement full static table
-- [ ] Correct index resolution
-- [ ] Reject invalid indices
+- [x] Implement full static table
+- [x] Correct index resolution
+- [x] Reject invalid indices
 
 ---
 
