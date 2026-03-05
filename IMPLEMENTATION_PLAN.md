@@ -471,20 +471,20 @@ Correct persistent connection behavior.
 
 ## MUST Requirements
 
-- [ ] Persistent connections enabled by default
-- [ ] Respect `Connection: close`
-- [ ] Correctly interpret `Keep-Alive`
-- [ ] Do NOT reuse connection when:
+- [x] Persistent connections enabled by default
+- [x] Respect `Connection: close`
+- [x] Correctly interpret `Keep-Alive`
+- [x] Do NOT reuse connection when:
 
     * Response body not fully consumed
     * Protocol errors occurred
     * Connection explicitly closed
-- [ ] Enforce per-host connection limits
+- [x] Enforce per-host connection limits
 
 ## HTTP/2 / HTTP/3 Considerations
 
-- [ ] Support multiplexing behavior
-- [ ] Do not apply HTTP/1.1 pooling logic to HTTP/2 streams
+- [x] Support multiplexing behavior
+- [x] Do not apply HTTP/1.1 pooling logic to HTTP/2 streams
 
 ---
 
