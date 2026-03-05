@@ -441,23 +441,23 @@ Full RFC 6265 compliance.
 
 ## MUST Requirements
 
-- [ ] Implement domain matching per RFC 6265 §5.1.3
-- [ ] Distinguish host-only vs domain cookies
-- [ ] Implement path matching correctly
-- [ ] Correctly interpret `Expires` and `Max-Age`
-- [ ] Send `Secure` cookies only over HTTPS
-- [ ] Respect `HttpOnly`
-- [ ] Correctly process multiple `Set-Cookie` headers
+- [x] Implement domain matching per RFC 6265 §5.1.3
+- [x] Distinguish host-only vs domain cookies
+- [x] Implement path matching correctly
+- [x] Correctly interpret `Expires` and `Max-Age`
+- [x] Send `Secure` cookies only over HTTPS
+- [x] Respect `HttpOnly`
+- [x] Correctly process multiple `Set-Cookie` headers
 
 ## SHOULD
 
-- [ ] Support `SameSite`
+- [x] Support `SameSite`
 - [ ] Implement public suffix protection
 
 ## MUST NOT
 
-- [ ] Use naive `EndsWith()` domain matching
-- [ ] Store cookies without domain/path scoping
+- [x] Use naive `EndsWith()` domain matching
+- [x] Store cookies without domain/path scoping
 
 ---
 
