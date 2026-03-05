@@ -28,6 +28,10 @@ public sealed class Http2Decoder
     private int _rstStreamCount;
     private int _emptyDataFrameCount;
     private int _settingsCount;
+    private int _pingCount;
+
+    // RFC 9113 security: cap the closed-stream-ID set to bound memory usage.
+    private const int MaxClosedStreamIds = 10000;
 
     // RFC 7540 §6.5.2: Default MAX_FRAME_SIZE is 2^14 (16384).
     private int _maxFrameSize = 16384;
@@ -59,6 +63,12 @@ public sealed class Http2Decoder
 
     /// <summary>Returns the current number of active (open) streams.</summary>
     public int GetActiveStreamCount() => _activeStreamCount;
+
+    /// <summary>Returns the number of non-ACK PING frames received so far (for testing/diagnostics).</summary>
+    public int GetPingCount() => _pingCount;
+
+    /// <summary>Returns the number of closed stream IDs currently tracked (for testing/diagnostics).</summary>
+    public int GetClosedStreamIdCount() => _closedStreamIds.Count;
 
     /// <summary>Returns the MAX_CONCURRENT_STREAMS limit (default int.MaxValue).</summary>
     public int GetMaxConcurrentStreams() => _maxConcurrentStreams;
@@ -255,7 +265,7 @@ public sealed class Http2Decoder
                             _activeStreamCount--;
                         }
 
-                        _closedStreamIds.Add(streamId);
+                        AddClosedStreamId(streamId);
                         // RFC 9113 §5.1: RST_STREAM moves stream to closed.
                         _streamLifecycle[streamId] = Http2StreamLifecycleState.Closed;
 
@@ -300,7 +310,7 @@ public sealed class Http2Decoder
                         foreach (var sid in toCancel)
                         {
                             _streams.Remove(sid);
-                            _closedStreamIds.Add(sid);
+                            AddClosedStreamId(sid);
                             _streamLifecycle[sid] = Http2StreamLifecycleState.Closed;
                             _activeStreamCount--;
                         }
@@ -360,6 +370,7 @@ public sealed class Http2Decoder
         _rstStreamCount = 0;
         _emptyDataFrameCount = 0;
         _settingsCount = 0;
+        _pingCount = 0;
         _maxConcurrentStreams = int.MaxValue;
         _activeStreamCount = 0;
     }
@@ -449,7 +460,7 @@ public sealed class Http2Decoder
         {
             var response = state.BuildResponse();
             _streams.Remove(streamId);
-            _closedStreamIds.Add(streamId);
+            AddClosedStreamId(streamId);
             _streamLifecycle[streamId] = Http2StreamLifecycleState.Closed;
             responses.Add((streamId, response));
             _activeStreamCount--;
@@ -662,7 +673,7 @@ public sealed class Http2Decoder
         }
     }
 
-    private static void HandlePing(
+    private void HandlePing(
         byte flags,
         ReadOnlyMemory<byte> payload,
         int streamId,
@@ -692,6 +703,15 @@ public sealed class Http2Decoder
         }
         else
         {
+            // Security: PING flood protection — only non-ACK PINGs count toward the limit.
+            _pingCount++;
+            if (_pingCount > 1000)
+            {
+                throw new Http2Exception(
+                    $"RFC 7540 security: Excessive PING frames ({_pingCount}) — possible PING flood attack.",
+                    Http2ErrorCode.EnhanceYourCalm);
+            }
+
             controlFrames.Add(new PingFrame(payload.Span.ToArray(), isAck: false));
             // RFC 7540 §6.7: Receiver of a PING MUST send a PING ACK with the same data.
             pingAcksToSend.Add(new PingFrame(payload.Span.ToArray(), isAck: true).Serialize());
@@ -874,7 +894,7 @@ public sealed class Http2Decoder
         if (endStream)
         {
             _activeStreamCount--;
-            _closedStreamIds.Add(streamId);
+            AddClosedStreamId(streamId);
             // RFC 9113 §5.1: END_STREAM on HEADERS moves stream to closed (half-closed-remote → closed).
             _streamLifecycle[streamId] = Http2StreamLifecycleState.Closed;
             responses.Add((streamId, state.BuildResponse()));
@@ -1005,6 +1025,23 @@ public sealed class Http2Decoder
         var errorCode = (Http2ErrorCode)BinaryPrimitives.ReadUInt32BigEndian(payload.Span[4..]);
         var debugData = payload.Length > 8 ? payload[8..].ToArray() : null;
         return new GoAwayFrame(lastStreamId, errorCode, debugData);
+    }
+
+    /// <summary>
+    /// Registers a stream as closed, tracking it so future frames on the same ID are rejected.
+    /// Enforces an upper bound on the closed-stream-ID set to prevent unbounded memory growth
+    /// (stream ID exhaustion / memory exhaustion attack vector).
+    /// </summary>
+    private void AddClosedStreamId(int streamId)
+    {
+        if (_closedStreamIds.Count >= MaxClosedStreamIds)
+        {
+            throw new Http2Exception(
+                $"RFC 9113 security: Stream ID space exhausted — {_closedStreamIds.Count} closed stream IDs tracked; connection terminated to prevent memory exhaustion.",
+                Http2ErrorCode.ProtocolError);
+        }
+
+        _closedStreamIds.Add(streamId);
     }
 
     private static ReadOnlyMemory<byte> Combine(ReadOnlyMemory<byte> a, ReadOnlyMemory<byte> b)

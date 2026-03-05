@@ -864,16 +864,18 @@ Implement strict frame layer parser.
 
 ---
 
-## Phase 24–25: Resource Exhaustion Protection
+## Phase 24–25: Resource Exhaustion Protection ✅
 
 ### MUST DEFEND AGAINST
 
-* SETTINGS flood
-* Rapid reset attack
-* CONTINUATION flood
-* PING flood
-* Dynamic table abuse
-* Stream ID exhaustion
+* SETTINGS flood ✅ (_settingsCount > 100 → EnhanceYourCalm)
+* Rapid reset attack ✅ (_rstStreamCount > 100 → ProtocolError, CVE-2023-44487)
+* CONTINUATION flood ✅ (_continuationFrameCount >= 1000 → ProtocolError)
+* PING flood ✅ (_pingCount > 1000 → EnhanceYourCalm)
+* Dynamic table abuse ✅ (SetMaxAllowedTableSize + HPACK eviction bounds)
+* Stream ID exhaustion ✅ (AddClosedStreamId cap at 10000 → ProtocolError)
+
+**Tests**: 30 in `Http2ResourceExhaustionTests.cs` (RE-010..RE-083)
 
 ---
 
