@@ -1,4 +1,3 @@
-using System;
 using System.Buffers.Binary;
 using TurboHttp.Protocol;
 
@@ -6,49 +5,6 @@ namespace TurboHttp.Tests;
 
 public sealed class Http2SecurityTests
 {
-    // ── HPACK String Length Limits ────────────────────────────────────────────
-
-    [Fact(DisplayName = "SEC-h2-001: HPACK literal name exceeding limit causes COMPRESSION_ERROR")]
-    public void Should_ThrowHpackException_When_LiteralNameExceedsLimit()
-    {
-        var hpack = new HpackDecoder();
-        hpack.SetMaxStringLength(10);
-
-        // Literal Header Field without Indexing, new name (prefix 0x00, nameIdx = 0).
-        // Encode name of length 11 (exceeds limit of 10).
-        var nameBytes = new byte[11];
-        Array.Fill(nameBytes, (byte)'x');
-
-        var block = new byte[2 + nameBytes.Length + 2]; // prefix + nameLen byte + name + valueLen byte + empty value
-        block[0] = 0x00;          // Literal without Indexing, nameIdx=0
-        block[1] = (byte)nameBytes.Length; // string length (not Huffman)
-        nameBytes.CopyTo(block, 2);
-        block[2 + nameBytes.Length] = 0x00; // value length = 0
-
-        var ex = Assert.Throws<HpackException>(() => hpack.Decode(block));
-        Assert.Contains("exceeds maximum", ex.Message);
-    }
-
-    [Fact(DisplayName = "SEC-h2-002: HPACK literal value exceeding limit causes COMPRESSION_ERROR")]
-    public void Should_ThrowHpackException_When_LiteralValueExceedsLimit()
-    {
-        var hpack = new HpackDecoder();
-        hpack.SetMaxStringLength(10);
-
-        // Literal Header Field with Incremental Indexing (prefix 0x40), static name index 1 (:authority).
-        // Encode value of length 11 (exceeds limit of 10).
-        var valueBytes = new byte[11];
-        Array.Fill(valueBytes, (byte)'v');
-
-        var block = new byte[1 + 1 + valueBytes.Length]; // prefix(with nameIdx) + valueLen + value
-        block[0] = 0x41;                    // 0x40 | 1 = literal+indexing, name from static index 1
-        block[1] = (byte)valueBytes.Length; // string length (not Huffman)
-        valueBytes.CopyTo(block, 2);
-
-        var ex = Assert.Throws<HpackException>(() => hpack.Decode(block));
-        Assert.Contains("exceeds maximum", ex.Message);
-    }
-
     // ── CONTINUATION Frame Flood ──────────────────────────────────────────────
 
     [Fact(DisplayName = "SEC-h2-003: Excessive CONTINUATION frames rejected")]

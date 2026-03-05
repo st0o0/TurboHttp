@@ -516,6 +516,27 @@ public sealed class HpackHeaderBlockDecodingTests
         Assert.Contains("§5.2", ex.Message);
     }
 
+    /// RFC 7541 §5.2 — String value length exceeding maxStringLength throws HpackException
+    [Fact(DisplayName = "LF-005: String value length exceeding maxStringLength throws HpackException")]
+    public void StringValueLength_ExceedsMaxStringLength_ThrowsHpackException()
+    {
+        var decoder = new HpackDecoder();
+        decoder.SetMaxStringLength(10);
+
+        // Literal Header Field with Incremental Indexing (0x40 | 1 = name from static index 1 = :authority)
+        // Value of length 11 (exceeds limit of 10)
+        var valueBytes = new byte[11];
+        for (var i = 0; i < valueBytes.Length; i++) { valueBytes[i] = (byte)'v'; }
+
+        var block = new byte[1 + 1 + valueBytes.Length];
+        block[0] = 0x41; // 0x40 | 1 = literal+indexing, name from static index 1
+        block[1] = (byte)valueBytes.Length;
+        valueBytes.CopyTo(block, 2);
+
+        var ex = Assert.Throws<HpackException>(() => decoder.Decode(block));
+        Assert.Contains("exceeds maximum", ex.Message);
+    }
+
     /// RFC 7541 §5.2 — Non-Huffman string with multi-byte content decoded correctly
     [Fact(DisplayName = "LF-004: Non-Huffman string with multi-byte content decoded correctly")]
     public void StringLiteral_NonHuffman_MultiByteContent_Decoded()

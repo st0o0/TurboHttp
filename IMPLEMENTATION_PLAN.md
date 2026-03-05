@@ -1331,13 +1331,18 @@ These should exist regardless of protocol:
 
 ---
 
-# 🧪 Step 8 — Remove Behavior Overlap Between Layers
+# 🧪 Step 8 — Remove Behavior Overlap Between Layers ✅
 
 Ensure:
 
-* HPACK tests test only HPACK
-* HTTP/2 tests do not test compression internals
-* Integration tests test interaction only
+* HPACK tests test only HPACK ✅ (RFC9113/ has zero HpackDecoder/HpackException/DynamicTable refs)
+* HTTP/2 tests do not test compression internals ✅ (RFC7541/ has zero Http2Decoder/Frame refs)
+* Integration tests test interaction only ✅ (Http2CrossComponentValidationTests tests cross-component)
+
+**Actions taken:**
+- Deleted `Http2SecurityTests.cs` SEC-h2-001 (HPACK name-length test — duplicate of RFC7541/05 LF-003)
+- Moved `Http2SecurityTests.cs` SEC-h2-002 (HPACK value-length test) → RFC7541/05 LF-005
+- Http2SecurityTests.cs now contains only HTTP/2 layer tests (SEC-h2-003..008)
 
 No cross-layer duplication.
 
