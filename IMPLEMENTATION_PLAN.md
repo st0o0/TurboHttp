@@ -821,9 +821,9 @@ Implement strict frame layer parser.
 
 ### MUST
 
-- [ ] Decode prefix integers correctly
-- [ ] Validate length fields
-- [ ] Detect malformed encodings
+- [x] Decode prefix integers correctly
+- [x] Validate length fields
+- [x] Detect malformed encodings
 
 ---
 
