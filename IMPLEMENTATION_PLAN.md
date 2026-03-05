@@ -1005,14 +1005,14 @@ TestName
 
 ---
 
-# 🧹 Step 2 — Duplicate Detection
+# 🧹 Step 2 — Duplicate Detection ✅
 
 ## Identify:
 
-- [ ] Same assertion tested in multiple files
-- [ ] Same edge case with minor variation
-- [ ] Copy-pasted negative tests
-- [ ] Redundant fuzz tests
+- [x] Same assertion tested in multiple files
+- [x] Same edge case with minor variation
+- [x] Copy-pasted negative tests
+- [x] Redundant fuzz tests
 
 ### Strategy
 

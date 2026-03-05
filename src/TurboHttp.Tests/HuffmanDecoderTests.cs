@@ -408,4 +408,29 @@ public sealed class HuffmanDecoderTests
                 $"Byte 0x{b:X2}: encoded to {encoded.Length} bytes (expected <= 4)");
         }
     }
+
+    // -------------------------------------------------------------------------
+    // ED-00x: RFC 7541 Appendix C encode reference vectors (encode direction)
+    // Migrated from HuffmanTests.cs (Phase 70 Step 2 — duplicate removal)
+    // -------------------------------------------------------------------------
+
+    [Fact(DisplayName = "ED-004: Encode 'www.example.com' produces exact RFC 7541 Appendix C bytes")]
+    public void ED004_Encode_WwwExampleCom_MatchesRfc()
+    {
+        // RFC 7541 Appendix C.4 — Request Examples with Huffman Coding
+        var input = "www.example.com"u8.ToArray();
+        var encoded = HuffmanCodec.Encode(input);
+        var expected = new byte[] { 0xf1, 0xe3, 0xc2, 0xe5, 0xf2, 0x3a, 0x6b, 0xa0, 0xab, 0x90, 0xf4, 0xff };
+        Assert.Equal(expected, encoded);
+    }
+
+    [Fact(DisplayName = "ED-005: Encode 'no-cache' produces exact RFC 7541 Appendix C bytes")]
+    public void ED005_Encode_NoCache_MatchesRfc()
+    {
+        // RFC 7541 Appendix C.4 — Request Examples with Huffman Coding
+        var input = "no-cache"u8.ToArray();
+        var encoded = HuffmanCodec.Encode(input);
+        var expected = new byte[] { 0xa8, 0xeb, 0x10, 0x64, 0x9c, 0xbf };
+        Assert.Equal(expected, encoded);
+    }
 }
