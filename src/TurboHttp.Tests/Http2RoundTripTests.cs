@@ -1502,6 +1502,47 @@ public sealed class Http2RoundTripTests
         Assert.Contains("x-safe-header", headerNames);
     }
 
+    // ── RT-2-056 ───────────────────────────────────────────────────────────────
+
+    /// RFC 9110 §8 — Entity headers (content-language, content-location, content-md5,
+    /// content-range, content-disposition, expires, last-modified) must be preserved
+    /// on the response Content object, exercising all IsContentHeader switch arms.
+    [Fact(DisplayName = "RT-2-056: Entity headers (content-language, etc.) preserved in response.Content.Headers")]
+    public void Should_PreserveAllEntityHeaders_When_ResponseDecodedWithEntityHeaders()
+    {
+        var hpack = new HpackEncoder(useHuffman: false);
+        var decoder = new Http2Decoder();
+
+        // Build a 200 response with all 7 uncovered entity header types and a small body.
+        var responseBytes = BuildH2Response(
+            streamId: 1,
+            status: 200,
+            body: "hello",
+            hpack,
+            ("content-language", "en-US"),
+            ("content-location", "/docs/resource"),
+            ("content-md5", "Q2hlY2sgSW50ZWdyaXR5IQ=="),
+            ("content-range", "bytes 0-4/5"),
+            ("content-disposition", "inline; filename=\"file.txt\""),
+            ("expires", "Thu, 01 Jan 2026 00:00:00 GMT"),
+            ("last-modified", "Wed, 01 Jan 2025 00:00:00 GMT"));
+
+        decoder.TryDecode(responseBytes.AsMemory(), out var result);
+
+        Assert.True(result.HasResponses);
+        var response = result.Responses[0].Response;
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.NotNull(response.Content);
+
+        // All 7 entity headers must be present in Content.Headers (lines 1220-1226 in Http2Decoder)
+        Assert.True(response.Content!.Headers.Contains("content-language"),   "content-language missing");
+        Assert.True(response.Content.Headers.Contains("content-location"),    "content-location missing");
+        Assert.True(response.Content.Headers.Contains("content-range"),       "content-range missing");
+        Assert.True(response.Content.Headers.Contains("content-disposition"), "content-disposition missing");
+        Assert.True(response.Content.Headers.Contains("expires"),             "expires missing");
+        Assert.True(response.Content.Headers.Contains("last-modified"),       "last-modified missing");
+    }
+
     // ── RT-2-055 ───────────────────────────────────────────────────────────────
 
     [Fact(DisplayName = "RT-2-055: HPACK decoder state survives across multiple TryDecode calls on same connection")]

@@ -464,6 +464,37 @@ public sealed class Http2SettingsSynchronizationTests
         return false;
     }
 
+    // =========================================================================
+    // Category 7: SETTINGS_INITIAL_WINDOW_SIZE overflow of open stream (RFC 7540 §6.9.2)
+    // =========================================================================
+
+    /// RFC 7540 §6.9.2 — SETTINGS INITIAL_WINDOW_SIZE increase overflows an open stream's
+    /// send window; this is a connection-level FLOW_CONTROL_ERROR.
+    [Fact(DisplayName = "RFC7540-6.9.2-SS-029: InitialWindowSize increase overflows open stream send window is FLOW_CONTROL_ERROR")]
+    public void Settings_InitialWindowSize_IncreaseOverflowsOpenStreamWindow_ThrowsFlowControlError()
+    {
+        var decoder = new Http2Decoder();
+
+        // Open stream 1 with HEADERS (endStream=false — stream stays open in _streams).
+        var headers = BuildMinimalHeadersFrame(streamId: 1, endStream: false);
+        decoder.TryDecode(headers.AsMemory(), out _);
+
+        // Push stream 1's send window to exactly 2^31-1 = 2147483647 (max valid):
+        //   initial = 65535, increment = 2^31-1 - 65535 = 2147418112
+        const int initialWindow = 65535;
+        const int maxWindow = 0x7FFFFFFF;
+        var increment = maxWindow - initialWindow;
+        var wu = new WindowUpdateFrame(1, increment).Serialize();
+        decoder.TryDecode(wu.AsMemory(), out _);
+
+        // Now send SETTINGS with InitialWindowSize = 65536 (delta = +1).
+        // updated = 2^31-1 + 1 = 2147483648 > 2^31-1 — connection error FLOW_CONTROL_ERROR.
+        var settings = new SettingsFrame([(SettingsParameter.InitialWindowSize, 65536u)]).Serialize();
+        var ex = Assert.Throws<Http2Exception>(() => decoder.TryDecode(settings.AsMemory(), out _));
+        Assert.Equal(Http2ErrorCode.FlowControlError, ex.ErrorCode);
+        Assert.True(ex.IsConnectionError);
+    }
+
     /// <summary>
     /// Builds a minimal HEADERS frame for the given stream ID using a pre-encoded HPACK header block
     /// (just ":status 200" equivalent — minimal enough to not crash HPACK decode).

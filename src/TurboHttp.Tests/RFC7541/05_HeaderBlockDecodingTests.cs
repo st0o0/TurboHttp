@@ -469,6 +469,45 @@ public sealed class HpackHeaderBlockDecodingTests
     }
 
     /// RFC 7541 §5.1 — Reading integer at end of data throws HpackException (§5.1)
+    /// RFC 7541 §5.1 — ReadInteger with prefixBits=0 is an invalid call (must be 1-8)
+    [Fact(DisplayName = "PI-008: ReadInteger with prefixBits=0 throws ArgumentOutOfRangeException (§5.1)")]
+    public void ReadInteger_PrefixBitsZero_ThrowsArgumentOutOfRangeException()
+    {
+        var data = new byte[] { 0x00 };
+        var pos = 0;
+        var ex = Assert.Throws<ArgumentOutOfRangeException>(
+            () => HpackDecoder.ReadInteger(data, ref pos, 0));
+        Assert.Contains("prefixBits", ex.ParamName);
+    }
+
+    /// RFC 7541 §5.1 — ReadInteger with prefixBits=9 is an invalid call (must be 1-8)
+    [Fact(DisplayName = "PI-009: ReadInteger with prefixBits=9 throws ArgumentOutOfRangeException (§5.1)")]
+    public void ReadInteger_PrefixBitsNine_ThrowsArgumentOutOfRangeException()
+    {
+        var data = new byte[] { 0x00 };
+        var pos = 0;
+        var ex = Assert.Throws<ArgumentOutOfRangeException>(
+            () => HpackDecoder.ReadInteger(data, ref pos, 9));
+        Assert.Contains("prefixBits", ex.ParamName);
+    }
+
+    /// RFC 7541 §5.1 — Excessively long multi-byte integer (shift >= 62) must throw HpackException.
+    /// Encoding: 1-bit prefix byte (0x01 = all-ones for prefix=1) + 9 continuation bytes (MSB=1, value bits=0).
+    /// At the 10th loop iteration, shift reaches 63 >= 62 → encoding length exceeded.
+    [Fact(DisplayName = "PI-010: Integer with 10 continuation bytes triggers shift>=62 overflow guard (§5.1)")]
+    public void ReadInteger_TenContinuationBytes_ThrowsEncodingOverflowException()
+    {
+        // Build: [0x01, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x00]
+        //   0x01 = prefix=1, value=1=mask → multi-byte
+        //   9 × 0x80 = continuation bytes (MSB=1, value bits=0) — iterations 1-9
+        //   At start of iteration 10: shift=63 >= 62 → throw
+        //   The trailing 0x00 is a terminal byte (never reached)
+        var data = new byte[] { 0x01, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x00 };
+        var pos = 0;
+        var ex = Assert.Throws<HpackException>(() => HpackDecoder.ReadInteger(data, ref pos, 1));
+        Assert.Contains("encoding length exceeded", ex.Message);
+    }
+
     [Fact(DisplayName = "PI-007: Reading integer at end of data throws HpackException (§5.1)")]
     public void ReadInteger_AtEndOfData_ThrowsHpackException()
     {
@@ -481,6 +520,16 @@ public sealed class HpackHeaderBlockDecodingTests
     // ── LF-00x: Length Field Validation (§5.2) ───────────────────────────────
 
     /// RFC 7541 §5.2 — String length exceeds available data throws HpackException (§5.2)
+    /// RFC 7541 — HpackException(string, Exception) constructor sets InnerException correctly.
+    [Fact(DisplayName = "LF-006: HpackException two-arg constructor sets InnerException")]
+    public void HpackException_TwoArgCtor_SetsInnerException()
+    {
+        var inner = new InvalidOperationException("cause");
+        var ex = new HpackException("HPACK error", inner);
+        Assert.Equal("HPACK error", ex.Message);
+        Assert.Same(inner, ex.InnerException);
+    }
+
     [Fact(DisplayName = "LF-001: String length exceeds available data throws HpackException (§5.2)")]
     public void StringLength_ExceedsAvailableData_ThrowsHpackException()
     {

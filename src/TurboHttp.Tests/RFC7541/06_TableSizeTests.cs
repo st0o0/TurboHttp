@@ -451,6 +451,15 @@ public sealed class HpackHeaderListSizeTests
         Assert.Equal(3, headers.Count);
     }
 
+    /// RFC 7541 §5.2 — SetMaxStringLength with a negative value must throw HpackException.
+    [Fact(DisplayName = "HLS-057: SetMaxStringLength with negative value throws HpackException")]
+    public void HLS_057_SetMaxStringLength_NegativeValue_ThrowsHpackException()
+    {
+        var decoder = NewDecoder();
+        var ex = Assert.Throws<HpackException>(() => decoder.SetMaxStringLength(-1));
+        Assert.Contains("Invalid max string length", ex.Message);
+    }
+
     /// RFC 7540 §6.5.2 — Should Throw When MixedRepresentationsExceedLimit
     [Fact(DisplayName = "HLS-056: Should_Throw_When_MixedRepresentationsExceedLimit")]
     public void HLS_056_MixedRepresentations_ExceedLimit_Throws()
