@@ -62,6 +62,7 @@ public sealed class Http2StreamLifecycleTests
     // SS-001..005: Initial / basic lifecycle state transitions
     // =========================================================================
 
+    /// RFC 9113 §5.1 — Unknown stream ID reports Idle state
     [Fact(DisplayName = "RFC9113-5.1-SS-001: Unknown stream ID reports Idle state")]
     public void GetLifecycleState_UnknownStream_ReturnsIdle()
     {
@@ -70,6 +71,7 @@ public sealed class Http2StreamLifecycleTests
         Assert.Equal(Http2StreamLifecycleState.Idle, decoder.GetStreamLifecycleState(99));
     }
 
+    /// RFC 9113 §5.1 — HEADERS frame (no END_STREAM) moves stream from Idle to Open
     [Fact(DisplayName = "RFC9113-5.1-SS-002: HEADERS frame (no END_STREAM) moves stream from Idle to Open")]
     public void Headers_NoEndStream_StreamBecomesOpen()
     {
@@ -78,6 +80,7 @@ public sealed class Http2StreamLifecycleTests
         Assert.Equal(Http2StreamLifecycleState.Open, decoder.GetStreamLifecycleState(1));
     }
 
+    /// RFC 9113 §5.1 — HEADERS+END_STREAM moves stream directly to Closed
     [Fact(DisplayName = "RFC9113-5.1-SS-003: HEADERS+END_STREAM moves stream directly to Closed")]
     public void Headers_WithEndStream_StreamBecomesClosed()
     {
@@ -86,6 +89,7 @@ public sealed class Http2StreamLifecycleTests
         Assert.Equal(Http2StreamLifecycleState.Closed, decoder.GetStreamLifecycleState(1));
     }
 
+    /// RFC 9113 §5.1 — DATA+END_STREAM after HEADERS closes the stream
     [Fact(DisplayName = "RFC9113-5.1-SS-004: DATA+END_STREAM after HEADERS closes the stream")]
     public void Data_WithEndStream_AfterHeaders_StreamBecomesClosed()
     {
@@ -98,6 +102,7 @@ public sealed class Http2StreamLifecycleTests
         Assert.Equal(Http2StreamLifecycleState.Closed, decoder.GetStreamLifecycleState(1));
     }
 
+    /// RFC 9113 §5.1 — RST_STREAM closes the stream
     [Fact(DisplayName = "RFC9113-5.1-SS-005: RST_STREAM closes the stream")]
     public void RstStream_MovesStream_ToClosed()
     {
@@ -115,6 +120,7 @@ public sealed class Http2StreamLifecycleTests
     // SS-006..008: Reject invalid frame per state
     // =========================================================================
 
+    /// RFC 9113 §5.1 — DATA on idle stream (no HEADERS) is PROTOCOL_ERROR
     [Fact(DisplayName = "RFC9113-5.1-SS-006: DATA on idle stream (no HEADERS) is PROTOCOL_ERROR")]
     public void Data_OnIdleStream_ThrowsProtocolError()
     {
@@ -125,6 +131,7 @@ public sealed class Http2StreamLifecycleTests
         Assert.Equal(Http2ErrorCode.ProtocolError, ex.ErrorCode);
     }
 
+    /// RFC 9113 §5.1 — DATA on closed stream is STREAM_CLOSED error
     [Fact(DisplayName = "RFC9113-5.1-SS-007: DATA on closed stream is STREAM_CLOSED error")]
     public void Data_OnClosedStream_ThrowsStreamClosed()
     {
@@ -139,6 +146,7 @@ public sealed class Http2StreamLifecycleTests
         Assert.Equal(Http2ErrorCode.StreamClosed, ex.ErrorCode);
     }
 
+    /// RFC 9113 §5.1 — HEADERS on closed stream is connection error STREAM_CLOSED (RFC 7540 §6.2)
     [Fact(DisplayName = "RFC9113-5.1-SS-008: HEADERS on closed stream is connection error STREAM_CLOSED (RFC 7540 §6.2)")]
     public void Headers_OnClosedStream_ThrowsStreamClosed()
     {
@@ -158,6 +166,7 @@ public sealed class Http2StreamLifecycleTests
     // SS-009..012: Auto-close on END_STREAM (MUST)
     // =========================================================================
 
+    /// RFC 9113 §5.1 — Auto-close: HEADERS+END_STREAM produces response immediately
     [Fact(DisplayName = "RFC9113-5.1-SS-009: Auto-close: HEADERS+END_STREAM produces response immediately")]
     public void AutoClose_HeadersEndStream_ProducesResponse()
     {
@@ -169,6 +178,7 @@ public sealed class Http2StreamLifecycleTests
         Assert.Equal(Http2StreamLifecycleState.Closed, decoder.GetStreamLifecycleState(1));
     }
 
+    /// RFC 9113 §5.1 — Auto-close: DATA+END_STREAM produces response
     [Fact(DisplayName = "RFC9113-5.1-SS-010: Auto-close: DATA+END_STREAM produces response")]
     public async Task AutoClose_DataEndStream_ProducesResponse()
     {
@@ -184,6 +194,7 @@ public sealed class Http2StreamLifecycleTests
         Assert.Equal(Http2StreamLifecycleState.Closed, decoder.GetStreamLifecycleState(1));
     }
 
+    /// RFC 9113 §5.1 — Auto-close: multiple streams closed independently via END_STREAM
     [Fact(DisplayName = "RFC9113-5.1-SS-011: Auto-close: multiple streams closed independently via END_STREAM")]
     public void AutoClose_MultipleStreams_EachClosedIndependently()
     {
@@ -203,6 +214,7 @@ public sealed class Http2StreamLifecycleTests
         Assert.Equal(Http2StreamLifecycleState.Closed, decoder.GetStreamLifecycleState(3));
     }
 
+    /// RFC 9113 §5.1 — Stream open while DATA accumulates, then closed on END_STREAM
     [Fact(DisplayName = "RFC9113-5.1-SS-012: Stream open while DATA accumulates, then closed on END_STREAM")]
     public void StreamIsOpen_WhileDataAccumulates_ClosedOnEndStream()
     {
@@ -224,6 +236,7 @@ public sealed class Http2StreamLifecycleTests
     // SS-013..015: Multiple independent streams
     // =========================================================================
 
+    /// RFC 9113 §5.1 — Different streams have independent lifecycle states
     [Fact(DisplayName = "RFC9113-5.1-SS-013: Different streams have independent lifecycle states")]
     public void MultipleStreams_IndependentLifecycleStates()
     {
@@ -239,6 +252,7 @@ public sealed class Http2StreamLifecycleTests
         Assert.Equal(Http2StreamLifecycleState.Idle, decoder.GetStreamLifecycleState(5)); // never seen
     }
 
+    /// RFC 9113 §5.1 — Closing one stream does not affect other open streams
     [Fact(DisplayName = "RFC9113-5.1-SS-014: Closing one stream does not affect other open streams")]
     public void CloseOneStream_OtherRemainsOpen()
     {
@@ -256,6 +270,7 @@ public sealed class Http2StreamLifecycleTests
         Assert.Equal(Http2StreamLifecycleState.Open, decoder.GetStreamLifecycleState(3));
     }
 
+    /// RFC 9113 §5.1 — RST_STREAM on open stream does not affect other streams
     [Fact(DisplayName = "RFC9113-5.1-SS-015: RST_STREAM on open stream does not affect other streams")]
     public void RstStream_OnOneStream_DoesNotAffectOthers()
     {
@@ -276,6 +291,7 @@ public sealed class Http2StreamLifecycleTests
     // SS-016..018: Post-RST_STREAM frame rejection
     // =========================================================================
 
+    /// RFC 9113 §5.1 — DATA after RST_STREAM on same stream throws STREAM_CLOSED
     [Fact(DisplayName = "RFC9113-5.1-SS-016: DATA after RST_STREAM on same stream throws STREAM_CLOSED")]
     public void Data_AfterRstStream_ThrowsStreamClosed()
     {
@@ -290,6 +306,7 @@ public sealed class Http2StreamLifecycleTests
         Assert.Equal(Http2ErrorCode.StreamClosed, ex.ErrorCode);
     }
 
+    /// RFC 9113 §5.1 — HEADERS after RST_STREAM on same stream is connection error STREAM_CLOSED (RFC 7540 §6.2)
     [Fact(DisplayName = "RFC9113-5.1-SS-017: HEADERS after RST_STREAM on same stream is connection error STREAM_CLOSED (RFC 7540 §6.2)")]
     public void Headers_AfterRstStream_ThrowsStreamClosed()
     {
@@ -306,6 +323,7 @@ public sealed class Http2StreamLifecycleTests
         Assert.True(ex.IsConnectionError);
     }
 
+    /// RFC 9113 §5.1 — DATA on stream with only DATA+END_STREAM received (half-closed-remote) throws STREAM_CLOSED
     [Fact(DisplayName = "RFC9113-5.1-SS-018: DATA on stream with only DATA+END_STREAM received (half-closed-remote) throws STREAM_CLOSED")]
     public void Data_OnHalfClosedRemoteStream_ViaData_ThrowsStreamClosed()
     {
@@ -325,6 +343,7 @@ public sealed class Http2StreamLifecycleTests
     // SS-019..022: Reset behaviour
     // =========================================================================
 
+    /// RFC 9113 §5.1 — Reset() clears all lifecycle states back to Idle
     [Fact(DisplayName = "RFC9113-5.1-SS-019: Reset() clears all lifecycle states back to Idle")]
     public void Reset_ClearsAllLifecycleStates()
     {
@@ -341,6 +360,7 @@ public sealed class Http2StreamLifecycleTests
         Assert.Equal(Http2StreamLifecycleState.Idle, decoder.GetStreamLifecycleState(3));
     }
 
+    /// RFC 9113 §5.1 — After Reset(), stream IDs can be reused (back to Idle)
     [Fact(DisplayName = "RFC9113-5.1-SS-020: After Reset(), stream IDs can be reused (back to Idle)")]
     public void AfterReset_StreamIdsCanBeReused()
     {
@@ -359,6 +379,7 @@ public sealed class Http2StreamLifecycleTests
     // SS-021..025: Edge cases
     // =========================================================================
 
+    /// RFC 9113 §5.1 — DATA on stream 0 is PROTOCOL_ERROR (stream 0 is for control only)
     [Fact(DisplayName = "RFC9113-5.1-SS-021: DATA on stream 0 is PROTOCOL_ERROR (stream 0 is for control only)")]
     public void Data_OnStream0_ThrowsProtocolError()
     {
@@ -375,6 +396,7 @@ public sealed class Http2StreamLifecycleTests
         Assert.Equal(Http2ErrorCode.ProtocolError, ex.ErrorCode);
     }
 
+    /// RFC 9113 §5.1 — HEADERS on stream 0 is PROTOCOL_ERROR
     [Fact(DisplayName = "RFC9113-5.1-SS-022: HEADERS on stream 0 is PROTOCOL_ERROR")]
     public void Headers_OnStream0_ThrowsProtocolError()
     {
@@ -387,6 +409,7 @@ public sealed class Http2StreamLifecycleTests
         Assert.Equal(Http2ErrorCode.ProtocolError, ex.ErrorCode);
     }
 
+    /// RFC 9113 §5.1 — DATA on a different idle stream than already-open streams throws PROTOCOL_ERROR
     [Fact(DisplayName = "RFC9113-5.1-SS-023: DATA on a different idle stream than already-open streams throws PROTOCOL_ERROR")]
     public void Data_OnDifferentIdleStream_ThrowsProtocolError()
     {
@@ -401,6 +424,7 @@ public sealed class Http2StreamLifecycleTests
         Assert.Equal(Http2ErrorCode.ProtocolError, ex.ErrorCode);
     }
 
+    /// RFC 9113 §5.1 — Five streams each with distinct lifecycle states are tracked correctly
     [Fact(DisplayName = "RFC9113-5.1-SS-024: Five streams each with distinct lifecycle states are tracked correctly")]
     public void FiveStreams_DistinctLifecycles_AllTrackedCorrectly()
     {
@@ -426,6 +450,7 @@ public sealed class Http2StreamLifecycleTests
         Assert.Equal(Http2StreamLifecycleState.Idle, decoder.GetStreamLifecycleState(9));
     }
 
+    /// RFC 9113 §5.1 — DATA on a known closed stream reports STREAM_CLOSED after RST_STREAM
     [Fact(DisplayName = "RFC9113-5.1-SS-025: DATA on a known closed stream reports STREAM_CLOSED after RST_STREAM")]
     public void Data_OnRstStreamClosedStream_ThrowsStreamClosed()
     {

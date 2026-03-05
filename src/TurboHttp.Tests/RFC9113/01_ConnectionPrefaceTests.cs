@@ -29,6 +29,7 @@ public sealed class Http2ConnectionPrefaceTests
     // Client preface — Http2Encoder.BuildConnectionPreface()
     // =========================================================================
 
+    /// RFC 9113 §3.4 — Client preface starts with exact magic octets
     [Fact(DisplayName = "RFC9113-3.4-CP-001: Client preface starts with exact magic octets")]
     public void ClientPreface_MagicOctets_MatchRfc9113Spec()
     {
@@ -38,6 +39,7 @@ public sealed class Http2ConnectionPrefaceTests
         Assert.Equal(Magic, preface[..MagicLength]);
     }
 
+    /// RFC 9113 §3.4 — Client preface magic is exactly 24 bytes
     [Fact(DisplayName = "RFC9113-3.4-CP-002: Client preface magic is exactly 24 bytes")]
     public void ClientPreface_Magic_IsExactly24Bytes()
     {
@@ -46,6 +48,7 @@ public sealed class Http2ConnectionPrefaceTests
         Assert.Equal(MagicLength, Magic.Length);
     }
 
+    /// RFC 9113 §3.4 — SETTINGS frame follows magic immediately at byte 24
     [Fact(DisplayName = "RFC9113-3.4-CP-003: SETTINGS frame follows magic immediately at byte 24")]
     public void ClientPreface_SettingsFrame_ImmediatelyFollowsMagic()
     {
@@ -59,6 +62,7 @@ public sealed class Http2ConnectionPrefaceTests
         Assert.Equal(FrameType.Settings, frameType);
     }
 
+    /// RFC 9113 §3.4 — SETTINGS frame in client preface uses stream ID 0
     [Fact(DisplayName = "RFC9113-3.4-CP-004: SETTINGS frame in client preface uses stream ID 0")]
     public void ClientPreface_SettingsFrame_StreamIdIsZero()
     {
@@ -71,6 +75,7 @@ public sealed class Http2ConnectionPrefaceTests
         Assert.Equal(0, streamId);
     }
 
+    /// RFC 9113 §3.4 — Client preface total length is magic + SETTINGS frame
     [Fact(DisplayName = "RFC9113-3.4-CP-005: Client preface total length is magic + SETTINGS frame")]
     public void ClientPreface_Length_IsMagicPlusSettingsFrame()
     {
@@ -80,6 +85,7 @@ public sealed class Http2ConnectionPrefaceTests
         Assert.True(preface.Length >= 33, $"Expected >= 33 bytes, got {preface.Length}");
     }
 
+    /// RFC 9113 §3.4 — SETTINGS frame payload length is a multiple of 6
     [Fact(DisplayName = "RFC9113-3.4-CP-006: SETTINGS frame payload length is a multiple of 6")]
     public void ClientPreface_SettingsPayload_LengthIsMultipleOf6()
     {
@@ -94,6 +100,7 @@ public sealed class Http2ConnectionPrefaceTests
         Assert.Equal(0, payloadLen % 6);
     }
 
+    /// RFC 9113 §3.4 — SETTINGS frame flags are 0 (not ACK)
     [Fact(DisplayName = "RFC9113-3.4-CP-007: SETTINGS frame flags are 0 (not ACK)")]
     public void ClientPreface_SettingsFrame_FlagsAreZero()
     {
@@ -103,6 +110,7 @@ public sealed class Http2ConnectionPrefaceTests
         Assert.Equal(0, flags & (byte)SettingsFlags.Ack);
     }
 
+    /// RFC 9113 §3.4 — Magic bytes spell 'PRI * HTTP/2.0 SM' as ASCII
     [Fact(DisplayName = "RFC9113-3.4-CP-008: Magic bytes spell 'PRI * HTTP/2.0 SM' as ASCII")]
     public void ClientPreface_Magic_SpellsCorrectAsciiString()
     {
@@ -116,6 +124,7 @@ public sealed class Http2ConnectionPrefaceTests
     // Server preface validation — Http2Decoder.ValidateServerPreface()
     // =========================================================================
 
+    /// RFC 9113 §3.4 — Valid SETTINGS frame on stream 0 is accepted
     [Fact(DisplayName = "RFC9113-3.4-SP-001: Valid SETTINGS frame on stream 0 is accepted")]
     public void ServerPreface_ValidSettingsFrame_ReturnsTrue()
     {
@@ -127,6 +136,7 @@ public sealed class Http2ConnectionPrefaceTests
         Assert.True(result);
     }
 
+    /// RFC 9113 §3.4 — Fewer than 9 bytes returns false (need more data)
     [Fact(DisplayName = "RFC9113-3.4-SP-002: Fewer than 9 bytes returns false (need more data)")]
     public void ServerPreface_FewerThan9Bytes_ReturnsFalse()
     {
@@ -140,6 +150,7 @@ public sealed class Http2ConnectionPrefaceTests
         Assert.False(decoder.ValidateServerPreface(ReadOnlyMemory<byte>.Empty));
     }
 
+    /// RFC 9113 §3.4 — DATA frame as first frame throws PROTOCOL_ERROR
     [Fact(DisplayName = "RFC9113-3.4-SP-003: DATA frame as first frame throws PROTOCOL_ERROR")]
     public void ServerPreface_DataFrame_ThrowsProtocolError()
     {
@@ -156,6 +167,7 @@ public sealed class Http2ConnectionPrefaceTests
         Assert.Equal(Http2ErrorCode.ProtocolError, ex.ErrorCode);
     }
 
+    /// RFC 9113 §3.4 — HEADERS frame as first frame throws PROTOCOL_ERROR
     [Fact(DisplayName = "RFC9113-3.4-SP-004: HEADERS frame as first frame throws PROTOCOL_ERROR")]
     public void ServerPreface_HeadersFrame_ThrowsProtocolError()
     {
@@ -168,6 +180,7 @@ public sealed class Http2ConnectionPrefaceTests
         Assert.Equal(Http2ErrorCode.ProtocolError, ex.ErrorCode);
     }
 
+    /// RFC 9113 §3.4 — PING frame as first frame throws PROTOCOL_ERROR
     [Fact(DisplayName = "RFC9113-3.4-SP-005: PING frame as first frame throws PROTOCOL_ERROR")]
     public void ServerPreface_PingFrame_ThrowsProtocolError()
     {
@@ -178,6 +191,7 @@ public sealed class Http2ConnectionPrefaceTests
         Assert.Equal(Http2ErrorCode.ProtocolError, ex.ErrorCode);
     }
 
+    /// RFC 9113 §3.4 — GOAWAY frame as first frame throws PROTOCOL_ERROR
     [Fact(DisplayName = "RFC9113-3.4-SP-006: GOAWAY frame as first frame throws PROTOCOL_ERROR")]
     public void ServerPreface_GoAwayFrame_ThrowsProtocolError()
     {
@@ -188,6 +202,7 @@ public sealed class Http2ConnectionPrefaceTests
         Assert.Equal(Http2ErrorCode.ProtocolError, ex.ErrorCode);
     }
 
+    /// RFC 9113 §3.4 — RST_STREAM frame as first frame throws PROTOCOL_ERROR
     [Fact(DisplayName = "RFC9113-3.4-SP-007: RST_STREAM frame as first frame throws PROTOCOL_ERROR")]
     public void ServerPreface_RstStreamFrame_ThrowsProtocolError()
     {
@@ -198,6 +213,7 @@ public sealed class Http2ConnectionPrefaceTests
         Assert.Equal(Http2ErrorCode.ProtocolError, ex.ErrorCode);
     }
 
+    /// RFC 9113 §3.4 — WINDOW_UPDATE frame as first frame throws PROTOCOL_ERROR
     [Fact(DisplayName = "RFC9113-3.4-SP-008: WINDOW_UPDATE frame as first frame throws PROTOCOL_ERROR")]
     public void ServerPreface_WindowUpdateFrame_ThrowsProtocolError()
     {
@@ -208,6 +224,7 @@ public sealed class Http2ConnectionPrefaceTests
         Assert.Equal(Http2ErrorCode.ProtocolError, ex.ErrorCode);
     }
 
+    /// RFC 9113 §3.4 — SETTINGS frame on non-zero stream throws PROTOCOL_ERROR
     [Fact(DisplayName = "RFC9113-3.4-SP-009: SETTINGS frame on non-zero stream throws PROTOCOL_ERROR")]
     public void ServerPreface_SettingsFrameOnNonZeroStream_ThrowsProtocolError()
     {
@@ -222,6 +239,7 @@ public sealed class Http2ConnectionPrefaceTests
         Assert.Equal(Http2ErrorCode.ProtocolError, ex.ErrorCode);
     }
 
+    /// RFC 9113 §3.4 — Exactly 9 bytes of SETTINGS on stream 0 is accepted
     [Fact(DisplayName = "RFC9113-3.4-SP-010: Exactly 9 bytes of SETTINGS on stream 0 is accepted")]
     public void ServerPreface_Exactly9BytesOfSettingsOnStream0_ReturnsTrue()
     {
@@ -235,6 +253,7 @@ public sealed class Http2ConnectionPrefaceTests
         Assert.True(result);
     }
 
+    /// RFC 9113 §3.4 — Multiple decoders each validate their own preface independently
     [Fact(DisplayName = "RFC9113-3.4-SP-011: Multiple decoders each validate their own preface independently")]
     public void ServerPreface_MultipleDecoders_ValidateIndependently()
     {
@@ -256,6 +275,7 @@ public sealed class Http2ConnectionPrefaceTests
         Assert.True(decoder1.ValidateServerPreface(validFrame));
     }
 
+    /// RFC 9113 §3.4 — CONTINUATION frame as first frame throws PROTOCOL_ERROR
     [Fact(DisplayName = "RFC9113-3.4-SP-012: CONTINUATION frame as first frame throws PROTOCOL_ERROR")]
     public void ServerPreface_ContinuationFrame_ThrowsProtocolError()
     {
@@ -268,6 +288,7 @@ public sealed class Http2ConnectionPrefaceTests
         Assert.Equal(Http2ErrorCode.ProtocolError, ex.ErrorCode);
     }
 
+    /// RFC 9113 §3.4 — PRIORITY frame as first frame throws PROTOCOL_ERROR
     [Fact(DisplayName = "RFC9113-3.4-SP-013: PRIORITY frame as first frame throws PROTOCOL_ERROR")]
     public void ServerPreface_PriorityFrame_ThrowsProtocolError()
     {
@@ -284,6 +305,7 @@ public sealed class Http2ConnectionPrefaceTests
     // Client preface round-trip: encoder produces preface, decoder validates it
     // =========================================================================
 
+    /// RFC 9113 §3.4 — Encoder preface passes ValidateServerPreface if server echoes SETTINGS
     [Fact(DisplayName = "RFC9113-3.4-RT-001: Encoder preface passes ValidateServerPreface if server echoes SETTINGS")]
     public void ClientPreface_FollowedByServerSettingsAck_ValidatesCorrectly()
     {
@@ -296,6 +318,7 @@ public sealed class Http2ConnectionPrefaceTests
         Assert.True(decoder.ValidateServerPreface(serverResponse));
     }
 
+    /// RFC 9113 §3.4 — Client preface SETTINGS payload entries are each 6 bytes
     [Fact(DisplayName = "RFC9113-3.4-RT-002: Client preface SETTINGS payload entries are each 6 bytes")]
     public void ClientPreface_SettingsEntries_AreEach6Bytes()
     {

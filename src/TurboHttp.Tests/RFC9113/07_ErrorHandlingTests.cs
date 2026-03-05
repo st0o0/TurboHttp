@@ -101,6 +101,7 @@ public sealed class Http2ErrorMappingTests
 
     // ── EM-001..EM-004: Http2ErrorScope enum sanity ───────────────────────────
 
+    /// RFC 7540 §5.4 — Http2Exception defaults to Connection scope
     [Fact(DisplayName = "EM-001: Http2Exception defaults to Connection scope")]
     public void Http2Exception_Default_IsConnectionScope()
     {
@@ -110,6 +111,7 @@ public sealed class Http2ErrorMappingTests
         Assert.Equal(0, ex.StreamId);
     }
 
+    /// RFC 7540 §5.4 — Http2Exception stream scope sets IsConnectionError=false
     [Fact(DisplayName = "EM-002: Http2Exception stream scope sets IsConnectionError=false")]
     public void Http2Exception_StreamScope_IsConnectionError_False()
     {
@@ -120,6 +122,7 @@ public sealed class Http2ErrorMappingTests
         Assert.Equal(3, ex.StreamId);
     }
 
+    /// RFC 7540 §5.4 — Http2Exception preserves ErrorCode when scope is set
     [Fact(DisplayName = "EM-003: Http2Exception preserves ErrorCode when scope is set")]
     public void Http2Exception_ErrorCode_PreservedWithScope()
     {
@@ -130,6 +133,7 @@ public sealed class Http2ErrorMappingTests
         Assert.Equal(7, ex.StreamId);
     }
 
+    /// RFC 7540 §5.4 — Http2Exception connection scope has StreamId=0
     [Fact(DisplayName = "EM-004: Http2Exception connection scope has StreamId=0")]
     public void Http2Exception_ConnectionScope_StreamIdIsZero()
     {
@@ -141,6 +145,7 @@ public sealed class Http2ErrorMappingTests
 
     // ── EM-005..EM-007: Connection errors — PROTOCOL_ERROR ───────────────────
 
+    /// RFC 7540 §5.4 — DATA on stream 0 is connection PROTOCOL ERROR
     [Fact(DisplayName = "EM-005: DATA on stream 0 is connection PROTOCOL_ERROR")]
     public void DataOnStream0_IsConnectionProtocolError()
     {
@@ -152,6 +157,7 @@ public sealed class Http2ErrorMappingTests
         Assert.True(ex.IsConnectionError);
     }
 
+    /// RFC 7540 §5.4 — DATA on idle stream is connection PROTOCOL ERROR
     [Fact(DisplayName = "EM-006: DATA on idle stream is connection PROTOCOL_ERROR")]
     public void DataOnIdleStream_IsConnectionProtocolError()
     {
@@ -163,6 +169,7 @@ public sealed class Http2ErrorMappingTests
         Assert.True(ex.IsConnectionError);
     }
 
+    /// RFC 7540 §5.4 — CONTINUATION without preceding HEADERS is connection PROTOCOL ERROR
     [Fact(DisplayName = "EM-007: CONTINUATION without preceding HEADERS is connection PROTOCOL_ERROR")]
     public void ContinuationWithoutHeaders_IsConnectionProtocolError()
     {
@@ -175,6 +182,7 @@ public sealed class Http2ErrorMappingTests
 
     // ── EM-008..EM-009: Connection errors — FRAME_SIZE_ERROR ─────────────────
 
+    /// RFC 7540 §5.4 — PING with wrong payload size is connection FRAME SIZE ERROR
     [Fact(DisplayName = "EM-008: PING with wrong payload size is connection FRAME_SIZE_ERROR")]
     public void PingWrongLength_IsConnectionFrameSizeError()
     {
@@ -185,6 +193,7 @@ public sealed class Http2ErrorMappingTests
         Assert.Equal(Http2ErrorScope.Connection, ex.Scope);
     }
 
+    /// RFC 7540 §5.4 — SETTINGS with non-multiple-of-6 length is connection FRAME SIZE ERROR
     [Fact(DisplayName = "EM-009: SETTINGS with non-multiple-of-6 length is connection FRAME_SIZE_ERROR")]
     public void SettingsWrongLength_IsConnectionFrameSizeError()
     {
@@ -197,6 +206,7 @@ public sealed class Http2ErrorMappingTests
 
     // ── EM-010..EM-011: Connection errors — FLOW_CONTROL_ERROR (connection-level)
 
+    /// RFC 7540 §5.4 — DATA exceeding connection receive window is connection FLOW CONTROL ERROR
     [Fact(DisplayName = "EM-010: DATA exceeding connection receive window is connection FLOW_CONTROL_ERROR")]
     public void DataExceedingConnectionWindow_IsConnectionFlowControlError()
     {
@@ -217,6 +227,7 @@ public sealed class Http2ErrorMappingTests
         Assert.True(ex.IsConnectionError);
     }
 
+    /// RFC 7540 §5.4 — WINDOW UPDATE connection overflow is connection FLOW CONTROL ERROR
     [Fact(DisplayName = "EM-011: WINDOW_UPDATE connection overflow is connection FLOW_CONTROL_ERROR")]
     public void WindowUpdateConnectionOverflow_IsConnectionFlowControlError()
     {
@@ -237,6 +248,7 @@ public sealed class Http2ErrorMappingTests
 
     // ── EM-012..EM-013: Stream errors — FLOW_CONTROL_ERROR (stream-level) ────
 
+    /// RFC 7540 §5.4 — DATA exceeding stream receive window is stream FLOW CONTROL ERROR
     [Fact(DisplayName = "EM-012: DATA exceeding stream receive window is stream FLOW_CONTROL_ERROR")]
     public void DataExceedingStreamWindow_IsStreamFlowControlError()
     {
@@ -258,6 +270,7 @@ public sealed class Http2ErrorMappingTests
         Assert.Equal(1, ex.StreamId);
     }
 
+    /// RFC 7540 §5.4 — Stream FLOW CONTROL ERROR carries the affected stream ID
     [Fact(DisplayName = "EM-013: Stream FLOW_CONTROL_ERROR carries the affected stream ID")]
     public void StreamFlowControlError_CarriesStreamId()
     {
@@ -275,6 +288,7 @@ public sealed class Http2ErrorMappingTests
         Assert.Equal(Http2ErrorScope.Stream, ex.Scope);
     }
 
+    /// RFC 7540 §5.4 — WINDOW UPDATE stream overflow is stream FLOW CONTROL ERROR
     [Fact(DisplayName = "EM-014: WINDOW_UPDATE stream overflow is stream FLOW_CONTROL_ERROR")]
     public void WindowUpdateStreamOverflow_IsStreamFlowControlError()
     {
@@ -299,6 +313,7 @@ public sealed class Http2ErrorMappingTests
 
     // ── EM-015..EM-016: Stream errors — STREAM_CLOSED ────────────────────────
 
+    /// RFC 7540 §5.4 — DATA on closed stream is stream STREAM CLOSED error
     [Fact(DisplayName = "EM-015: DATA on closed stream is stream STREAM_CLOSED error")]
     public void DataOnClosedStream_IsStreamStreamClosedError()
     {
@@ -317,6 +332,7 @@ public sealed class Http2ErrorMappingTests
         Assert.Equal(1, ex.StreamId);
     }
 
+    /// RFC 7540 §5.4 — STREAM CLOSED stream error carries the closed stream's ID
     [Fact(DisplayName = "EM-016: STREAM_CLOSED stream error carries the closed stream's ID")]
     public void DataOnClosedStream_CarriesClosedStreamId()
     {
@@ -335,6 +351,7 @@ public sealed class Http2ErrorMappingTests
 
     // ── EM-017..EM-018: Stream errors — REFUSED_STREAM ───────────────────────
 
+    /// RFC 7540 §5.4 — Exceeding MAX CONCURRENT STREAMS is stream REFUSED STREAM error
     [Fact(DisplayName = "EM-017: Exceeding MAX_CONCURRENT_STREAMS is stream REFUSED_STREAM error")]
     public void ExceedMaxConcurrentStreams_IsStreamRefusedStreamError()
     {
@@ -362,6 +379,7 @@ public sealed class Http2ErrorMappingTests
         Assert.False(ex.IsConnectionError);
     }
 
+    /// RFC 7540 §5.4 — REFUSED STREAM carries the refused stream's ID
     [Fact(DisplayName = "EM-018: REFUSED_STREAM carries the refused stream's ID")]
     public void RefusedStream_CarriesStreamId()
     {
@@ -388,6 +406,7 @@ public sealed class Http2ErrorMappingTests
 
     // ── EM-019..EM-020: Connection errors — HEADERS on closed stream ──────────
 
+    /// RFC 7540 §5.4 — HEADERS on closed stream is connection STREAM CLOSED error
     [Fact(DisplayName = "EM-019: HEADERS on closed stream is connection STREAM_CLOSED error")]
     public void HeadersOnClosedStream_IsConnectionStreamClosedError()
     {
@@ -406,6 +425,7 @@ public sealed class Http2ErrorMappingTests
         Assert.True(ex.IsConnectionError);
     }
 
+    /// RFC 7540 §5.4 — HEADERS closed-stream error is connection-scoped (RFC 7540 §6.2)
     [Fact(DisplayName = "EM-020: HEADERS closed-stream error is connection-scoped (RFC 7540 §6.2)")]
     public void HeadersOnClosedStream_ConnectionScope_NotStreamScope()
     {
@@ -426,6 +446,7 @@ public sealed class Http2ErrorMappingTests
 
     // ── EM-021..EM-023: Correct error codes for specific frame violations ─────
 
+    /// RFC 7540 §5.4 — RST STREAM with wrong payload length is connection FRAME SIZE ERROR
     [Fact(DisplayName = "EM-021: RST_STREAM with wrong payload length is connection FRAME_SIZE_ERROR")]
     public void RstStreamWrongLength_IsConnectionFrameSizeError()
     {
@@ -437,6 +458,7 @@ public sealed class Http2ErrorMappingTests
         Assert.Equal(Http2ErrorScope.Connection, ex.Scope);
     }
 
+    /// RFC 7540 §5.4 — WINDOW UPDATE with increment=0 is PROTOCOL ERROR
     [Fact(DisplayName = "EM-022: WINDOW_UPDATE with increment=0 is PROTOCOL_ERROR")]
     public void WindowUpdateZeroIncrement_IsProtocolError()
     {
@@ -446,6 +468,7 @@ public sealed class Http2ErrorMappingTests
         Assert.Equal(Http2ErrorCode.ProtocolError, ex.ErrorCode);
     }
 
+    /// RFC 7540 §5.4 — SETTINGS ACK with non-empty payload is FRAME SIZE ERROR
     [Fact(DisplayName = "EM-023: SETTINGS ACK with non-empty payload is FRAME_SIZE_ERROR")]
     public void SettingsAckWithPayload_IsFrameSizeError()
     {
@@ -458,6 +481,7 @@ public sealed class Http2ErrorMappingTests
 
     // ── EM-024..EM-025: Scope symmetry and future-proofing ───────────────────
 
+    /// RFC 7540 §5.4 — Stream and connection errors are mutually exclusive
     [Fact(DisplayName = "EM-024: Stream and connection errors are mutually exclusive")]
     public void Http2Exception_Scope_IsMutuallyExclusive()
     {
@@ -471,6 +495,7 @@ public sealed class Http2ErrorMappingTests
         Assert.NotEqual(connEx.Scope, strmEx.Scope);
     }
 
+    /// RFC 7540 §5.4 — Stream-level FLOW CONTROL ERROR and connection-level have different scopes
     [Fact(DisplayName = "EM-025: Stream-level FLOW_CONTROL_ERROR and connection-level have different scopes")]
     public void StreamAndConnectionFlowControlError_HaveDifferentScopes()
     {

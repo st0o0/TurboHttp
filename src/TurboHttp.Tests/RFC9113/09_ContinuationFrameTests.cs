@@ -50,6 +50,7 @@ public sealed class Http2ContinuationFrameTests
 
     // ── Enforce END_HEADERS ──────────────────────────────────────────────────
 
+    /// RFC 9113 §6.10 — HEADERS with END_HEADERS completes immediately without CONTINUATION
     [Fact(DisplayName = "RFC9113-6.10-CF-001: HEADERS with END_HEADERS completes immediately without CONTINUATION")]
     public void Should_ProduceResponse_When_HeadersHasEndHeadersSet()
     {
@@ -65,6 +66,7 @@ public sealed class Http2ContinuationFrameTests
         Assert.Equal(200, (int)result.Responses[0].Response.StatusCode);
     }
 
+    /// RFC 9113 §6.10 — HEADERS without END_HEADERS produces no response until CONTINUATION
     [Fact(DisplayName = "RFC9113-6.10-CF-002: HEADERS without END_HEADERS produces no response until CONTINUATION")]
     public void Should_ProduceNoResponse_When_HeadersLacksEndHeaders()
     {
@@ -77,6 +79,7 @@ public sealed class Http2ContinuationFrameTests
         Assert.False(result.HasResponses);
     }
 
+    /// RFC 9113 §6.10 — Single CONTINUATION with END_HEADERS completes header block
     [Fact(DisplayName = "RFC9113-6.10-CF-003: Single CONTINUATION with END_HEADERS completes header block")]
     public void Should_ProduceResponse_When_ContinuationHasEndHeaders()
     {
@@ -93,6 +96,7 @@ public sealed class Http2ContinuationFrameTests
         Assert.Equal(200, (int)result.Responses[0].Response.StatusCode);
     }
 
+    /// RFC 9113 §6.10 — CONTINUATION without END_HEADERS produces no response
     [Fact(DisplayName = "RFC9113-6.10-CF-004: CONTINUATION without END_HEADERS produces no response")]
     public void Should_ProduceNoResponse_When_ContinuationLacksEndHeaders()
     {
@@ -108,6 +112,7 @@ public sealed class Http2ContinuationFrameTests
         Assert.False(result.HasResponses);
     }
 
+    /// RFC 9113 §6.10 — Three CONTINUATION frames with last having END_HEADERS produces response
     [Fact(DisplayName = "RFC9113-6.10-CF-005: Three CONTINUATION frames with last having END_HEADERS produces response")]
     public void Should_ProduceResponse_When_ThreeContinuationFramesComplete()
     {
@@ -129,6 +134,7 @@ public sealed class Http2ContinuationFrameTests
         Assert.Equal(200, (int)result.Responses[0].Response.StatusCode);
     }
 
+    /// RFC 9113 §6.10 — Header values preserved across multiple CONTINUATION fragments
     [Fact(DisplayName = "RFC9113-6.10-CF-006: Header values preserved across multiple CONTINUATION fragments")]
     public void Should_PreserveHeaderValues_When_SplitAcrossContinuationFrames()
     {
@@ -150,6 +156,7 @@ public sealed class Http2ContinuationFrameTests
 
     // ── Require contiguous CONTINUATION frames ───────────────────────────────
 
+    /// RFC 9113 §6.10 — DATA frame interleaved while awaiting CONTINUATION is PROTOCOL_ERROR
     [Fact(DisplayName = "RFC9113-6.10-CF-007: DATA frame interleaved while awaiting CONTINUATION is PROTOCOL_ERROR")]
     public void Should_ThrowProtocolError_When_DataFrameInterleavesContinuation()
     {
@@ -172,6 +179,7 @@ public sealed class Http2ContinuationFrameTests
         Assert.Equal(Http2ErrorCode.ProtocolError, ex.ErrorCode);
     }
 
+    /// RFC 9113 §6.10 — PING frame interleaved while awaiting CONTINUATION is PROTOCOL_ERROR
     [Fact(DisplayName = "RFC9113-6.10-CF-008: PING frame interleaved while awaiting CONTINUATION is PROTOCOL_ERROR")]
     public void Should_ThrowProtocolError_When_PingInterleavesContinuation()
     {
@@ -186,6 +194,7 @@ public sealed class Http2ContinuationFrameTests
         Assert.Equal(Http2ErrorCode.ProtocolError, ex.ErrorCode);
     }
 
+    /// RFC 9113 §6.10 — SETTINGS frame interleaved while awaiting CONTINUATION is PROTOCOL_ERROR
     [Fact(DisplayName = "RFC9113-6.10-CF-009: SETTINGS frame interleaved while awaiting CONTINUATION is PROTOCOL_ERROR")]
     public void Should_ThrowProtocolError_When_SettingsInterleavesContinuation()
     {
@@ -200,6 +209,7 @@ public sealed class Http2ContinuationFrameTests
         Assert.Equal(Http2ErrorCode.ProtocolError, ex.ErrorCode);
     }
 
+    /// RFC 9113 §6.10 — RST_STREAM frame interleaved while awaiting CONTINUATION is PROTOCOL_ERROR
     [Fact(DisplayName = "RFC9113-6.10-CF-010: RST_STREAM frame interleaved while awaiting CONTINUATION is PROTOCOL_ERROR")]
     public void Should_ThrowProtocolError_When_RstStreamInterleavesContinuation()
     {
@@ -214,6 +224,7 @@ public sealed class Http2ContinuationFrameTests
         Assert.Equal(Http2ErrorCode.ProtocolError, ex.ErrorCode);
     }
 
+    /// RFC 9113 §6.10 — WINDOW_UPDATE frame interleaved while awaiting CONTINUATION is PROTOCOL_ERROR
     [Fact(DisplayName = "RFC9113-6.10-CF-011: WINDOW_UPDATE frame interleaved while awaiting CONTINUATION is PROTOCOL_ERROR")]
     public void Should_ThrowProtocolError_When_WindowUpdateInterleavesContinuation()
     {
@@ -228,6 +239,7 @@ public sealed class Http2ContinuationFrameTests
         Assert.Equal(Http2ErrorCode.ProtocolError, ex.ErrorCode);
     }
 
+    /// RFC 9113 §6.10 — GOAWAY frame interleaved while awaiting CONTINUATION is PROTOCOL_ERROR
     [Fact(DisplayName = "RFC9113-6.10-CF-012: GOAWAY frame interleaved while awaiting CONTINUATION is PROTOCOL_ERROR")]
     public void Should_ThrowProtocolError_When_GoAwayInterleavesContinuation()
     {
@@ -242,6 +254,7 @@ public sealed class Http2ContinuationFrameTests
         Assert.Equal(Http2ErrorCode.ProtocolError, ex.ErrorCode);
     }
 
+    /// RFC 9113 §6.10 — HEADERS frame for a different stream while awaiting CONTINUATION is PROTOCOL_ERROR
     [Fact(DisplayName = "RFC9113-6.10-CF-013: HEADERS frame for a different stream while awaiting CONTINUATION is PROTOCOL_ERROR")]
     public void Should_ThrowProtocolError_When_HeadersForOtherStreamInterleavesContinuation()
     {
@@ -260,6 +273,7 @@ public sealed class Http2ContinuationFrameTests
 
     // ── Reject interleaved frames ─────────────────────────────────────────────
 
+    /// RFC 9113 §6.10 — CONTINUATION on stream 0 is PROTOCOL_ERROR
     [Fact(DisplayName = "RFC9113-6.10-CF-014: CONTINUATION on stream 0 is PROTOCOL_ERROR")]
     public void Should_ThrowProtocolError_When_ContinuationOnStream0()
     {
@@ -280,6 +294,7 @@ public sealed class Http2ContinuationFrameTests
         Assert.Equal(Http2ErrorCode.ProtocolError, ex.ErrorCode);
     }
 
+    /// RFC 9113 §6.10 — CONTINUATION on different stream than HEADERS is PROTOCOL_ERROR
     [Fact(DisplayName = "RFC9113-6.10-CF-015: CONTINUATION on different stream than HEADERS is PROTOCOL_ERROR")]
     public void Should_ThrowProtocolError_When_ContinuationOnDifferentStream()
     {
@@ -294,6 +309,7 @@ public sealed class Http2ContinuationFrameTests
         Assert.Equal(Http2ErrorCode.ProtocolError, ex.ErrorCode);
     }
 
+    /// RFC 9113 §6.10 — CONTINUATION without preceding HEADERS is PROTOCOL_ERROR
     [Fact(DisplayName = "RFC9113-6.10-CF-016: CONTINUATION without preceding HEADERS is PROTOCOL_ERROR")]
     public void Should_ThrowProtocolError_When_ContinuationWithoutPrecedingHeaders()
     {
@@ -305,6 +321,7 @@ public sealed class Http2ContinuationFrameTests
         Assert.Equal(Http2ErrorCode.ProtocolError, ex.ErrorCode);
     }
 
+    /// RFC 9113 §6.10 — CONTINUATION after completed header block is PROTOCOL_ERROR
     [Fact(DisplayName = "RFC9113-6.10-CF-017: CONTINUATION after completed header block is PROTOCOL_ERROR")]
     public void Should_ThrowProtocolError_When_ContinuationAfterCompletedHeaderBlock()
     {
@@ -323,6 +340,7 @@ public sealed class Http2ContinuationFrameTests
 
     // ── Combined delivery ────────────────────────────────────────────────────
 
+    /// RFC 9113 §6.10 — HEADERS and CONTINUATION in same TryDecode call are processed
     [Fact(DisplayName = "RFC9113-6.10-CF-018: HEADERS and CONTINUATION in same TryDecode call are processed")]
     public void Should_ProduceResponse_When_HeadersAndContinuationDeliveredTogether()
     {
@@ -340,6 +358,7 @@ public sealed class Http2ContinuationFrameTests
         Assert.Equal(200, (int)result.Responses[0].Response.StatusCode);
     }
 
+    /// RFC 9113 §6.10 — HEADERS + three CONTINUATION frames in single TryDecode call
     [Fact(DisplayName = "RFC9113-6.10-CF-019: HEADERS + three CONTINUATION frames in single TryDecode call")]
     public void Should_ProduceResponse_When_ThreeFramesDeliveredTogether()
     {
@@ -360,6 +379,7 @@ public sealed class Http2ContinuationFrameTests
         Assert.Equal(404, (int)result.Responses[0].Response.StatusCode);
     }
 
+    /// RFC 9113 §6.10 — Fragmented CONTINUATION (partial frame bytes) buffered and completed
     [Fact(DisplayName = "RFC9113-6.10-CF-020: Fragmented CONTINUATION (partial frame bytes) buffered and completed")]
     public void Should_BufferPartialContinuation_When_TcpFragmented()
     {
@@ -381,6 +401,7 @@ public sealed class Http2ContinuationFrameTests
         Assert.Equal(200, (int)r2.Responses[0].Response.StatusCode);
     }
 
+    /// RFC 9113 §6.10 — Reset clears pending CONTINUATION state
     [Fact(DisplayName = "RFC9113-6.10-CF-021: Reset clears pending CONTINUATION state")]
     public void Should_ClearPendingContinuation_When_Reset()
     {
@@ -400,6 +421,7 @@ public sealed class Http2ContinuationFrameTests
         Assert.Single(result.Responses);
     }
 
+    /// RFC 9113 §6.10 — Error message includes offending stream ID when CONTINUATION on wrong stream
     [Fact(DisplayName = "RFC9113-6.10-CF-022: Error message includes offending stream ID when CONTINUATION on wrong stream")]
     public void Should_IncludeStreamIdInErrorMessage_When_ContinuationOnWrongStream()
     {
@@ -416,6 +438,7 @@ public sealed class Http2ContinuationFrameTests
         Assert.Contains("5", ex.Message);
     }
 
+    /// RFC 9113 §6.10 — CONTINUATION flood protection triggers at 1000 frames
     [Fact(DisplayName = "RFC9113-6.10-CF-023: CONTINUATION flood protection triggers at 1000 frames")]
     public void Should_ThrowProtocolError_When_ContinuationFloodExceeds1000Frames()
     {
@@ -436,6 +459,7 @@ public sealed class Http2ContinuationFrameTests
         Assert.Equal(Http2ErrorCode.ProtocolError, ex.ErrorCode);
     }
 
+    /// RFC 9113 §6.10 — END_STREAM on HEADERS is carried through to reassembled response
     [Fact(DisplayName = "RFC9113-6.10-CF-024: END_STREAM on HEADERS is carried through to reassembled response")]
     public void Should_CarryEndStream_When_ContinuationCompletesHeaderBlock()
     {
@@ -453,6 +477,7 @@ public sealed class Http2ContinuationFrameTests
         Assert.Single(result.Responses);
     }
 
+    /// RFC 9113 §6.10 — Without END_STREAM on HEADERS, response awaits DATA frame
     [Fact(DisplayName = "RFC9113-6.10-CF-025: Without END_STREAM on HEADERS, response awaits DATA frame")]
     public void Should_WaitForDataFrame_When_HeadersLacksEndStream()
     {

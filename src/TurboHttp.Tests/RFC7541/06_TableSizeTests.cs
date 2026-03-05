@@ -56,6 +56,7 @@ public sealed class HpackHeaderListSizeTests
 
     // ── HLS-00x: Default (no limit) ──────────────────────────────────────────
 
+    /// RFC 7540 §6.5.2 — Should DecodeHeaders When NoLimitConfigured
     [Fact(DisplayName = "HLS-001: Should_DecodeHeaders_When_NoLimitConfigured")]
     public void HLS_001_Default_NoLimit_ManyHeadersSucceed()
     {
@@ -73,6 +74,7 @@ public sealed class HpackHeaderListSizeTests
         Assert.Equal(50, headers.Count);
     }
 
+    /// RFC 7540 §6.5.2 — Should Throw When LimitIsZeroAndAnyHeaderDecoded
     [Fact(DisplayName = "HLS-002: Should_Throw_When_LimitIsZeroAndAnyHeaderDecoded")]
     public void HLS_002_LimitZero_AnyHeaderThrows()
     {
@@ -88,6 +90,7 @@ public sealed class HpackHeaderListSizeTests
 
     // ── HLS-01x: Exact limit boundary ────────────────────────────────────────
 
+    /// RFC 7540 §6.5.2 — Should Succeed When HeaderSizeExactlyEqualsLimit
     [Fact(DisplayName = "HLS-010: Should_Succeed_When_HeaderSizeExactlyEqualsLimit")]
     public void HLS_010_HeaderSizeEqualsLimit_Succeeds()
     {
@@ -103,6 +106,7 @@ public sealed class HpackHeaderListSizeTests
         Assert.Equal("value", headers[0].Value);
     }
 
+    /// RFC 7540 §6.5.2 — Should Throw When HeaderSizeOneBelowLimit
     [Fact(DisplayName = "HLS-011: Should_Throw_When_HeaderSizeOneBelowLimit")]
     public void HLS_011_HeaderSizeBelowLimitByOne_Throws()
     {
@@ -116,6 +120,7 @@ public sealed class HpackHeaderListSizeTests
         Assert.Contains("MAX_HEADER_LIST_SIZE", ex.Message);
     }
 
+    /// RFC 7540 §6.5.2 — Should Succeed When TwoHeadersSumToExactLimit
     [Fact(DisplayName = "HLS-012: Should_Succeed_When_TwoHeadersSumToExactLimit")]
     public void HLS_012_TwoHeadersExactlyAtLimit_Succeeds()
     {
@@ -129,6 +134,7 @@ public sealed class HpackHeaderListSizeTests
         Assert.Equal(2, headers.Count);
     }
 
+    /// RFC 7540 §6.5.2 — Should Throw When SecondHeaderExceedsLimit
     [Fact(DisplayName = "HLS-013: Should_Throw_When_SecondHeaderExceedsLimit")]
     public void HLS_013_SecondHeaderExceedsLimit_Throws()
     {
@@ -144,6 +150,7 @@ public sealed class HpackHeaderListSizeTests
 
     // ── HLS-02x: All representation types counted ─────────────────────────────
 
+    /// RFC 7540 §6.5.2 — Should CountIndexedStaticHeader Toward Limit
     [Fact(DisplayName = "HLS-020: Should_CountIndexedStaticHeader_Toward_Limit")]
     public void HLS_020_IndexedStaticHeader_CountedTowardLimit()
     {
@@ -159,6 +166,7 @@ public sealed class HpackHeaderListSizeTests
         Assert.Contains("MAX_HEADER_LIST_SIZE", ex.Message);
     }
 
+    /// RFC 7540 §6.5.2 — Should CountIndexedStaticHeader WhenExactlyAtLimit
     [Fact(DisplayName = "HLS-021: Should_CountIndexedStaticHeader_WhenExactlyAtLimit")]
     public void HLS_021_IndexedStaticHeader_AtExactLimit_Succeeds()
     {
@@ -174,6 +182,7 @@ public sealed class HpackHeaderListSizeTests
         Assert.Equal("200", headers[0].Value);
     }
 
+    /// RFC 7540 §6.5.2 — Should CountLiteralIncrementalIndexing Toward Limit
     [Fact(DisplayName = "HLS-022: Should_CountLiteralIncrementalIndexing_Toward_Limit")]
     public void HLS_022_LiteralIncrementalIndexing_CountedTowardLimit()
     {
@@ -187,6 +196,7 @@ public sealed class HpackHeaderListSizeTests
         Assert.Contains("MAX_HEADER_LIST_SIZE", ex.Message);
     }
 
+    /// RFC 7540 §6.5.2 — Should CountLiteralNeverIndex Toward Limit
     [Fact(DisplayName = "HLS-023: Should_CountLiteralNeverIndex_Toward_Limit")]
     public void HLS_023_LiteralNeverIndex_CountedTowardLimit()
     {
@@ -200,6 +210,7 @@ public sealed class HpackHeaderListSizeTests
         Assert.Contains("MAX_HEADER_LIST_SIZE", ex.Message);
     }
 
+    /// RFC 7540 §6.5.2 — Should CountIndexedDynamicHeader Toward Limit
     [Fact(DisplayName = "HLS-024: Should_CountIndexedDynamicHeader_Toward_Limit")]
     public void HLS_024_IndexedDynamicHeader_CountedTowardLimit()
     {
@@ -222,6 +233,7 @@ public sealed class HpackHeaderListSizeTests
         Assert.Contains("MAX_HEADER_LIST_SIZE", ex.Message);
     }
 
+    /// RFC 7540 §6.5.2 — Should CountLiteralNoIndexing Toward Limit
     [Fact(DisplayName = "HLS-025: Should_CountLiteralNoIndexing_Toward_Limit")]
     public void HLS_025_LiteralNoIndexing_CountedTowardLimit()
     {
@@ -236,6 +248,7 @@ public sealed class HpackHeaderListSizeTests
 
     // ── HLS-03x: Cumulative behavior ──────────────────────────────────────────
 
+    /// RFC 7540 §6.5.2 — Should AccumulateSizeAcrossAllHeaders
     [Fact(DisplayName = "HLS-030: Should_AccumulateSizeAcrossAllHeaders")]
     public void HLS_030_CumulativeSizeAcrossMultipleHeaders()
     {
@@ -257,6 +270,7 @@ public sealed class HpackHeaderListSizeTests
         Assert.Contains("MAX_HEADER_LIST_SIZE", ex.Message);
     }
 
+    /// RFC 7540 §6.5.2 — Should ResetCumulativeSize BetweenDecodeInvocations
     [Fact(DisplayName = "HLS-031: Should_ResetCumulativeSize_BetweenDecodeInvocations")]
     public void HLS_031_CumulativeResets_BetweenDecodeInvocations()
     {
@@ -275,6 +289,7 @@ public sealed class HpackHeaderListSizeTests
         Assert.Equal(2, h2.Count);
     }
 
+    /// RFC 7540 §6.5.2 — Should Throw When SingleLargeValueExceedsLimit
     [Fact(DisplayName = "HLS-032: Should_Throw_When_SingleLargeValueExceedsLimit")]
     public void HLS_032_LargeValueHeader_ExceedsLimit()
     {
@@ -290,6 +305,7 @@ public sealed class HpackHeaderListSizeTests
 
     // ── HLS-04x: SetMaxHeaderListSize argument validation ────────────────────
 
+    /// RFC 7540 §6.5.2 — Should Throw When NegativeSizeProvided
     [Fact(DisplayName = "HLS-040: Should_Throw_When_NegativeSizeProvided")]
     public void HLS_040_NegativeSize_ThrowsHpackException()
     {
@@ -299,6 +315,7 @@ public sealed class HpackHeaderListSizeTests
         Assert.Contains("MAX_HEADER_LIST_SIZE", ex.Message);
     }
 
+    /// RFC 7540 §6.5.2 — Should Accept ZeroSizeLimit
     [Fact(DisplayName = "HLS-041: Should_Accept_ZeroSizeLimit")]
     public void HLS_041_ZeroSize_IsValidAndEnforced()
     {
@@ -309,6 +326,7 @@ public sealed class HpackHeaderListSizeTests
         Assert.Throws<HpackException>(() => decoder.Decode(block));
     }
 
+    /// RFC 7540 §6.5.2 — Should Accept MaxIntSizeLimit AsUnlimited
     [Fact(DisplayName = "HLS-042: Should_Accept_MaxIntSizeLimit_AsUnlimited")]
     public void HLS_042_MaxIntSize_EffectivelyUnlimited()
     {
@@ -325,6 +343,7 @@ public sealed class HpackHeaderListSizeTests
         Assert.Equal(100, headers.Count);
     }
 
+    /// RFC 7540 §6.5.2 — Should RaiseLimit AllowingPreviouslyFailingDecodes
     [Fact(DisplayName = "HLS-043: Should_RaiseLimit_AllowingPreviouslyFailingDecodes")]
     public void HLS_043_RaiseLimit_PreviouslyFailingDecodesNowSucceed()
     {
@@ -346,6 +365,7 @@ public sealed class HpackHeaderListSizeTests
 
     // ── HLS-05x: Message quality and edge cases ───────────────────────────────
 
+    /// RFC 7540 §6.5.2 — Should ThrowWithRfcReference InExceptionMessage
     [Fact(DisplayName = "HLS-050: Should_ThrowWithRfcReference_InExceptionMessage")]
     public void HLS_050_ExceptionMessage_ContainsRfcReference()
     {
@@ -359,6 +379,7 @@ public sealed class HpackHeaderListSizeTests
         Assert.Contains("6.5.2", ex.Message);
     }
 
+    /// RFC 7540 §6.5.2 — Should ThrowWithCompressionError InExceptionMessage
     [Fact(DisplayName = "HLS-051: Should_ThrowWithCompressionError_InExceptionMessage")]
     public void HLS_051_ExceptionMessage_ContainsCompressionError()
     {
@@ -370,6 +391,7 @@ public sealed class HpackHeaderListSizeTests
         Assert.Contains("COMPRESSION_ERROR", ex.Message);
     }
 
+    /// RFC 7540 §6.5.2 — Should Handle EmptyHeaderBlock UnderAnyLimit
     [Fact(DisplayName = "HLS-052: Should_Handle_EmptyHeaderBlock_UnderAnyLimit")]
     public void HLS_052_EmptyBlock_AlwaysSucceeds()
     {
@@ -381,6 +403,7 @@ public sealed class HpackHeaderListSizeTests
         Assert.Empty(headers);
     }
 
+    /// RFC 7540 §6.5.2 — Should CountStaticEntry UsingCorrectOctetSize
     [Fact(DisplayName = "HLS-053: Should_CountStaticEntry_UsingCorrectOctetSize")]
     public void HLS_053_StaticEntry_SizeCorrectlyCalculated()
     {
@@ -396,6 +419,7 @@ public sealed class HpackHeaderListSizeTests
         Assert.Equal("GET", headers[0].Value);
     }
 
+    /// RFC 7540 §6.5.2 — Should Throw When StaticEntryExceedsExactLimit
     [Fact(DisplayName = "HLS-054: Should_Throw_When_StaticEntryExceedsExactLimit")]
     public void HLS_054_StaticEntry_ExceedsExactLimit_Throws()
     {
@@ -408,6 +432,7 @@ public sealed class HpackHeaderListSizeTests
         Assert.Contains("MAX_HEADER_LIST_SIZE", ex.Message);
     }
 
+    /// RFC 7540 §6.5.2 — Should Succeed When MixedRepresentationsUnderLimit
     [Fact(DisplayName = "HLS-055: Should_Succeed_When_MixedRepresentationsUnderLimit")]
     public void HLS_055_MixedRepresentations_UnderLimit_Succeeds()
     {
@@ -426,6 +451,7 @@ public sealed class HpackHeaderListSizeTests
         Assert.Equal(3, headers.Count);
     }
 
+    /// RFC 7540 §6.5.2 — Should Throw When MixedRepresentationsExceedLimit
     [Fact(DisplayName = "HLS-056: Should_Throw_When_MixedRepresentationsExceedLimit")]
     public void HLS_056_MixedRepresentations_ExceedLimit_Throws()
     {

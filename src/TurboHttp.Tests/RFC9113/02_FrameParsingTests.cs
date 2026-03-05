@@ -27,6 +27,7 @@ public sealed class Http2FrameParsingCoreTests
     // Frame Header Parsing (RFC 7540 §4.1)
     // =========================================================================
 
+    /// RFC 7540 §4.1 — Zero bytes returns false (NeedMoreData)
     [Fact(DisplayName = "RFC7540-4.1-FP-001: Zero bytes returns false (NeedMoreData)")]
     public void FrameHeader_ZeroBytes_ReturnsFalse()
     {
@@ -35,6 +36,7 @@ public sealed class Http2FrameParsingCoreTests
         Assert.False(ok);
     }
 
+    /// RFC 7540 §4.1 — 8 bytes (one short of frame header) returns false
     [Fact(DisplayName = "RFC7540-4.1-FP-002: 8 bytes (one short of frame header) returns false")]
     public void FrameHeader_EightBytes_ReturnsFalse()
     {
@@ -44,6 +46,7 @@ public sealed class Http2FrameParsingCoreTests
         Assert.False(ok);
     }
 
+    /// RFC 7540 §4.1 — Exactly 9 bytes with zero-length payload is decoded
     [Fact(DisplayName = "RFC7540-4.1-FP-003: Exactly 9 bytes with zero-length payload is decoded")]
     public void FrameHeader_Exactly9BytesEmptyPayload_IsDecoded()
     {
@@ -57,6 +60,7 @@ public sealed class Http2FrameParsingCoreTests
         Assert.False(result.HasNewSettings);
     }
 
+    /// RFC 7540 §4.1 — Frame with 0 payload length field accepted
     [Fact(DisplayName = "RFC7540-4.1-FP-004: Frame with 0 payload length field accepted")]
     public void FrameHeader_ZeroLengthField_IsAccepted()
     {
@@ -73,6 +77,7 @@ public sealed class Http2FrameParsingCoreTests
         Assert.True(ok);
     }
 
+    /// RFC 7540 §4.1 — Frame buffered across two TryDecode calls (fragmented)
     [Fact(DisplayName = "RFC7540-4.1-FP-005: Frame buffered across two TryDecode calls (fragmented)")]
     public void FrameHeader_FragmentedAcrossCallsReassembled()
     {
@@ -93,6 +98,7 @@ public sealed class Http2FrameParsingCoreTests
     // 24-Bit Length Field (RFC 7540 §4.1)
     // =========================================================================
 
+    /// RFC 7540 §4.1 — Length field uses all 24 bits (payload > 65535)
     [Fact(DisplayName = "RFC7540-4.1-FP-006: Length field uses all 24 bits (payload > 65535)")]
     public void FrameHeader_LargePayloadUses24BitLength()
     {
@@ -125,6 +131,7 @@ public sealed class Http2FrameParsingCoreTests
     // Frame Size Limits (RFC 7540 §4.2, §6.5.2)
     // =========================================================================
 
+    /// RFC 7540 §4.2 — Default MAX_FRAME_SIZE is 16384 (2^14)
     [Fact(DisplayName = "RFC7540-4.2-FP-007: Default MAX_FRAME_SIZE is 16384 (2^14)")]
     public void FrameSize_DefaultMaxIs16384()
     {
@@ -153,6 +160,7 @@ public sealed class Http2FrameParsingCoreTests
         Assert.Null(ex);
     }
 
+    /// RFC 7540 §4.2 — Frame 1 byte over MAX_FRAME_SIZE causes FRAME_SIZE_ERROR
     [Fact(DisplayName = "RFC7540-4.2-FP-008: Frame 1 byte over MAX_FRAME_SIZE causes FRAME_SIZE_ERROR")]
     public void FrameSize_OneBeyondMax_ThrowsFrameSizeError()
     {
@@ -170,6 +178,7 @@ public sealed class Http2FrameParsingCoreTests
         Assert.Equal(Http2ErrorCode.FrameSizeError, ex.ErrorCode);
     }
 
+    /// RFC 7540 §4.2 — After SETTINGS update, larger frames are accepted
     [Fact(DisplayName = "RFC7540-4.2-FP-009: After SETTINGS update, larger frames are accepted")]
     public void FrameSize_AfterSettingsUpdate_LargerFrameAccepted()
     {
@@ -197,6 +206,7 @@ public sealed class Http2FrameParsingCoreTests
         Assert.Null(ex);
     }
 
+    /// RFC 7540 §4.2 — SETTINGS_MAX_FRAME_SIZE below 16384 is PROTOCOL_ERROR
     [Fact(DisplayName = "RFC7540-4.2-FP-010: SETTINGS_MAX_FRAME_SIZE below 16384 is PROTOCOL_ERROR")]
     public void FrameSize_MaxFrameSizeBelowMin_ThrowsProtocolError()
     {
@@ -206,6 +216,7 @@ public sealed class Http2FrameParsingCoreTests
         Assert.Equal(Http2ErrorCode.ProtocolError, ex.ErrorCode);
     }
 
+    /// RFC 7540 §4.2 — SETTINGS_MAX_FRAME_SIZE above 16777215 is PROTOCOL_ERROR
     [Fact(DisplayName = "RFC7540-4.2-FP-011: SETTINGS_MAX_FRAME_SIZE above 16777215 is PROTOCOL_ERROR")]
     public void FrameSize_MaxFrameSizeAboveMax_ThrowsProtocolError()
     {
@@ -215,6 +226,7 @@ public sealed class Http2FrameParsingCoreTests
         Assert.Equal(Http2ErrorCode.ProtocolError, ex.ErrorCode);
     }
 
+    /// RFC 7540 §4.2 — SETTINGS_MAX_FRAME_SIZE of exactly 16777215 is accepted
     [Fact(DisplayName = "RFC7540-4.2-FP-012: SETTINGS_MAX_FRAME_SIZE of exactly 16777215 is accepted")]
     public void FrameSize_MaxFrameSizeAtMaxBoundary_IsAccepted()
     {
@@ -228,6 +240,7 @@ public sealed class Http2FrameParsingCoreTests
     // Unknown Frame Types (RFC 7540 §4.1)
     // =========================================================================
 
+    /// RFC 7540 §4.1 — Unknown frame type 0x0F is silently ignored
     [Fact(DisplayName = "RFC7540-4.1-FP-013: Unknown frame type 0x0F is silently ignored")]
     public void FrameType_Unknown0x0F_IsIgnored()
     {
@@ -246,6 +259,7 @@ public sealed class Http2FrameParsingCoreTests
         Assert.False(result.HasNewSettings);
     }
 
+    /// RFC 7540 §4.1 — Multiple unknown frame types in sequence are all ignored
     [Fact(DisplayName = "RFC7540-4.1-FP-014: Multiple unknown frame types in sequence are all ignored")]
     public void FrameType_MultipleUnknown_AllIgnored()
     {
@@ -263,6 +277,7 @@ public sealed class Http2FrameParsingCoreTests
         Assert.False(result.HasNewSettings);
     }
 
+    /// RFC 7540 §4.1 — Unknown frame type with maximum payload is ignored
     [Fact(DisplayName = "RFC7540-4.1-FP-015: Unknown frame type with maximum payload is ignored")]
     public void FrameType_UnknownWithLargePayload_IsIgnored()
     {
@@ -286,6 +301,7 @@ public sealed class Http2FrameParsingCoreTests
     // Stream ID Rules (RFC 7540 §4.1, §6.5, §6.7, §6.8)
     // =========================================================================
 
+    /// RFC 7540 §6.5 — SETTINGS on non-zero stream causes PROTOCOL_ERROR
     [Fact(DisplayName = "RFC7540-6.5-FP-016: SETTINGS on non-zero stream causes PROTOCOL_ERROR")]
     public void Settings_OnNonZeroStream_ThrowsProtocolError()
     {
@@ -302,6 +318,7 @@ public sealed class Http2FrameParsingCoreTests
         Assert.Contains("stream 1", ex.Message, StringComparison.OrdinalIgnoreCase);
     }
 
+    /// RFC 7540 §6.7 — PING on non-zero stream causes PROTOCOL_ERROR
     [Fact(DisplayName = "RFC7540-6.7-FP-017: PING on non-zero stream causes PROTOCOL_ERROR")]
     public void Ping_OnNonZeroStream_ThrowsProtocolError()
     {
@@ -318,6 +335,7 @@ public sealed class Http2FrameParsingCoreTests
         Assert.Equal(Http2ErrorCode.ProtocolError, ex.ErrorCode);
     }
 
+    /// RFC 7540 §6.8 — GOAWAY on non-zero stream causes PROTOCOL_ERROR
     [Fact(DisplayName = "RFC7540-6.8-FP-018: GOAWAY on non-zero stream causes PROTOCOL_ERROR")]
     public void GoAway_OnNonZeroStream_ThrowsProtocolError()
     {
@@ -334,6 +352,7 @@ public sealed class Http2FrameParsingCoreTests
         Assert.Equal(Http2ErrorCode.ProtocolError, ex.ErrorCode);
     }
 
+    /// RFC 7540 §6.9 — WINDOW_UPDATE on stream 0 (connection-level) is accepted
     [Fact(DisplayName = "RFC7540-6.9-FP-019: WINDOW_UPDATE on stream 0 (connection-level) is accepted")]
     public void WindowUpdate_OnStream0_IsAccepted()
     {
@@ -343,6 +362,7 @@ public sealed class Http2FrameParsingCoreTests
         Assert.Null(ex);
     }
 
+    /// RFC 7540 §6.9 — WINDOW_UPDATE on non-zero stream (stream-level) is accepted
     [Fact(DisplayName = "RFC7540-6.9-FP-020: WINDOW_UPDATE on non-zero stream (stream-level) is accepted")]
     public void WindowUpdate_OnNonZeroStream_IsAccepted()
     {
@@ -356,6 +376,7 @@ public sealed class Http2FrameParsingCoreTests
     // Frame-Specific Payload Size Validation (RFC 7540 §6.4/§6.5/§6.7/§6.9)
     // =========================================================================
 
+    /// RFC 7540 §6.5 — SETTINGS payload not multiple of 6 is FRAME_SIZE_ERROR
     [Fact(DisplayName = "RFC7540-6.5-FP-021: SETTINGS payload not multiple of 6 is FRAME_SIZE_ERROR")]
     public void Settings_NonMultipleOf6Payload_ThrowsFrameSizeError()
     {
@@ -373,6 +394,7 @@ public sealed class Http2FrameParsingCoreTests
         Assert.Equal(Http2ErrorCode.FrameSizeError, ex.ErrorCode);
     }
 
+    /// RFC 7540 §6.5 — SETTINGS ACK with non-empty payload is FRAME_SIZE_ERROR
     [Fact(DisplayName = "RFC7540-6.5-FP-022: SETTINGS ACK with non-empty payload is FRAME_SIZE_ERROR")]
     public void Settings_AckWithNonEmptyPayload_ThrowsFrameSizeError()
     {
@@ -389,6 +411,7 @@ public sealed class Http2FrameParsingCoreTests
         Assert.Equal(Http2ErrorCode.FrameSizeError, ex.ErrorCode);
     }
 
+    /// RFC 7540 §6.7 — PING with 7-byte payload is FRAME_SIZE_ERROR
     [Fact(DisplayName = "RFC7540-6.7-FP-023: PING with 7-byte payload is FRAME_SIZE_ERROR")]
     public void Ping_SevenBytePayload_ThrowsFrameSizeError()
     {
@@ -405,6 +428,7 @@ public sealed class Http2FrameParsingCoreTests
         Assert.Equal(Http2ErrorCode.FrameSizeError, ex.ErrorCode);
     }
 
+    /// RFC 7540 §6.7 — PING with 9-byte payload is FRAME_SIZE_ERROR
     [Fact(DisplayName = "RFC7540-6.7-FP-024: PING with 9-byte payload is FRAME_SIZE_ERROR")]
     public void Ping_NineBytePayload_ThrowsFrameSizeError()
     {
@@ -421,6 +445,7 @@ public sealed class Http2FrameParsingCoreTests
         Assert.Equal(Http2ErrorCode.FrameSizeError, ex.ErrorCode);
     }
 
+    /// RFC 7540 §6.9 — WINDOW_UPDATE with 3-byte payload is FRAME_SIZE_ERROR
     [Fact(DisplayName = "RFC7540-6.9-FP-025: WINDOW_UPDATE with 3-byte payload is FRAME_SIZE_ERROR")]
     public void WindowUpdate_ThreeBytePayload_ThrowsFrameSizeError()
     {
@@ -437,6 +462,7 @@ public sealed class Http2FrameParsingCoreTests
         Assert.Equal(Http2ErrorCode.FrameSizeError, ex.ErrorCode);
     }
 
+    /// RFC 7540 §6.4 — RST_STREAM with 3-byte payload is FRAME_SIZE_ERROR
     [Fact(DisplayName = "RFC7540-6.4-FP-026: RST_STREAM with 3-byte payload is FRAME_SIZE_ERROR")]
     public void RstStream_ThreeBytePayload_ThrowsFrameSizeError()
     {
@@ -453,6 +479,7 @@ public sealed class Http2FrameParsingCoreTests
         Assert.Equal(Http2ErrorCode.FrameSizeError, ex.ErrorCode);
     }
 
+    /// RFC 7540 §6.4 — RST_STREAM with 5-byte payload is FRAME_SIZE_ERROR
     [Fact(DisplayName = "RFC7540-6.4-FP-027: RST_STREAM with 5-byte payload is FRAME_SIZE_ERROR")]
     public void RstStream_FiveBytePayload_ThrowsFrameSizeError()
     {
@@ -473,6 +500,7 @@ public sealed class Http2FrameParsingCoreTests
     // Unknown Flags Are Silently Ignored (RFC 7540 §4.1)
     // =========================================================================
 
+    /// RFC 7540 §4.1 — SETTINGS with unknown flag bits set is processed normally
     [Fact(DisplayName = "RFC7540-4.1-FP-028: SETTINGS with unknown flag bits set is processed normally")]
     public void Settings_UnknownFlagBits_AreIgnored()
     {
@@ -491,6 +519,7 @@ public sealed class Http2FrameParsingCoreTests
         Assert.True(result.HasNewSettings);
     }
 
+    /// RFC 7540 §4.1 — PING ACK with unknown flag bits set is processed normally
     [Fact(DisplayName = "RFC7540-4.1-FP-029: PING ACK with unknown flag bits set is processed normally")]
     public void Ping_UnknownFlagBitsOnAck_AreIgnored()
     {
@@ -509,6 +538,7 @@ public sealed class Http2FrameParsingCoreTests
         Assert.Single(result.PingAcks);
     }
 
+    /// RFC 7540 §4.1 — GoAway frame with debug data parsed correctly
     [Fact(DisplayName = "RFC7540-4.1-FP-030: GoAway frame with debug data parsed correctly")]
     public void GoAway_WithDebugData_ParsedCorrectly()
     {
@@ -528,6 +558,7 @@ public sealed class Http2FrameParsingCoreTests
     // Invalid Frame in Stream State (RFC 7540 §5.1)
     // =========================================================================
 
+    /// RFC 7540 §5.1 — CONTINUATION without preceding HEADERS causes PROTOCOL_ERROR
     [Fact(DisplayName = "RFC7540-5.1-FP-031: CONTINUATION without preceding HEADERS causes PROTOCOL_ERROR")]
     public void Continuation_WithoutPrecedingHeaders_ThrowsProtocolError()
     {
@@ -545,6 +576,7 @@ public sealed class Http2FrameParsingCoreTests
         Assert.Equal(Http2ErrorCode.ProtocolError, ex.ErrorCode);
     }
 
+    /// RFC 7540 §5.1 — Non-CONTINUATION frame after HEADERS without END_HEADERS causes PROTOCOL_ERROR
     [Fact(DisplayName = "RFC7540-5.1-FP-032: Non-CONTINUATION frame after HEADERS without END_HEADERS causes PROTOCOL_ERROR")]
     public void NonContinuation_AfterHeadersWithoutEndHeaders_ThrowsProtocolError()
     {

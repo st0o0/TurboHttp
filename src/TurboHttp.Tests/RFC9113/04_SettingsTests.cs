@@ -26,6 +26,7 @@ public sealed class Http2SettingsSynchronizationTests
     // Category 1: Connection Preface includes SETTINGS (RFC 7540 §3.5)
     // =========================================================================
 
+    /// RFC 7540 §3.5 — BuildConnectionPreface produces magic + SETTINGS frame
     [Fact(DisplayName = "RFC7540-3.5-SS-001: BuildConnectionPreface produces magic + SETTINGS frame")]
     public void Preface_IncludesSettingsFrame()
     {
@@ -40,6 +41,7 @@ public sealed class Http2SettingsSynchronizationTests
         Assert.Equal(FrameType.Settings, frameType);
     }
 
+    /// RFC 7540 §3.5 — Connection preface SETTINGS is on stream 0
     [Fact(DisplayName = "RFC7540-3.5-SS-002: Connection preface SETTINGS is on stream 0")]
     public void Preface_SettingsIsOnStreamZero()
     {
@@ -48,6 +50,7 @@ public sealed class Http2SettingsSynchronizationTests
         Assert.Equal(0, streamId);
     }
 
+    /// RFC 7540 §3.5 — Connection preface SETTINGS contains HeaderTableSize=4096
     [Fact(DisplayName = "RFC7540-3.5-SS-003: Connection preface SETTINGS contains HeaderTableSize=4096")]
     public void Preface_SettingsContainsHeaderTableSize4096()
     {
@@ -55,6 +58,7 @@ public sealed class Http2SettingsSynchronizationTests
         Assert.True(ContainsSetting(preface, 24, SettingsParameter.HeaderTableSize, 4096));
     }
 
+    /// RFC 7540 §3.5 — Connection preface SETTINGS contains EnablePush=0
     [Fact(DisplayName = "RFC7540-3.5-SS-004: Connection preface SETTINGS contains EnablePush=0")]
     public void Preface_SettingsContainsEnablePush0()
     {
@@ -62,6 +66,7 @@ public sealed class Http2SettingsSynchronizationTests
         Assert.True(ContainsSetting(preface, 24, SettingsParameter.EnablePush, 0));
     }
 
+    /// RFC 7540 §3.5 — Connection preface SETTINGS contains MaxFrameSize=16384
     [Fact(DisplayName = "RFC7540-3.5-SS-005: Connection preface SETTINGS contains MaxFrameSize=16384")]
     public void Preface_SettingsContainsMaxFrameSize16384()
     {
@@ -73,6 +78,7 @@ public sealed class Http2SettingsSynchronizationTests
     // Category 2: Decoder applies SETTINGS_MAX_FRAME_SIZE (RFC 7540 §6.5.2)
     // =========================================================================
 
+    /// RFC 7540 §6.5.2 — MaxFrameSize=16383 is PROTOCOL_ERROR
     [Fact(DisplayName = "RFC7540-6.5.2-SS-006: MaxFrameSize=16383 is PROTOCOL_ERROR")]
     public void Settings_MaxFrameSize_BelowMin_ThrowsProtocolError()
     {
@@ -82,6 +88,7 @@ public sealed class Http2SettingsSynchronizationTests
         Assert.Equal(Http2ErrorCode.ProtocolError, ex.ErrorCode);
     }
 
+    /// RFC 7540 §6.5.2 — MaxFrameSize=16777216 is PROTOCOL_ERROR
     [Fact(DisplayName = "RFC7540-6.5.2-SS-007: MaxFrameSize=16777216 is PROTOCOL_ERROR")]
     public void Settings_MaxFrameSize_AboveMax_ThrowsProtocolError()
     {
@@ -91,6 +98,7 @@ public sealed class Http2SettingsSynchronizationTests
         Assert.Equal(Http2ErrorCode.ProtocolError, ex.ErrorCode);
     }
 
+    /// RFC 7540 §6.5.2 — After MaxFrameSize update, larger frames are accepted
     [Fact(DisplayName = "RFC7540-6.5.2-SS-008: After MaxFrameSize update, larger frames are accepted")]
     public void Settings_MaxFrameSize_Update_AllowsLargerFrames()
     {
@@ -123,6 +131,7 @@ public sealed class Http2SettingsSynchronizationTests
     // Category 3: Decoder validates SETTINGS_INITIAL_WINDOW_SIZE (RFC 7540 §6.5.2)
     // =========================================================================
 
+    /// RFC 7540 §6.5.2 — InitialWindowSize above 2^31-1 is FLOW_CONTROL_ERROR
     [Fact(DisplayName = "RFC7540-6.5.2-SS-009: InitialWindowSize above 2^31-1 is FLOW_CONTROL_ERROR")]
     public void Settings_InitialWindowSize_Overflow_ThrowsFlowControlError()
     {
@@ -132,6 +141,7 @@ public sealed class Http2SettingsSynchronizationTests
         Assert.Equal(Http2ErrorCode.FlowControlError, ex.ErrorCode);
     }
 
+    /// RFC 7540 §6.5.2 — InitialWindowSize of exactly 2^31-1 is accepted
     [Fact(DisplayName = "RFC7540-6.5.2-SS-010: InitialWindowSize of exactly 2^31-1 is accepted")]
     public void Settings_InitialWindowSize_MaxValid_Accepted()
     {
@@ -145,6 +155,7 @@ public sealed class Http2SettingsSynchronizationTests
     // Category 4: Decoder validates SETTINGS_ENABLE_PUSH (RFC 7540 §6.5.2)
     // =========================================================================
 
+    /// RFC 7540 §6.5.2 — EnablePush=0 is accepted
     [Fact(DisplayName = "RFC7540-6.5.2-SS-011: EnablePush=0 is accepted")]
     public void Settings_EnablePush_Zero_Accepted()
     {
@@ -154,6 +165,7 @@ public sealed class Http2SettingsSynchronizationTests
         Assert.True(result.HasNewSettings);
     }
 
+    /// RFC 7540 §6.5.2 — EnablePush=1 is accepted
     [Fact(DisplayName = "RFC7540-6.5.2-SS-012: EnablePush=1 is accepted")]
     public void Settings_EnablePush_One_Accepted()
     {
@@ -163,6 +175,7 @@ public sealed class Http2SettingsSynchronizationTests
         Assert.True(result.HasNewSettings);
     }
 
+    /// RFC 7540 §6.5.2 — EnablePush=2 is PROTOCOL_ERROR
     [Fact(DisplayName = "RFC7540-6.5.2-SS-013: EnablePush=2 is PROTOCOL_ERROR")]
     public void Settings_EnablePush_Two_ThrowsProtocolError()
     {
@@ -176,6 +189,7 @@ public sealed class Http2SettingsSynchronizationTests
     // Category 5: Decoder applies SETTINGS_MAX_CONCURRENT_STREAMS (RFC 7540 §6.5.2)
     // =========================================================================
 
+    /// RFC 7540 §6.5.2 — MaxConcurrentStreams=0 blocks all new streams
     [Fact(DisplayName = "RFC7540-6.5.2-SS-014: MaxConcurrentStreams=0 blocks all new streams")]
     public void Settings_MaxConcurrentStreams_Zero_BlocksAllStreams()
     {
@@ -190,6 +204,7 @@ public sealed class Http2SettingsSynchronizationTests
         Assert.Equal(Http2ErrorCode.RefusedStream, ex.ErrorCode);
     }
 
+    /// RFC 7540 §6.5.2 — MaxConcurrentStreams=1 allows exactly one stream
     [Fact(DisplayName = "RFC7540-6.5.2-SS-015: MaxConcurrentStreams=1 allows exactly one stream")]
     public void Settings_MaxConcurrentStreams_One_AllowsOneStream()
     {
@@ -205,6 +220,7 @@ public sealed class Http2SettingsSynchronizationTests
     // Category 6: Decoder applies SETTINGS_HEADER_TABLE_SIZE to HPACK (RFC 7541 §4.2)
     // =========================================================================
 
+    /// RFC 7541 §4.2 — HeaderTableSize=0 accepted and applied to HPACK decoder
     [Fact(DisplayName = "RFC7541-4.2-SS-016: HeaderTableSize=0 accepted and applied to HPACK decoder")]
     public void Settings_HeaderTableSize_Zero_Accepted()
     {
@@ -215,6 +231,7 @@ public sealed class Http2SettingsSynchronizationTests
         Assert.True(result.HasNewSettings);
     }
 
+    /// RFC 7541 §4.2 — HeaderTableSize=1024 accepted and applied
     [Fact(DisplayName = "RFC7541-4.2-SS-017: HeaderTableSize=1024 accepted and applied")]
     public void Settings_HeaderTableSize_1024_Accepted()
     {
@@ -225,6 +242,7 @@ public sealed class Http2SettingsSynchronizationTests
         Assert.Contains(result.ReceivedSettings[0], p => p.Item1 == SettingsParameter.HeaderTableSize && p.Item2 == 1024u);
     }
 
+    /// RFC 7541 §4.2 — HeaderTableSize=4096 (default) accepted and applied
     [Fact(DisplayName = "RFC7541-4.2-SS-018: HeaderTableSize=4096 (default) accepted and applied")]
     public void Settings_HeaderTableSize_Default_Accepted()
     {
@@ -238,6 +256,7 @@ public sealed class Http2SettingsSynchronizationTests
     // Category 7: Decoder emits SETTINGS ACK (RFC 7540 §6.5)
     // =========================================================================
 
+    /// RFC 7540 §6.5 — Non-ACK SETTINGS produces one SETTINGS ACK to send
     [Fact(DisplayName = "RFC7540-6.5-SS-019: Non-ACK SETTINGS produces one SETTINGS ACK to send")]
     public void HandleSettings_NonAck_ProducesSettingsAck()
     {
@@ -248,6 +267,7 @@ public sealed class Http2SettingsSynchronizationTests
         Assert.Single(result.SettingsAcksToSend);
     }
 
+    /// RFC 7540 §6.5 — SETTINGS ACK frame produces no new ACK in return
     [Fact(DisplayName = "RFC7540-6.5-SS-020: SETTINGS ACK frame produces no new ACK in return")]
     public void HandleSettings_AckFrame_ProducesNoAck()
     {
@@ -258,6 +278,7 @@ public sealed class Http2SettingsSynchronizationTests
         Assert.Empty(result.SettingsAcksToSend);
     }
 
+    /// RFC 7540 §6.5 — Three SETTINGS frames produce three ACKs to send
     [Fact(DisplayName = "RFC7540-6.5-SS-021: Three SETTINGS frames produce three ACKs to send")]
     public void HandleSettings_ThreeSettings_ProducesThreeAcks()
     {
@@ -273,6 +294,7 @@ public sealed class Http2SettingsSynchronizationTests
         Assert.Equal(3, result.SettingsAcksToSend.Count);
     }
 
+    /// RFC 7540 §6.5 — Empty SETTINGS frame (zero parameters) produces ACK
     [Fact(DisplayName = "RFC7540-6.5-SS-022: Empty SETTINGS frame (zero parameters) produces ACK")]
     public void HandleSettings_EmptyPayload_ProducesAck()
     {
@@ -289,6 +311,7 @@ public sealed class Http2SettingsSynchronizationTests
         Assert.Single(result.SettingsAcksToSend);
     }
 
+    /// RFC 7540 §6.5 — Encoded SETTINGS ACK is a valid 9-byte frame
     [Fact(DisplayName = "RFC7540-6.5-SS-023: Encoded SETTINGS ACK is a valid 9-byte frame")]
     public void EncodeSettingsAck_ProducesValidAckFrame()
     {
@@ -310,6 +333,7 @@ public sealed class Http2SettingsSynchronizationTests
     // Category 8: SETTINGS flood protection (security)
     // =========================================================================
 
+    /// RFC 7540 security — SETTINGS flood above 100 frames throws EnhanceYourCalm
     [Fact(DisplayName = "RFC7540-security-SS-024: SETTINGS flood above 100 frames throws EnhanceYourCalm")]
     public void Settings_FloodProtection_ThrowsAfterLimit()
     {
@@ -327,6 +351,7 @@ public sealed class Http2SettingsSynchronizationTests
         Assert.Equal(Http2ErrorCode.EnhanceYourCalm, ex.ErrorCode);
     }
 
+    /// RFC 7540 security — SETTINGS ACK frames do not count toward flood limit
     [Fact(DisplayName = "RFC7540-security-SS-025: SETTINGS ACK frames do not count toward flood limit")]
     public void Settings_AckFrames_DoNotCountTowardFloodLimit()
     {
@@ -341,6 +366,7 @@ public sealed class Http2SettingsSynchronizationTests
         // No exception thrown — pass
     }
 
+    /// RFC 7540 security — Reset clears SETTINGS flood counter
     [Fact(DisplayName = "RFC7540-security-SS-026: Reset clears SETTINGS flood counter")]
     public void Settings_FloodCounter_ClearedOnReset()
     {
@@ -368,6 +394,7 @@ public sealed class Http2SettingsSynchronizationTests
     // Category 9: Unknown parameter handling (RFC 7540 §6.5)
     // =========================================================================
 
+    /// RFC 7540 §6.5 — Unknown SETTINGS parameter ID is silently ignored
     [Fact(DisplayName = "RFC7540-6.5-SS-027: Unknown SETTINGS parameter ID is silently ignored")]
     public void Settings_UnknownParameterId_Ignored()
     {
@@ -386,6 +413,7 @@ public sealed class Http2SettingsSynchronizationTests
         // Unknown param is decoded but doesn't break anything
     }
 
+    /// RFC 7540 §6.5 — Multiple parameters in one SETTINGS frame are all applied
     [Fact(DisplayName = "RFC7540-6.5-SS-028: Multiple parameters in one SETTINGS frame are all applied")]
     public void Settings_MultipleParameters_AllApplied()
     {

@@ -44,6 +44,7 @@ public sealed class Http2GoAwayRstStreamTests
     // GA-001..005: GetGoAwayLastStreamId and IsGoingAway
     // =========================================================================
 
+    /// RFC 7540 §6.8 — GetGoAwayLastStreamId returns int.MaxValue before GOAWAY
     [Fact(DisplayName = "RFC7540-6.8-GA-001: GetGoAwayLastStreamId returns int.MaxValue before GOAWAY")]
     public void GetGoAwayLastStreamId_BeforeGoAway_ReturnsIntMaxValue()
     {
@@ -51,6 +52,7 @@ public sealed class Http2GoAwayRstStreamTests
         Assert.Equal(int.MaxValue, decoder.GetGoAwayLastStreamId());
     }
 
+    /// RFC 7540 §6.8 — IsGoingAway returns false before GOAWAY
     [Fact(DisplayName = "RFC7540-6.8-GA-002: IsGoingAway returns false before GOAWAY")]
     public void IsGoingAway_BeforeGoAway_ReturnsFalse()
     {
@@ -58,6 +60,7 @@ public sealed class Http2GoAwayRstStreamTests
         Assert.False(decoder.IsGoingAway);
     }
 
+    /// RFC 7540 §6.8 — After GOAWAY received, GetGoAwayLastStreamId returns lastStreamId
     [Fact(DisplayName = "RFC7540-6.8-GA-003: After GOAWAY received, GetGoAwayLastStreamId returns lastStreamId")]
     public void GetGoAwayLastStreamId_AfterGoAway_ReturnsLastStreamId()
     {
@@ -66,6 +69,7 @@ public sealed class Http2GoAwayRstStreamTests
         Assert.Equal(7, decoder.GetGoAwayLastStreamId());
     }
 
+    /// RFC 7540 §6.8 — After GOAWAY received, IsGoingAway returns true
     [Fact(DisplayName = "RFC7540-6.8-GA-004: After GOAWAY received, IsGoingAway returns true")]
     public void IsGoingAway_AfterGoAway_ReturnsTrue()
     {
@@ -74,6 +78,7 @@ public sealed class Http2GoAwayRstStreamTests
         Assert.True(decoder.IsGoingAway);
     }
 
+    /// RFC 7540 §6.8 — GOAWAY with lastStreamId=0 recorded correctly
     [Fact(DisplayName = "RFC7540-6.8-GA-005: GOAWAY with lastStreamId=0 recorded correctly")]
     public void GetGoAwayLastStreamId_LastStreamIdZero_RecordedCorrectly()
     {
@@ -86,6 +91,7 @@ public sealed class Http2GoAwayRstStreamTests
     // GA-006..008: Stop new streams after GOAWAY
     // =========================================================================
 
+    /// RFC 7540 §6.8 — New stream HEADERS after GOAWAY throws PROTOCOL_ERROR
     [Fact(DisplayName = "RFC7540-6.8-GA-006: New stream HEADERS after GOAWAY throws PROTOCOL_ERROR")]
     public void NewStream_AfterGoAway_ThrowsProtocolError()
     {
@@ -97,6 +103,7 @@ public sealed class Http2GoAwayRstStreamTests
         Assert.Equal(Http2ErrorCode.ProtocolError, ex.ErrorCode);
     }
 
+    /// RFC 7540 §6.8 — GOAWAY with lastStreamId=0 blocks all new streams
     [Fact(DisplayName = "RFC7540-6.8-GA-007: GOAWAY with lastStreamId=0 blocks all new streams")]
     public void NewStream_AfterGoAwayLastStreamIdZero_ThrowsProtocolError()
     {
@@ -107,6 +114,7 @@ public sealed class Http2GoAwayRstStreamTests
         Assert.Equal(Http2ErrorCode.ProtocolError, ex.ErrorCode);
     }
 
+    /// RFC 7540 §6.8 — Second GOAWAY updates lastStreamId
     [Fact(DisplayName = "RFC7540-6.8-GA-008: Second GOAWAY updates lastStreamId")]
     public void SecondGoAway_UpdatesLastStreamId()
     {
@@ -120,6 +128,7 @@ public sealed class Http2GoAwayRstStreamTests
     // GA-009..013: Clean up streams > lastStreamId
     // =========================================================================
 
+    /// RFC 7540 §6.8 — Streams with ID > lastStreamId are moved to Closed after GOAWAY
     [Fact(DisplayName = "RFC7540-6.8-GA-009: Streams with ID > lastStreamId are moved to Closed after GOAWAY")]
     public void StreamsAboveLastStreamId_AfterGoAway_AreClosed()
     {
@@ -144,6 +153,7 @@ public sealed class Http2GoAwayRstStreamTests
         Assert.Equal(Http2StreamLifecycleState.Open, decoder.GetStreamLifecycleState(3));
     }
 
+    /// RFC 7540 §6.8 — Active stream count decremented for cleaned-up streams
     [Fact(DisplayName = "RFC7540-6.8-GA-010: Active stream count decremented for cleaned-up streams")]
     public void ActiveStreamCount_AfterGoAway_DecrementedForCancelledStreams()
     {
@@ -161,6 +171,7 @@ public sealed class Http2GoAwayRstStreamTests
         Assert.Equal(1, decoder.GetActiveStreamCount());
     }
 
+    /// RFC 7540 §6.8 — DATA for stream > lastStreamId after GOAWAY is rejected
     [Fact(DisplayName = "RFC7540-6.8-GA-011: DATA for stream > lastStreamId after GOAWAY is rejected")]
     public void Data_ForCleanedUpStream_AfterGoAway_IsRejected()
     {
@@ -176,6 +187,7 @@ public sealed class Http2GoAwayRstStreamTests
         Assert.Equal(Http2ErrorCode.StreamClosed, ex.ErrorCode);
     }
 
+    /// RFC 7540 §6.8 — DATA for stream ≤ lastStreamId after GOAWAY is still processed
     [Fact(DisplayName = "RFC7540-6.8-GA-012: DATA for stream ≤ lastStreamId after GOAWAY is still processed")]
     public void Data_ForStreamAtOrBelowLastStreamId_AfterGoAway_IsProcessed()
     {
@@ -192,6 +204,7 @@ public sealed class Http2GoAwayRstStreamTests
         Assert.Equal(1, result.Responses[0].StreamId);
     }
 
+    /// RFC 7540 §6.8 — GOAWAY with lastStreamId=int.MaxValue cleans up nothing
     [Fact(DisplayName = "RFC7540-6.8-GA-013: GOAWAY with lastStreamId=int.MaxValue cleans up nothing")]
     public void GoAway_LastStreamIdMaxValue_NothingCleaned()
     {
@@ -214,6 +227,7 @@ public sealed class Http2GoAwayRstStreamTests
     // GA-014..015: Reset() clears GOAWAY state
     // =========================================================================
 
+    /// RFC 7540 §6.8 — Reset() clears IsGoingAway flag
     [Fact(DisplayName = "RFC7540-6.8-GA-014: Reset() clears IsGoingAway flag")]
     public void Reset_ClearsIsGoingAway()
     {
@@ -225,6 +239,7 @@ public sealed class Http2GoAwayRstStreamTests
         Assert.False(decoder.IsGoingAway);
     }
 
+    /// RFC 7540 §6.8 — Reset() restores GetGoAwayLastStreamId to int.MaxValue
     [Fact(DisplayName = "RFC7540-6.8-GA-015: Reset() restores GetGoAwayLastStreamId to int.MaxValue")]
     public void Reset_RestoresGetGoAwayLastStreamId()
     {
@@ -236,6 +251,7 @@ public sealed class Http2GoAwayRstStreamTests
         Assert.Equal(int.MaxValue, decoder.GetGoAwayLastStreamId());
     }
 
+    /// RFC 7540 §6.8 — After Reset(), new streams can be opened again
     [Fact(DisplayName = "RFC7540-6.8-GA-016: After Reset(), new streams can be opened again")]
     public void AfterReset_NewStreamsCanBeOpened()
     {
@@ -253,6 +269,7 @@ public sealed class Http2GoAwayRstStreamTests
     // GA-017..019: Edge cases
     // =========================================================================
 
+    /// RFC 7540 §6.8 — GOAWAY on non-zero stream throws PROTOCOL_ERROR
     [Fact(DisplayName = "RFC7540-6.8-GA-017: GOAWAY on non-zero stream throws PROTOCOL_ERROR")]
     public void GoAway_OnNonZeroStream_ThrowsProtocolError()
     {
@@ -272,6 +289,7 @@ public sealed class Http2GoAwayRstStreamTests
         Assert.Equal(Http2ErrorCode.ProtocolError, ex.ErrorCode);
     }
 
+    /// RFC 7540 §6.8 — GOAWAY with debug data does not affect stream cleanup
     [Fact(DisplayName = "RFC7540-6.8-GA-018: GOAWAY with debug data does not affect stream cleanup")]
     public void GoAway_WithDebugData_StreamCleanupStillWorks()
     {
@@ -286,6 +304,7 @@ public sealed class Http2GoAwayRstStreamTests
         Assert.Equal(3, decoder.GetGoAwayLastStreamId());
     }
 
+    /// RFC 7540 §6.8 — GOAWAY result contains GoAway frame details
     [Fact(DisplayName = "RFC7540-6.8-GA-019: GOAWAY result contains GoAway frame details")]
     public void GoAway_DecodeResult_ContainsGoAwayDetails()
     {
@@ -301,6 +320,7 @@ public sealed class Http2GoAwayRstStreamTests
     // GA-020: Multiple streams cleanup
     // =========================================================================
 
+    /// RFC 7540 §6.8 — GOAWAY cleans up multiple streams above lastStreamId
     [Fact(DisplayName = "RFC7540-6.8-GA-020: GOAWAY cleans up multiple streams above lastStreamId")]
     public void GoAway_MultiplePendingStreams_AllAboveLastStreamIdCleaned()
     {

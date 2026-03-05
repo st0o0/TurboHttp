@@ -68,6 +68,7 @@ public sealed class Http2FlowControlTests
 
     // ── FC-001..005: Connection Receive Window Tracking ───────────────────────
 
+    /// RFC 7540 §5.2 — Initial connection receive window is 65535
     [Fact(DisplayName = "FC-001: Initial connection receive window is 65535")]
     public void Should_HaveDefaultConnectionReceiveWindow_When_DecoderCreated()
     {
@@ -75,6 +76,7 @@ public sealed class Http2FlowControlTests
         Assert.Equal(65535, decoder.GetConnectionReceiveWindow());
     }
 
+    /// RFC 7540 §5.2 — Connection receive window decrements after DATA received
     [Fact(DisplayName = "FC-002: Connection receive window decrements after DATA received")]
     public void Should_DecrementConnectionReceiveWindow_When_DataFrameReceived()
     {
@@ -88,6 +90,7 @@ public sealed class Http2FlowControlTests
         Assert.Equal(65535 - 1000, decoder.GetConnectionReceiveWindow());
     }
 
+    /// RFC 7540 §5.2 — FlowControlError when DATA exceeds connection receive window
     [Fact(DisplayName = "FC-003: FlowControlError when DATA exceeds connection receive window")]
     public void Should_ThrowFlowControlError_When_DataExceedsConnectionWindow()
     {
@@ -101,6 +104,7 @@ public sealed class Http2FlowControlTests
         Assert.Equal(Http2ErrorCode.FlowControlError, ex.ErrorCode);
     }
 
+    /// RFC 7540 §5.2 — FlowControlError when DATA exceeds stream window but not connection window
     [Fact(DisplayName = "FC-004: FlowControlError when DATA exceeds stream window but not connection window")]
     public void Should_ThrowFlowControlError_When_DataExceedsStreamWindowButNotConnectionWindow()
     {
@@ -115,6 +119,7 @@ public sealed class Http2FlowControlTests
         Assert.Equal(Http2ErrorCode.FlowControlError, ex.ErrorCode);
     }
 
+    /// RFC 7540 §5.2 — No FlowControlError when DATA is exactly at connection window limit
     [Fact(DisplayName = "FC-005: No FlowControlError when DATA is exactly at connection window limit")]
     public void Should_AcceptData_When_DataEqualsConnectionWindow()
     {
@@ -132,6 +137,7 @@ public sealed class Http2FlowControlTests
 
     // ── FC-006..010: Stream Receive Window Tracking ───────────────────────────
 
+    /// RFC 7540 §5.2 — Initial stream receive window is 65535
     [Fact(DisplayName = "FC-006: Initial stream receive window is 65535")]
     public void Should_HaveDefaultStreamReceiveWindow_When_StreamOpened()
     {
@@ -139,6 +145,7 @@ public sealed class Http2FlowControlTests
         Assert.Equal(65535, decoder.GetStreamReceiveWindow(1));
     }
 
+    /// RFC 7540 §5.2 — Connection receive window decrements by DATA size
     [Fact(DisplayName = "FC-007: Connection receive window decrements by DATA size")]
     public void Should_DecrementConnectionWindowByDataSize_When_LargeDataFrameReceived()
     {
@@ -152,6 +159,7 @@ public sealed class Http2FlowControlTests
         Assert.Equal(65535 - 2000, decoder.GetConnectionReceiveWindow());
     }
 
+    /// RFC 7540 §5.2 — FlowControlError when DATA exceeds stream receive window
     [Fact(DisplayName = "FC-008: FlowControlError when DATA exceeds stream receive window")]
     public void Should_ThrowFlowControlError_When_DataExceedsStreamWindow()
     {
@@ -165,6 +173,7 @@ public sealed class Http2FlowControlTests
         Assert.Equal(Http2ErrorCode.FlowControlError, ex.ErrorCode);
     }
 
+    /// RFC 7540 §5.2 — SetStreamReceiveWindow updates stream window correctly
     [Fact(DisplayName = "FC-009: SetStreamReceiveWindow updates stream window correctly")]
     public void Should_UpdateStreamWindow_When_SetStreamReceiveWindowCalled()
     {
@@ -173,6 +182,7 @@ public sealed class Http2FlowControlTests
         Assert.Equal(999, decoder.GetStreamReceiveWindow(1));
     }
 
+    /// RFC 7540 §5.2 — Unknown stream receive window defaults to 65535
     [Fact(DisplayName = "FC-010: Unknown stream receive window defaults to 65535")]
     public void Should_Return65535_When_StreamReceiveWindowRequestedForUnknownStream()
     {
@@ -182,6 +192,7 @@ public sealed class Http2FlowControlTests
 
     // ── FC-011..015: Connection Send Window (WINDOW_UPDATE from server) ───────
 
+    /// RFC 7540 §5.2 — Initial connection send window is 65535
     [Fact(DisplayName = "FC-011: Initial connection send window is 65535")]
     public void Should_HaveDefaultConnectionSendWindow_When_DecoderCreated()
     {
@@ -189,6 +200,7 @@ public sealed class Http2FlowControlTests
         Assert.Equal(65535L, decoder.GetConnectionSendWindow());
     }
 
+    /// RFC 7540 §5.2 — WINDOW UPDATE on stream 0 increases connection send window
     [Fact(DisplayName = "FC-012: WINDOW_UPDATE on stream 0 increases connection send window")]
     public void Should_IncreaseConnectionSendWindow_When_WindowUpdateReceivedOnStream0()
     {
@@ -198,6 +210,7 @@ public sealed class Http2FlowControlTests
         Assert.Equal(65535L + 1000, decoder.GetConnectionSendWindow());
     }
 
+    /// RFC 7540 §5.2 — Multiple WINDOW UPDATEs on stream 0 accumulate
     [Fact(DisplayName = "FC-013: Multiple WINDOW_UPDATEs on stream 0 accumulate")]
     public void Should_AccumulateConnectionSendWindow_When_MultipleWindowUpdatesReceived()
     {
@@ -209,6 +222,7 @@ public sealed class Http2FlowControlTests
         Assert.Equal(65535L + 1500, decoder.GetConnectionSendWindow());
     }
 
+    /// RFC 7540 §5.2 — FlowControlError when connection send window overflows 2^31-1
     [Fact(DisplayName = "FC-014: FlowControlError when connection send window overflows 2^31-1")]
     public void Should_ThrowFlowControlError_When_ConnectionSendWindowWouldOverflow()
     {
@@ -221,6 +235,7 @@ public sealed class Http2FlowControlTests
         Assert.Equal(Http2ErrorCode.FlowControlError, ex.ErrorCode);
     }
 
+    /// RFC 7540 §5.2 — Connection send window at exactly 2^31-1 is accepted
     [Fact(DisplayName = "FC-015: Connection send window at exactly 2^31-1 is accepted")]
     public void Should_AcceptWindowUpdate_When_ConnectionSendWindowReachesMaxExactly()
     {
@@ -235,6 +250,7 @@ public sealed class Http2FlowControlTests
 
     // ── FC-016..020: Stream Send Window (WINDOW_UPDATE for stream > 0) ────────
 
+    /// RFC 7540 §5.2 — Initial stream send window defaults to SETTINGS INITIAL WINDOW SIZE (65535)
     [Fact(DisplayName = "FC-016: Initial stream send window defaults to SETTINGS_INITIAL_WINDOW_SIZE (65535)")]
     public void Should_ReturnInitialWindowSize_When_StreamSendWindowRequestedBeforeAnyUpdate()
     {
@@ -242,6 +258,7 @@ public sealed class Http2FlowControlTests
         Assert.Equal(65535L, decoder.GetStreamSendWindow(1));
     }
 
+    /// RFC 7540 §5.2 — WINDOW UPDATE on stream N increases that stream's send window
     [Fact(DisplayName = "FC-017: WINDOW_UPDATE on stream N increases that stream's send window")]
     public void Should_IncreaseStreamSendWindow_When_WindowUpdateReceivedForStream()
     {
@@ -251,6 +268,7 @@ public sealed class Http2FlowControlTests
         Assert.Equal(65535L + 2000, decoder.GetStreamSendWindow(1));
     }
 
+    /// RFC 7540 §5.2 — Multiple stream WINDOW UPDATEs accumulate independently per stream
     [Fact(DisplayName = "FC-018: Multiple stream WINDOW_UPDATEs accumulate independently per stream")]
     public void Should_TrackSendWindowsIndependently_When_MultipleStreamsUpdated()
     {
@@ -265,6 +283,7 @@ public sealed class Http2FlowControlTests
         Assert.Equal(65535L, decoder.GetStreamSendWindow(5)); // untouched stream
     }
 
+    /// RFC 7540 §5.2 — FlowControlError when stream send window overflows 2^31-1
     [Fact(DisplayName = "FC-019: FlowControlError when stream send window overflows 2^31-1")]
     public void Should_ThrowFlowControlError_When_StreamSendWindowWouldOverflow()
     {
@@ -277,6 +296,7 @@ public sealed class Http2FlowControlTests
         Assert.Contains("stream 1", ex.Message);
     }
 
+    /// RFC 7540 §5.2 — Stream send window at exactly 2^31-1 is accepted
     [Fact(DisplayName = "FC-020: Stream send window at exactly 2^31-1 is accepted")]
     public void Should_AcceptStreamWindowUpdate_When_StreamSendWindowReachesMaxExactly()
     {
@@ -290,6 +310,7 @@ public sealed class Http2FlowControlTests
 
     // ── FC-021..023: WINDOW_UPDATE Validation ─────────────────────────────────
 
+    /// RFC 7540 §5.2 — Zero-increment WINDOW UPDATE on stream 0 is a PROTOCOL ERROR
     [Fact(DisplayName = "FC-021: Zero-increment WINDOW_UPDATE on stream 0 is a PROTOCOL_ERROR")]
     public void Should_ThrowProtocolError_When_ConnectionWindowUpdateIncrementIsZero()
     {
@@ -301,6 +322,7 @@ public sealed class Http2FlowControlTests
         Assert.Equal(Http2ErrorCode.ProtocolError, ex.ErrorCode);
     }
 
+    /// RFC 7540 §5.2 — Zero-increment WINDOW UPDATE on stream N is a PROTOCOL ERROR
     [Fact(DisplayName = "FC-022: Zero-increment WINDOW_UPDATE on stream N is a PROTOCOL_ERROR")]
     public void Should_ThrowProtocolError_When_StreamWindowUpdateIncrementIsZero()
     {
@@ -312,6 +334,7 @@ public sealed class Http2FlowControlTests
         Assert.Equal(Http2ErrorCode.ProtocolError, ex.ErrorCode);
     }
 
+    /// RFC 7540 §5.2 — WINDOW UPDATE with wrong payload size is a FRAME SIZE ERROR
     [Fact(DisplayName = "FC-023: WINDOW_UPDATE with wrong payload size is a FRAME_SIZE_ERROR")]
     public void Should_ThrowFrameSizeError_When_WindowUpdatePayloadIsNot4Bytes()
     {
@@ -325,6 +348,7 @@ public sealed class Http2FlowControlTests
 
     // ── FC-024..028: Automatic WINDOW_UPDATE Generation ───────────────────────
 
+    /// RFC 7540 §5.2 — DATA frame generates connection and stream WINDOW UPDATEs to send
     [Fact(DisplayName = "FC-024: DATA frame generates connection and stream WINDOW_UPDATEs to send")]
     public void Should_GenerateWindowUpdatesToSend_When_DataFrameReceived()
     {
@@ -338,6 +362,7 @@ public sealed class Http2FlowControlTests
         Assert.Equal(2, result.WindowUpdatesToSend.Count);
     }
 
+    /// RFC 7540 §5.2 — Generated connection WINDOW UPDATE has correct increment and stream 0
     [Fact(DisplayName = "FC-025: Generated connection WINDOW_UPDATE has correct increment and stream 0")]
     public void Should_GenerateConnectionWindowUpdateWithCorrectIncrement_When_DataReceived()
     {
@@ -356,6 +381,7 @@ public sealed class Http2FlowControlTests
         Assert.Equal(1234, connIncrement);
     }
 
+    /// RFC 7540 §5.2 — Generated stream WINDOW UPDATE has correct stream ID and increment
     [Fact(DisplayName = "FC-026: Generated stream WINDOW_UPDATE has correct stream ID and increment")]
     public void Should_GenerateStreamWindowUpdateWithCorrectStreamId_When_DataReceived()
     {
@@ -374,6 +400,7 @@ public sealed class Http2FlowControlTests
         Assert.Equal(777, streamIncrement);
     }
 
+    /// RFC 7540 §5.2 — Zero-length DATA does not generate WINDOW UPDATE
     [Fact(DisplayName = "FC-027: Zero-length DATA does not generate WINDOW_UPDATE")]
     public void Should_NotGenerateWindowUpdates_When_ZeroLengthDataReceived()
     {
@@ -384,6 +411,7 @@ public sealed class Http2FlowControlTests
         Assert.Empty(result.WindowUpdatesToSend);
     }
 
+    /// RFC 7540 §5.2 — Multiple DATA frames generate 2 WINDOW UPDATEs per frame
     [Fact(DisplayName = "FC-028: Multiple DATA frames generate 2 WINDOW_UPDATEs per frame")]
     public void Should_GenerateTwoWindowUpdatesPerDataFrame_When_MultipleDataFramesReceived()
     {
@@ -401,6 +429,7 @@ public sealed class Http2FlowControlTests
 
     // ── FC-029..032: SETTINGS_INITIAL_WINDOW_SIZE ─────────────────────────────
 
+    /// RFC 7540 §5.2 — SETTINGS INITIAL WINDOW SIZE updates default send window for unknown streams
     [Fact(DisplayName = "FC-029: SETTINGS_INITIAL_WINDOW_SIZE updates default send window for unknown streams")]
     public void Should_UseNewInitialWindowSize_When_SettingsUpdatesInitialWindowSize()
     {
@@ -413,6 +442,7 @@ public sealed class Http2FlowControlTests
         Assert.Equal(32768L, decoder.GetStreamSendWindow(99));
     }
 
+    /// RFC 7540 §5.2 — SETTINGS INITIAL WINDOW SIZE applies delta to existing open streams
     [Fact(DisplayName = "FC-030: SETTINGS_INITIAL_WINDOW_SIZE applies delta to existing open streams")]
     public void Should_ApplyDeltaToOpenStreams_When_InitialWindowSizeSettingChanges()
     {
@@ -427,6 +457,7 @@ public sealed class Http2FlowControlTests
         Assert.Equal(32768L, decoder.GetStreamSendWindow(1));
     }
 
+    /// RFC 7540 §5.2 — SETTINGS INITIAL WINDOW SIZE increase applies positive delta to open streams
     [Fact(DisplayName = "FC-031: SETTINGS_INITIAL_WINDOW_SIZE increase applies positive delta to open streams")]
     public void Should_IncreaseOpenStreamsWindowByDelta_When_InitialWindowSizeIncreased()
     {
@@ -447,6 +478,7 @@ public sealed class Http2FlowControlTests
         Assert.Equal(65535L + 1000 + 10000, decoder.GetStreamSendWindow(1));
     }
 
+    /// RFC 7540 §5.2 — SETTINGS INITIAL WINDOW SIZE value > 2^31-1 causes FLOW CONTROL ERROR
     [Fact(DisplayName = "FC-032: SETTINGS_INITIAL_WINDOW_SIZE value > 2^31-1 causes FLOW_CONTROL_ERROR")]
     public void Should_ThrowFlowControlError_When_InitialWindowSizeExceedsMax()
     {
@@ -460,6 +492,7 @@ public sealed class Http2FlowControlTests
 
     // ── FC-033..035: Reset Clears All Flow Control State ──────────────────────
 
+    /// RFC 7540 §5.2 — Reset restores connection receive window to 65535
     [Fact(DisplayName = "FC-033: Reset restores connection receive window to 65535")]
     public void Should_RestoreConnectionReceiveWindowTo65535_When_ResetCalled()
     {
@@ -469,6 +502,7 @@ public sealed class Http2FlowControlTests
         Assert.Equal(65535, decoder.GetConnectionReceiveWindow());
     }
 
+    /// RFC 7540 §5.2 — Reset restores connection send window to 65535
     [Fact(DisplayName = "FC-034: Reset restores connection send window to 65535")]
     public void Should_RestoreConnectionSendWindowTo65535_When_ResetCalled()
     {
@@ -479,6 +513,7 @@ public sealed class Http2FlowControlTests
         Assert.Equal(65535L, decoder.GetConnectionSendWindow());
     }
 
+    /// RFC 7540 §5.2 — Reset clears stream send windows back to default
     [Fact(DisplayName = "FC-035: Reset clears stream send windows back to default")]
     public void Should_ClearStreamSendWindows_When_ResetCalled()
     {
@@ -493,6 +528,7 @@ public sealed class Http2FlowControlTests
 
     // ── FC-036..038: Window Update Result Reporting ───────────────────────────
 
+    /// RFC 7540 §5.2 — Received WINDOW UPDATE is reported in result.WindowUpdates
     [Fact(DisplayName = "FC-036: Received WINDOW_UPDATE is reported in result.WindowUpdates")]
     public void Should_ReportWindowUpdateInResult_When_WindowUpdateFrameReceived()
     {
@@ -504,6 +540,7 @@ public sealed class Http2FlowControlTests
         Assert.Equal((1, 4096), result.WindowUpdates[0]);
     }
 
+    /// RFC 7540 §5.2 — Multiple received WINDOW UPDATEs all reported in result
     [Fact(DisplayName = "FC-037: Multiple received WINDOW_UPDATEs all reported in result")]
     public void Should_ReportAllWindowUpdates_When_MultipleWindowUpdateFramesReceived()
     {
@@ -520,6 +557,7 @@ public sealed class Http2FlowControlTests
         Assert.Contains((3, 300), result.WindowUpdates);
     }
 
+    /// RFC 7540 §5.2 — Zero-length DATA with END STREAM produces no WINDOW UPDATEs to send
     [Fact(DisplayName = "FC-038: Zero-length DATA with END_STREAM produces no WINDOW_UPDATEs to send")]
     public void Should_ProduceNoWindowUpdates_When_ZeroLengthDataWithEndStreamReceived()
     {
