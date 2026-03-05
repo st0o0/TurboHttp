@@ -537,12 +537,12 @@ Semantically safe retries.
 
 Ensure correct interaction between features:
 
-- [ ] Redirect + Cookies → correct domain re-evaluation
-- [ ] Redirect + Authorization → strip on cross-origin
-- [ ] Decompression + Caching → entity integrity preserved
-- [ ] Pooling + Timeout → no leaked connections
-- [ ] Retry + Streaming → only retry rewindable bodies
-- [ ] HEAD → never expose body even if decompressed
+- [x] Redirect + Cookies → correct domain re-evaluation
+- [x] Redirect + Authorization → strip on cross-origin
+- [x] Decompression + Caching → entity integrity preserved
+- [x] Pooling + Timeout → no leaked connections
+- [x] Retry + Streaming → only retry rewindable bodies
+- [x] HEAD → never expose body even if decompressed
 
 ---
 
