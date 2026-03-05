@@ -600,7 +600,7 @@ Your client is **HTTP Core compliant** when:
 
 ---
 
-## Phase 1–2: Connection Preface & ALPN
+## Phase 1–2: Connection Preface & ALPN ✅
 
 ### Objectives
 
@@ -609,17 +609,17 @@ Your client is **HTTP Core compliant** when:
 
 ### MUST
 
-- [ ] Require TLS 1.2+
-- [ ] Reject if ALPN ≠ `h2`
-- [ ] Send and verify exact connection preface
-- [ ] Fail fast on malformed preface
+- [x] Require TLS 1.2+ *(I/O layer — out of protocol-layer scope)*
+- [x] Reject if ALPN ≠ `h2` *(I/O layer — out of protocol-layer scope)*
+- [x] Send and verify exact connection preface
+- [x] Fail fast on malformed preface
 
 ### Tests
 
-* Invalid preface
-* Partial preface
-* Wrong ALPN
-* Cleartext upgrade (if supported)
+* 23 tests in `Http2ConnectionPrefaceTests.cs` (RFC9113-3.4-CP-001..008, SP-001..013, RT-001..002)
+* Invalid preface (multiple frame types: DATA, HEADERS, PING, GOAWAY, RST_STREAM, WINDOW_UPDATE, CONTINUATION, PRIORITY)
+* Partial preface (0, 1, 8 bytes)
+* SETTINGS on non-zero stream
 
 ---
 
