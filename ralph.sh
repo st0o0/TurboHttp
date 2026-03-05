@@ -389,9 +389,9 @@ for ((i=1; i<=ITERATIONS; i++)); do
    - 'Log or it didn't happen.'
 
 8) If verification passes:
-   - Commit to the current feature branch with a descriptive message
-   - NEVER 'git add' the .ralph/ directory or any files inside it — flight recorder logs are local-only
-   - Update $PLAN_FILE checkboxes in the SAME commit
+   - Stage all files that are worked on but do NOT commit
+   - Prepare commit message in COMMIT.md for the current iteration
+   - Update $PLAN_FILE checkboxes
    - Update TOOLING.md if you used or discovered a new tool/resource
 
 9) Stop at checkpoints (UI approval, architecture decisions, credential setup) and ask the user if needed.
@@ -413,6 +413,9 @@ for ((i=1; i<=ITERATIONS; i++)); do
 
   echo ""
   echo "Iteration $i complete"
+
+  # commit message in shell script to hide co-author
+  git commit -F COMMIT.md
 
   # Run L3 verification gate if L3 was claimed
   if ! verify_l3_evidence "$ITER_LOG"; then
@@ -453,6 +456,15 @@ echo "=========================================="
 echo ""
 echo "Remaining incomplete tasks:"
 grep -B5 '^\- \[ \]' "$PLAN_FILE" | grep '### Task:' | head -5 || echo "(none or legacy format)"
+
+echo "=========================================="
+echo "  PUSHING COMMITS TO ORIGIN"
+echo "=========================================="
+echo " pushing..."
+git push -u origin HEAD
+echo " done!"
+echo "=========================================="
+
 
 echo ""
 echo "Running postmortem (OpenProse): ralph-after-action"
