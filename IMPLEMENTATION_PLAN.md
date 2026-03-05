@@ -336,14 +336,15 @@ case SettingsParameter.MaxConcurrentStreams:
 - [ ] TCP fragmentation (5 fragmentation scenarios + single-byte delivery)
 - **Tests**: 61 in `Http11RoundTripTests.cs` (20 original + 41 new RT-11-021..RT-11-061)
 
-### Phase 37: Http2 (50+ tests)
-- [ ] Connection preface + SETTINGS
-- [ ] Pseudo-header validation
-- [ ] Large headers (continuation frames)
-- [ ] Sensitive headers
-- [ ] Multiple responses
-- [ ] Flow control
-- [ ] HPACK synchronization
+### Phase 37: Http2 (50+ tests) ✅
+- [x] Connection preface + SETTINGS
+- [x] Pseudo-header validation
+- [x] Large headers (continuation frames)
+- [x] Sensitive headers
+- [x] Multiple responses
+- [x] Flow control
+- [x] HPACK synchronization
+- **Tests**: 55 in `Http2RoundTripTests.cs` (15 original + 40 new RT-2-016..RT-2-055)
 
 ---
 
