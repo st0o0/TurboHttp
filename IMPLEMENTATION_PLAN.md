@@ -717,7 +717,7 @@ Implement strict frame layer parser.
 
 ---
 
-## Phase 10–11: Flow Control Engine
+## Phase 10–11: Flow Control Engine ✅
 
 ### Implement
 
@@ -726,21 +726,22 @@ Implement strict frame layer parser.
 
 ### MUST
 
-- [ ] Track window sizes accurately
-- [ ] Decrease window on DATA sent
-- [ ] Send WINDOW_UPDATE when consuming data
-- [ ] Reject overflow > 2^31-1
+- [x] Track window sizes accurately
+- [x] Decrease window on DATA sent
+- [x] Send WINDOW_UPDATE when consuming data
+- [x] Reject overflow > 2^31-1
 
 ### MUST NOT
 
-- [ ] Send DATA when window exhausted
-- [ ] Allow window wraparound
+- [x] Send DATA when window exhausted
+- [x] Allow window wraparound
 
 ### Tests
 
 * Window exhaustion
 * Window overflow
 * Missing WINDOW_UPDATE
+* 38 tests in `Http2FlowControlTests.cs` (FC-001..FC-038)
 
 ---
 

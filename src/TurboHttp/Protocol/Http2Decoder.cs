@@ -42,6 +42,14 @@ public sealed class Http2Decoder
     // RFC 7540 §5.2: Connection-level send window (updated by incoming WINDOW_UPDATE).
     private long _connectionSendWindow = 65535;
 
+    // RFC 7540 §6.9.2: Per-stream send windows (updated by incoming WINDOW_UPDATE, stream > 0).
+    // Streams not in this dictionary use _initialWindowSize as their effective send window.
+    private readonly Dictionary<int, long> _streamSendWindows = new();
+
+    // RFC 7540 §6.5.2: Current SETTINGS_INITIAL_WINDOW_SIZE (default 65535).
+    // Governs the initial send window for newly-opened streams.
+    private int _initialWindowSize = 65535;
+
     // Set to true after we receive a GOAWAY frame; blocks new stream creation.
     private bool _receivedGoAway;
 
@@ -64,6 +72,13 @@ public sealed class Http2Decoder
     /// <summary>Returns the receive window for the given stream, or 65535 if the stream is unknown.</summary>
     public int GetStreamReceiveWindow(int streamId) =>
         _streams.TryGetValue(streamId, out var s) ? s.ReceiveWindow : 65535;
+
+    /// <summary>
+    /// Returns the send window for the given stream (how much data the client may send on this stream).
+    /// Returns the current SETTINGS_INITIAL_WINDOW_SIZE if no per-stream WINDOW_UPDATE has been received.
+    /// </summary>
+    public long GetStreamSendWindow(int streamId) =>
+        _streamSendWindows.TryGetValue(streamId, out var w) ? w : _initialWindowSize;
 
     /// <summary>Returns the RFC 9113 §5.1 lifecycle state for the given stream.</summary>
     public Http2StreamLifecycleState GetStreamLifecycleState(int streamId) =>
@@ -135,6 +150,7 @@ public sealed class Http2Decoder
         var rstStreams = ImmutableList.CreateBuilder<(int StreamId, Http2ErrorCode Error)>();
         var settingsAcksToSend = ImmutableList.CreateBuilder<byte[]>();
         var pingAcksToSend = ImmutableList.CreateBuilder<byte[]>();
+        var windowUpdatesToSend = ImmutableList.CreateBuilder<byte[]>();
         var promisedStreamIds = ImmutableList.CreateBuilder<int>();
         GoAwayFrame? goAway = null;
 
@@ -198,7 +214,7 @@ public sealed class Http2Decoder
             switch (frameType)
             {
                 case FrameType.Data:
-                    HandleData(payload, flags, streamId, responses);
+                    HandleData(payload, flags, streamId, responses, windowUpdatesToSend);
                     break;
 
                 case FrameType.Headers:
@@ -317,7 +333,8 @@ public sealed class Http2Decoder
             goAway,
             settingsAcksToSend.ToImmutable(),
             pingAcksToSend.ToImmutable(),
-            promisedStreamIds.ToImmutable());
+            promisedStreamIds.ToImmutable(),
+            windowUpdatesToSend.ToImmutable());
         return true;
     }
 
@@ -338,6 +355,8 @@ public sealed class Http2Decoder
         _maxFrameSize = 16384;
         _connectionReceiveWindow = 65535;
         _connectionSendWindow = 65535;
+        _streamSendWindows.Clear();
+        _initialWindowSize = 65535;
         _rstStreamCount = 0;
         _emptyDataFrameCount = 0;
         _settingsCount = 0;
@@ -352,7 +371,8 @@ public sealed class Http2Decoder
         ReadOnlyMemory<byte> payload,
         byte flags,
         int streamId,
-        ImmutableList<(int, HttpResponseMessage)>.Builder responses)
+        ImmutableList<(int, HttpResponseMessage)>.Builder responses,
+        ImmutableList<byte[]>.Builder windowUpdatesToSend)
     {
         // RFC 7540 §6.1: DATA frames MUST be associated with a stream.
         if (streamId == 0)
@@ -414,6 +434,16 @@ public sealed class Http2Decoder
         state.DeductReceiveWindow(data.Length);
 
         state.AppendBody(data.Span);
+
+        // RFC 7540 §6.9: Queue WINDOW_UPDATE frames for the caller to send after consuming DATA.
+        // The window counters remain decremented so callers can observe actual usage.
+        // Callers that send these frames should also call SetConnectionReceiveWindow /
+        // SetStreamReceiveWindow to reflect the restored capacity.
+        if (data.Length > 0)
+        {
+            windowUpdatesToSend.Add(new WindowUpdateFrame(0, data.Length).Serialize());
+            windowUpdatesToSend.Add(new WindowUpdateFrame(streamId, data.Length).Serialize());
+        }
 
         if ((flags & (byte)DataFlags.EndStream) != 0)
         {
@@ -694,29 +724,30 @@ public sealed class Http2Decoder
 
         // RFC 7540 §6.9.1: A sender MUST NOT allow a flow-control window to exceed 2^31-1.
         // Overflow is a FLOW_CONTROL_ERROR on the connection or stream.
-        checked
+        if (streamId == 0)
         {
-            try
-            {
-                if (streamId == 0)
-                {
-                    var newWindow = _connectionSendWindow + increment;
-                    if (newWindow > 0x7FFFFFFF)
-                    {
-                        throw new Http2Exception(
-                            $"RFC 7540 §6.9.1: WINDOW_UPDATE would overflow connection send window ({_connectionSendWindow} + {increment}).",
-                            Http2ErrorCode.FlowControlError);
-                    }
-
-                    _connectionSendWindow = newWindow;
-                }
-            }
-            catch (OverflowException)
+            var newWindow = _connectionSendWindow + increment;
+            if (newWindow > 0x7FFFFFFF)
             {
                 throw new Http2Exception(
-                    "RFC 7540 §6.9.1: WINDOW_UPDATE overflow on connection send window.",
+                    $"RFC 7540 §6.9.1: WINDOW_UPDATE would overflow connection send window ({_connectionSendWindow} + {increment}).",
                     Http2ErrorCode.FlowControlError);
             }
+
+            _connectionSendWindow = newWindow;
+        }
+        else
+        {
+            var current = _streamSendWindows.TryGetValue(streamId, out var w) ? w : (long)_initialWindowSize;
+            var newWindow = current + increment;
+            if (newWindow > 0x7FFFFFFF)
+            {
+                throw new Http2Exception(
+                    $"RFC 7540 §6.9.1: WINDOW_UPDATE would overflow stream {streamId} send window ({current} + {increment}).",
+                    Http2ErrorCode.FlowControlError);
+            }
+
+            _streamSendWindows[streamId] = newWindow;
         }
 
         windowUpdates.Add((streamId, increment));
@@ -800,6 +831,28 @@ public sealed class Http2Decoder
                         throw new Http2Exception(
                             $"RFC 7540 §6.5.2: SETTINGS_INITIAL_WINDOW_SIZE value {value} exceeds maximum 2^31-1.",
                             Http2ErrorCode.FlowControlError);
+                    }
+
+                    {
+                        var newInitial = (int)value;
+                        var delta = (long)newInitial - _initialWindowSize;
+
+                        // RFC 7540 §6.9.2: Adjust send windows for all currently open streams by the delta.
+                        foreach (var sid in _streams.Keys)
+                        {
+                            var current = _streamSendWindows.TryGetValue(sid, out var w) ? w : (long)_initialWindowSize;
+                            var updated = current + delta;
+                            if (updated > 0x7FFFFFFF)
+                            {
+                                throw new Http2Exception(
+                                    $"RFC 7540 §6.9.2: SETTINGS_INITIAL_WINDOW_SIZE update would overflow stream {sid} send window.",
+                                    Http2ErrorCode.FlowControlError);
+                            }
+
+                            _streamSendWindows[sid] = updated;
+                        }
+
+                        _initialWindowSize = newInitial;
                     }
 
                     break;

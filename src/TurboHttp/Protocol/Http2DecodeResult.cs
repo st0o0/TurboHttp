@@ -28,6 +28,12 @@ public sealed class Http2DecodeResult
     /// <summary>PING ACK frames the client must send back to the server.</summary>
     public ImmutableList<byte[]> PingAcksToSend { get; }
 
+    /// <summary>
+    /// WINDOW_UPDATE frames the client must send to the server after consuming received DATA.
+    /// RFC 7540 §6.9: Contains one connection-level and one stream-level WINDOW_UPDATE per consumed DATA frame.
+    /// </summary>
+    public ImmutableList<byte[]> WindowUpdatesToSend { get; }
+
     /// <summary>Stream IDs promised by the server via PUSH_PROMISE.</summary>
     public ImmutableList<int> PromisedStreamIds { get; }
 
@@ -46,7 +52,8 @@ public sealed class Http2DecodeResult
         GoAwayFrame? goAway,
         ImmutableList<byte[]> settingsAcksToSend,
         ImmutableList<byte[]> pingAcksToSend,
-        ImmutableList<int> promisedStreamIds)
+        ImmutableList<int> promisedStreamIds,
+        ImmutableList<byte[]>? windowUpdatesToSend = null)
     {
         Responses = responses;
         ControlFrames = controlFrames;
@@ -58,6 +65,7 @@ public sealed class Http2DecodeResult
         SettingsAcksToSend = settingsAcksToSend;
         PingAcksToSend = pingAcksToSend;
         PromisedStreamIds = promisedStreamIds;
+        WindowUpdatesToSend = windowUpdatesToSend ?? ImmutableList<byte[]>.Empty;
 
         var pings = ImmutableList.CreateBuilder<byte[]>();
         foreach (var f in controlFrames)

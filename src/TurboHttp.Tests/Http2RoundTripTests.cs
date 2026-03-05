@@ -1025,18 +1025,24 @@ public sealed class Http2RoundTripTests
 
     // ── RT-2-034 ───────────────────────────────────────────────────────────────
 
-    [Fact(DisplayName = "RT-2-034: WINDOW_UPDATE with maximum valid increment accepted")]
+    [Fact(DisplayName = "RT-2-034: WINDOW_UPDATE that brings stream window to exactly 2^31-1 is accepted")]
     public void Should_AcceptMaxIncrement_When_WindowUpdateWithMaxValue()
     {
-        const int maxIncrement = 0x7FFFFFFF;
-        var windowUpdate = new WindowUpdateFrame(1, maxIncrement).Serialize();
+        // Default initial window is 65535. Use an increment that brings the send window to exactly
+        // 2^31-1 (0x7FFFFFFF) without overflowing — per RFC 7540 §6.9.1.
+        const int maxWindow = 0x7FFFFFFF;
+        const int defaultInitialWindow = 65535;
+        const int increment = maxWindow - defaultInitialWindow; // reaches exactly 2^31-1
+
+        var windowUpdate = new WindowUpdateFrame(1, increment).Serialize();
 
         var decoder = new Http2Decoder();
         decoder.TryDecode(windowUpdate.AsMemory(), out var result);
 
         Assert.Single(result.WindowUpdates);
         Assert.Equal(1, result.WindowUpdates[0].StreamId);
-        Assert.Equal(maxIncrement, result.WindowUpdates[0].Increment);
+        Assert.Equal(increment, result.WindowUpdates[0].Increment);
+        Assert.Equal((long)maxWindow, decoder.GetStreamSendWindow(1));
     }
 
     // ── RT-2-035 ───────────────────────────────────────────────────────────────
