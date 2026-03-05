@@ -769,13 +769,13 @@ Implement strict frame layer parser.
 
 ---
 
-## Phase 14: CONTINUATION Frames
+## Phase 14: CONTINUATION Frames ✅
 
 ### MUST
 
-- [ ] Enforce END_HEADERS
-- [ ] Require contiguous CONTINUATION frames
-- [ ] Reject interleaved frames
+- [x] Enforce END_HEADERS
+- [x] Require contiguous CONTINUATION frames
+- [x] Reject interleaved frames
 
 ---
 
