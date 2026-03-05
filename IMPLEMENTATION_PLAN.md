@@ -905,11 +905,11 @@ Implement strict frame layer parser.
 
 ### Ensure
 
-- [ ] HPACK failure → connection error
-- [ ] Flow control independent from header decoding
-- [ ] Stream cleanup on RST
-- [ ] GOAWAY stops new stream creation
-- [ ] No header injection via compression
+- [x] HPACK failure → connection error
+- [x] Flow control independent from header decoding
+- [x] Stream cleanup on RST
+- [x] GOAWAY stops new stream creation
+- [x] No header injection via compression
 
 ---
 

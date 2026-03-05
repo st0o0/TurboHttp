@@ -897,7 +897,19 @@ public sealed class Http2Decoder
         int streamId,
         ImmutableList<(int, HttpResponseMessage)>.Builder responses)
     {
-        var decodedHeaders = _hpack.Decode(headerBlock);
+        // RFC 9113 §4.3: A decompression failure MUST be treated as a connection error
+        // of type COMPRESSION_ERROR (not a stream error).
+        List<HpackHeader> decodedHeaders;
+        try
+        {
+            decodedHeaders = _hpack.Decode(headerBlock);
+        }
+        catch (HpackException ex)
+        {
+            throw new Http2Exception(
+                $"RFC 9113 §4.3: HPACK decompression failure — {ex.Message}",
+                Http2ErrorCode.CompressionError);
+        }
         ValidateResponseHeaders(decodedHeaders);
         var state = new StreamState(decodedHeaders);
         var endStream = (flags & (byte)HeadersFlags.EndStream) != 0;
