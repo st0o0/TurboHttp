@@ -1,6 +1,7 @@
 using System.Net;
 using System.Text;
 using TurboHttp.Protocol;
+using TurboHttp.Tests;
 
 namespace TurboHttp.Tests.RFC9113;
 
@@ -171,12 +172,12 @@ public sealed class Http2RoundTripMethodTests
         var respContinuation = new ContinuationFrame(streamId, block[splitAt..], endHeaders: true).Serialize();
         var respData = new DataFrame(streamId, "ok"u8.ToArray(), endStream: true).Serialize();
 
-        var decoder = new Http2Decoder();
-        decoder.TryDecode(CombineFrames(respHeaders, respContinuation, respData), out var result);
+        var session = new Http2ProtocolSession();
+        session.Process(CombineFrames(respHeaders, respContinuation, respData));
 
-        Assert.True(result.HasResponses);
-        Assert.Equal(HttpStatusCode.OK, result.Responses[0].Response.StatusCode);
-        Assert.Equal("ok", await result.Responses[0].Response.Content.ReadAsStringAsync());
+        Assert.NotEmpty(session.Responses);
+        Assert.Equal(HttpStatusCode.OK, session.Responses[0].Response.StatusCode);
+        Assert.Equal("ok", await session.Responses[0].Response.Content.ReadAsStringAsync());
     }
 
     // ── RT-2-024 ───────────────────────────────────────────────────────────────
@@ -204,12 +205,12 @@ public sealed class Http2RoundTripMethodTests
         var frame3 = new ContinuationFrame(1, block.Slice(part1Len + part2Len, part3Len), endHeaders: true).Serialize();
         var dataFrame = new DataFrame(1, "multi-cont-body"u8.ToArray(), endStream: true).Serialize();
 
-        var decoder = new Http2Decoder();
-        decoder.TryDecode(CombineFrames(frame1, frame2, frame3, dataFrame), out var result);
+        var session = new Http2ProtocolSession();
+        session.Process(CombineFrames(frame1, frame2, frame3, dataFrame));
 
-        Assert.True(result.HasResponses);
-        Assert.Equal(HttpStatusCode.OK, result.Responses[0].Response.StatusCode);
-        Assert.Equal("multi-cont-body", await result.Responses[0].Response.Content.ReadAsStringAsync());
+        Assert.NotEmpty(session.Responses);
+        Assert.Equal(HttpStatusCode.OK, session.Responses[0].Response.StatusCode);
+        Assert.Equal("multi-cont-body", await session.Responses[0].Response.Content.ReadAsStringAsync());
     }
 
     // ── RT-2-025 ───────────────────────────────────────────────────────────────
@@ -254,12 +255,13 @@ public sealed class Http2RoundTripMethodTests
 
         var hpack = new HpackEncoder(useHuffman: false);
         var respFrame = BuildH2Response(streamId, 200, "secured data", hpack);
-        var decoder = new Http2Decoder();
-        decoder.TryDecode(respFrame, out var result);
 
-        Assert.True(result.HasResponses);
-        Assert.Equal(HttpStatusCode.OK, result.Responses[0].Response.StatusCode);
-        Assert.Equal("secured data", await result.Responses[0].Response.Content.ReadAsStringAsync());
+        var session = new Http2ProtocolSession();
+        session.Process(respFrame);
+
+        Assert.NotEmpty(session.Responses);
+        Assert.Equal(HttpStatusCode.OK, session.Responses[0].Response.StatusCode);
+        Assert.Equal("secured data", await session.Responses[0].Response.Content.ReadAsStringAsync());
     }
 
     // ── RT-2-028 ───────────────────────────────────────────────────────────────
@@ -283,7 +285,7 @@ public sealed class Http2RoundTripMethodTests
     {
         var encoder = new Http2RequestEncoder(useHuffman: false);
         var hpack = new HpackEncoder(useHuffman: false);
-        var decoder = new Http2Decoder();
+        var session = new Http2ProtocolSession();
 
         var streamIds = new int[5];
         for (var i = 0; i < 5; i++)
@@ -298,10 +300,10 @@ public sealed class Http2RoundTripMethodTests
         Assert.Equal([1, 3, 5, 7, 9], streamIds);
 
         var frames = streamIds.Select(id => BuildH2Response(id, 200, $"body-{id}", hpack)).ToArray();
-        decoder.TryDecode(CombineFrames(frames), out var result);
+        session.Process(CombineFrames(frames));
 
-        Assert.Equal(5, result.Responses.Count);
-        var byId = result.Responses.ToDictionary(r => r.StreamId, r => r.Response);
+        Assert.Equal(5, session.Responses.Count);
+        var byId = session.Responses.ToDictionary(r => r.StreamId, r => r.Response);
         foreach (var id in streamIds)
         {
             Assert.True(byId.ContainsKey(id));
@@ -316,7 +318,7 @@ public sealed class Http2RoundTripMethodTests
     public void Should_DecodeCorrectStatusCodes_When_ConcurrentStreamsHaveDifferentStatuses()
     {
         var hpack = new HpackEncoder(useHuffman: false);
-        var decoder = new Http2Decoder();
+        var session = new Http2ProtocolSession();
 
         var statusMap = new Dictionary<int, HttpStatusCode>
         {
@@ -332,10 +334,10 @@ public sealed class Http2RoundTripMethodTests
             return new HeadersFrame(kv.Key, block, endStream: true, endHeaders: true).Serialize();
         }).ToArray();
 
-        decoder.TryDecode(CombineFrames(frames), out var result);
+        session.Process(CombineFrames(frames));
 
-        Assert.Equal(4, result.Responses.Count);
-        var byId = result.Responses.ToDictionary(r => r.StreamId, r => r.Response);
+        Assert.Equal(4, session.Responses.Count);
+        var byId = session.Responses.ToDictionary(r => r.StreamId, r => r.Response);
         foreach (var (id, expectedStatus) in statusMap)
         {
             Assert.Equal(expectedStatus, byId[id].StatusCode);
@@ -362,11 +364,11 @@ public sealed class Http2RoundTripMethodTests
         // Interleave: headers1, headers3, data1, data3
         var combined = CombineFrames(headers1, headers3, data1, data3);
 
-        var decoder = new Http2Decoder();
-        decoder.TryDecode(combined, out var result);
+        var session = new Http2ProtocolSession();
+        session.Process(combined);
 
-        Assert.Equal(2, result.Responses.Count);
-        var byId = result.Responses.ToDictionary(r => r.StreamId, r => r.Response);
+        Assert.Equal(2, session.Responses.Count);
+        var byId = session.Responses.ToDictionary(r => r.StreamId, r => r.Response);
         Assert.Equal("stream1-part", await byId[1].Content.ReadAsStringAsync());
         Assert.Equal("stream3-part", await byId[3].Content.ReadAsStringAsync());
     }
@@ -384,18 +386,17 @@ public sealed class Http2RoundTripMethodTests
         var headersFrame = new HeadersFrame(1, block, endStream: false, endHeaders: true).Serialize();
         var dataFrame = new DataFrame(1, largeBody, endStream: true).Serialize();
 
-        var decoder = new Http2Decoder();
+        var session = new Http2ProtocolSession();
         // Increase max frame size to allow 32KB DATA frame and set receive window accordingly
-        decoder.TryDecode(
+        session.Process(
             new SettingsFrame(new List<(SettingsParameter, uint)>
-                { (SettingsParameter.MaxFrameSize, 65536u) }).Serialize().AsMemory(),
-            out _);
-        decoder.SetConnectionReceiveWindow(131072);
+                { (SettingsParameter.MaxFrameSize, 65536u) }).Serialize().AsMemory());
+        session.SetConnectionReceiveWindow(131072);
 
-        decoder.TryDecode(CombineFrames(headersFrame, dataFrame).AsMemory(), out var result);
+        session.Process(CombineFrames(headersFrame, dataFrame).AsMemory());
 
-        Assert.True(result.HasResponses);
-        var body = await result.Responses[0].Response.Content.ReadAsByteArrayAsync();
+        Assert.NotEmpty(session.Responses);
+        var body = await session.Responses[0].Response.Content.ReadAsByteArrayAsync();
         Assert.Equal(32768, body.Length);
         Assert.Equal(largeBody, body);
     }
@@ -414,11 +415,11 @@ public sealed class Http2RoundTripMethodTests
         var data2 = new DataFrame(1, "HTTP/2 "u8.ToArray(), endStream: false).Serialize();
         var data3 = new DataFrame(1, "World!"u8.ToArray(), endStream: true).Serialize();
 
-        var decoder = new Http2Decoder();
-        decoder.TryDecode(CombineFrames(headersFrame, data1, data2, data3), out var result);
+        var session = new Http2ProtocolSession();
+        session.Process(CombineFrames(headersFrame, data1, data2, data3));
 
-        Assert.True(result.HasResponses);
-        var body = await result.Responses[0].Response.Content.ReadAsStringAsync();
+        Assert.NotEmpty(session.Responses);
+        var body = await session.Responses[0].Response.Content.ReadAsStringAsync();
         Assert.Equal("Hello, HTTP/2 World!", body);
     }
 
@@ -435,13 +436,13 @@ public sealed class Http2RoundTripMethodTests
 
         var windowUpdate = new WindowUpdateFrame(1, increment).Serialize();
 
-        var decoder = new Http2Decoder();
-        decoder.TryDecode(windowUpdate.AsMemory(), out var result);
+        var session = new Http2ProtocolSession();
+        session.Process(windowUpdate.AsMemory());
 
-        Assert.Single(result.WindowUpdates);
-        Assert.Equal(1, result.WindowUpdates[0].StreamId);
-        Assert.Equal(increment, result.WindowUpdates[0].Increment);
-        Assert.Equal(maxWindow, decoder.GetStreamSendWindow(1));
+        Assert.Single(session.WindowUpdates);
+        Assert.Equal(1, session.WindowUpdates[0].StreamId);
+        Assert.Equal(increment, session.WindowUpdates[0].Increment);
+        Assert.Equal(maxWindow, session.GetStreamSendWindow(1));
     }
 
     // ── RT-2-035 ───────────────────────────────────────────────────────────────
@@ -453,15 +454,15 @@ public sealed class Http2RoundTripMethodTests
         var streamUpdate = new WindowUpdateFrame(1, 16384).Serialize();
         var combined = CombineFrames(connectionUpdate, streamUpdate);
 
-        var decoder = new Http2Decoder();
-        decoder.TryDecode(combined.AsMemory(), out var result);
+        var session = new Http2ProtocolSession();
+        session.Process(combined.AsMemory());
 
-        Assert.Equal(2, result.WindowUpdates.Count);
-
-        var conn = result.WindowUpdates.Single(u => u.StreamId == 0);
-        var stream = result.WindowUpdates.Single(u => u.StreamId == 1);
-        Assert.Equal(32768, conn.Increment);
-        Assert.Equal(16384, stream.Increment);
+        // Connection WINDOW_UPDATE increments ConnectionSendWindow directly
+        Assert.Equal(65535 + 32768, session.ConnectionSendWindow);
+        // Stream WINDOW_UPDATE is tracked in WindowUpdates
+        Assert.Single(session.WindowUpdates);
+        Assert.Equal(1, session.WindowUpdates[0].StreamId);
+        Assert.Equal(16384, session.WindowUpdates[0].Increment);
     }
 
     // ── RT-2-036 ───────────────────────────────────────────────────────────────
@@ -478,12 +479,13 @@ public sealed class Http2RoundTripMethodTests
 
         var hpack = new HpackEncoder(useHuffman: true);
         var responseFrame = BuildH2Response(streamId, 200, "Huffman body", hpack);
-        var decoder = new Http2Decoder();
-        decoder.TryDecode(responseFrame, out var result);
 
-        Assert.True(result.HasResponses);
-        Assert.Equal(HttpStatusCode.OK, result.Responses[0].Response.StatusCode);
-        Assert.Equal("Huffman body", await result.Responses[0].Response.Content.ReadAsStringAsync());
+        var session = new Http2ProtocolSession();
+        session.Process(responseFrame);
+
+        Assert.NotEmpty(session.Responses);
+        Assert.Equal(HttpStatusCode.OK, session.Responses[0].Response.StatusCode);
+        Assert.Equal("Huffman body", await session.Responses[0].Response.Content.ReadAsStringAsync());
     }
 
     // ── RT-2-037 ───────────────────────────────────────────────────────────────
@@ -526,16 +528,16 @@ public sealed class Http2RoundTripMethodTests
             new HeadersFrame(3, block2, endStream: false, endHeaders: true).Serialize(),
             new DataFrame(3, "body3"u8.ToArray(), endStream: true).Serialize());
 
-        var decoder = new Http2Decoder();
-        decoder.TryDecode(CombineFrames(frames1, frames3), out var result);
+        var session = new Http2ProtocolSession();
+        session.Process(CombineFrames(frames1, frames3));
 
-        Assert.Equal(2, result.Responses.Count);
-        foreach (var (_, response) in result.Responses)
+        Assert.Equal(2, session.Responses.Count);
+        foreach (var (_, response) in session.Responses)
         {
             Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         }
 
-        var bodies = result.Responses.Select(r => r.Response.Content.ReadAsStringAsync().GetAwaiter().GetResult()).ToHashSet();
+        var bodies = session.Responses.Select(r => r.Response.Content.ReadAsStringAsync().GetAwaiter().GetResult()).ToHashSet();
         Assert.Contains("body1", bodies);
         Assert.Contains("body3", bodies);
     }

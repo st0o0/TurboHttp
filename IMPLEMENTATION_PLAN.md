@@ -813,7 +813,7 @@ then decode the response bytes with `Http2Decoder`. Pattern:
 ---
 
 ### Phase 18 — Migrate `16_RoundTripMethodTests.cs` (12 refs)
-- [ ] **Status**: pending
+- [x] **Status**: complete (2026-03-06, iter-09)
 
 **File**: `src/TurboHttp.Tests/RFC9113/16_RoundTripMethodTests.cs`
 
