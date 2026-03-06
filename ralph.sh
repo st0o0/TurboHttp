@@ -389,7 +389,7 @@ for ((i=1; i<=ITERATIONS; i++)); do
    - 'Log or it didn't happen.'
 
 8) If verification passes:
-   - Stage all files that are worked on but do NOT commit
+   - Stage all files that are worked on but do NOT commit and do NOT add files that are ignored in .gitignore
    - Prepare commit message in COMMIT.md for the current iteration
    - Update $PLAN_FILE checkboxes
    - Update TOOLING.md if you used or discovered a new tool/resource
