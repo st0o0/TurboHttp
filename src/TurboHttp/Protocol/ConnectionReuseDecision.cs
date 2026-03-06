@@ -1,5 +1,3 @@
-#nullable enable
-
 using System;
 
 namespace TurboHttp.Protocol;
@@ -30,9 +28,7 @@ public sealed record ConnectionReuseDecision
     public int? MaxRequests { get; init; }
 
     /// <summary>Creates a keep-alive decision (connection may be reused).</summary>
-    public static ConnectionReuseDecision KeepAlive(
-        string reason,
-        TimeSpan? keepAliveTimeout = null,
+    public static ConnectionReuseDecision KeepAlive(string reason, TimeSpan? keepAliveTimeout = null,
         int? maxRequests = null)
         => new()
         {
@@ -43,6 +39,5 @@ public sealed record ConnectionReuseDecision
         };
 
     /// <summary>Creates a close decision (connection must not be reused).</summary>
-    public static ConnectionReuseDecision Close(string reason)
-        => new() { CanReuse = false, Reason = reason };
+    public static ConnectionReuseDecision Close(string reason) => new() { CanReuse = false, Reason = reason };
 }

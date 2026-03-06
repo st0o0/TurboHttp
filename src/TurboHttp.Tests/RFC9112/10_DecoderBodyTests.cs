@@ -1,9 +1,7 @@
-#nullable enable
-using System.Net;
 using System.Text;
 using TurboHttp.Protocol;
 
-namespace TurboHttp.Tests;
+namespace TurboHttp.Tests.RFC9112;
 
 public sealed class Http11DecoderBodyTests
 {

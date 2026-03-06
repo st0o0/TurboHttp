@@ -1,8 +1,7 @@
-#nullable enable
 using System.Text;
 using TurboHttp.Protocol;
 
-namespace TurboHttp.Tests;
+namespace TurboHttp.Tests.RFC9112;
 
 public sealed class Http11RoundTripFragmentationTests
 {
@@ -30,8 +29,8 @@ public sealed class Http11RoundTripFragmentationTests
     [Fact(DisplayName = "RFC9112-4: TCP fragment split at header-body boundary — response assembled")]
     public async Task Should_AssembleResponse_When_SplitAtHeaderBodyBoundary()
     {
-        var headerBytes = Encoding.ASCII.GetBytes("HTTP/1.1 200 OK\r\nContent-Length: 5\r\n\r\n");
-        var bodyBytes = Encoding.ASCII.GetBytes("hello");
+        var headerBytes = "HTTP/1.1 200 OK\r\nContent-Length: 5\r\n\r\n"u8.ToArray();
+        var bodyBytes = "hello"u8.ToArray();
 
         var decoder = new Http11Decoder();
         decoder.TryDecode(headerBytes, out _);
@@ -80,16 +79,14 @@ public sealed class Http11RoundTripFragmentationTests
         }
 
         Assert.NotNull(finalResponse);
-        Assert.Equal("abc", await finalResponse!.Content.ReadAsStringAsync());
+        Assert.Equal("abc", await finalResponse.Content.ReadAsStringAsync());
     }
 
     [Fact(DisplayName = "RFC9112-6: TCP fragment split between two chunks — body assembled correctly")]
     public async Task Should_AssembleChunkedBody_When_SplitBetweenChunks()
     {
-        var part1 = (ReadOnlyMemory<byte>)Encoding.ASCII.GetBytes(
-            "HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n3\r\nfoo\r\n");
-        var part2 = (ReadOnlyMemory<byte>)Encoding.ASCII.GetBytes(
-            "3\r\nbar\r\n0\r\n\r\n");
+        var part1 = (ReadOnlyMemory<byte>)"HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n3\r\nfoo\r\n"u8.ToArray();
+        var part2 = (ReadOnlyMemory<byte>)"3\r\nbar\r\n0\r\n\r\n"u8.ToArray();
 
         var decoder = new Http11Decoder();
         decoder.TryDecode(part1, out _);

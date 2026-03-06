@@ -1,9 +1,8 @@
-#nullable enable
 using System.Net;
 using System.Text;
 using TurboHttp.Protocol;
 
-namespace TurboHttp.Tests;
+namespace TurboHttp.Tests.RFC1945;
 
 /// <summary>
 /// RFC 1945 Round-Trip Status Code Tests

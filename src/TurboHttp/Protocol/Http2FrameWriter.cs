@@ -55,8 +55,15 @@ public static class Http2FrameWriter
         bool endStream = false, bool endHeaders = true)
     {
         var flags = HeadersFlags.None;
-        if (endStream) flags |= HeadersFlags.EndStream;
-        if (endHeaders) flags |= HeadersFlags.EndHeaders;
+        if (endStream)
+        {
+            flags |= HeadersFlags.EndStream;
+        }
+
+        if (endHeaders)
+        {
+            flags |= HeadersFlags.EndHeaders;
+        }
 
         WriteFrameHeader(destination, headerBlock.Length, FrameType.Headers, (byte)flags, streamId);
         headerBlock.CopyTo(destination[FrameHeaderSize..]);

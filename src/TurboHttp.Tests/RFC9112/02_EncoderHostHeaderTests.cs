@@ -1,9 +1,8 @@
-#nullable enable
 using System.Buffers;
 using System.Text;
 using TurboHttp.Protocol;
 
-namespace TurboHttp.Tests;
+namespace TurboHttp.Tests.RFC9112;
 
 public sealed class Http11EncoderHostHeaderTests
 {
@@ -77,7 +76,8 @@ public sealed class Http11EncoderHostHeaderTests
     {
         using var owner = MemoryPool<byte>.Shared.Rent(4096);
         var buffer = owner.Memory;
-        var written = Http11Encoder.Encode(request, ref buffer);
-        return Encoding.ASCII.GetString(buffer.Span[..(int)written]);
+        var span = buffer.Span;
+        var written = Http11Encoder.Encode(request, ref span);
+        return Encoding.ASCII.GetString(buffer.Span[..written]);
     }
 }

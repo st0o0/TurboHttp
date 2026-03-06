@@ -1,9 +1,7 @@
-#nullable enable
-
 using System.Text;
 using TurboHttp.Protocol;
 
-namespace TurboHttp.Tests;
+namespace TurboHttp.Tests.RFC9112;
 
 /// <summary>
 /// Tests for RFC 9112 §7.1.1 chunk-ext parsing in Http11Decoder.
@@ -395,7 +393,7 @@ public sealed class Http11DecoderChunkExtensionTests
         sb.Append("\r\n");
         var prefix = Encoding.ASCII.GetBytes(sb.ToString());
         var chunkLine = new byte[] { (byte)'5', (byte)';', (byte)'n', 0, (byte)'m', (byte)'\r', (byte)'\n' };
-        var chunkData = Encoding.ASCII.GetBytes("Hello\r\n0\r\n\r\n");
+        var chunkData = "Hello\r\n0\r\n\r\n"u8.ToArray();
         var raw = new byte[prefix.Length + chunkLine.Length + chunkData.Length];
         prefix.CopyTo(raw, 0);
         chunkLine.CopyTo(raw, prefix.Length);

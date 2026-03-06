@@ -1,9 +1,6 @@
-#nullable enable
-
 using TurboHttp.Protocol;
-using Xunit;
 
-namespace TurboHttp.Tests;
+namespace TurboHttp.Tests.RFC9113;
 
 /// <summary>
 /// RFC 7540 §6.8 — GOAWAY Frame  |  RFC 7540 §6.4 — RST_STREAM Frame

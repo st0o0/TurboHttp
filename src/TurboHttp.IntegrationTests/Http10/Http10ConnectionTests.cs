@@ -1,6 +1,5 @@
 using System.Net;
 using System.Net.Sockets;
-using System.Text;
 using TurboHttp.IntegrationTests.Shared;
 using TurboHttp.Protocol;
 

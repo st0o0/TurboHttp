@@ -19,14 +19,14 @@ public class Stages
 {
     public sealed class HostRoutingFlow : GraphStage<FlowShape<HttpRequestMessage, HttpResponseMessage>>
     {
-        public Inlet<HttpRequestMessage> Inlet = new("pool.in");
-        public Outlet<HttpResponseMessage> Outlet = new("pool.out");
+        private readonly Inlet<HttpRequestMessage> _inlet = new("pool.in");
+        private readonly Outlet<HttpResponseMessage> _outlet = new("pool.out");
 
         public override FlowShape<HttpRequestMessage, HttpResponseMessage> Shape { get; }
 
         public HostRoutingFlow()
         {
-            Shape = new FlowShape<HttpRequestMessage, HttpResponseMessage>(Inlet, Outlet);
+            Shape = new FlowShape<HttpRequestMessage, HttpResponseMessage>(_inlet, _outlet);
         }
 
         protected override GraphStageLogic CreateLogic(Attributes inheritedAttributes)
@@ -45,10 +45,10 @@ public class Stages
             {
                 _stage = stage;
 
-                SetHandler(stage.Inlet,
+                SetHandler(stage._inlet,
                     onPush: () =>
                     {
-                        var request = Grab(stage.Inlet);
+                        var request = Grab(stage._inlet);
                         var uri = request.RequestUri!;
                         int port;
                         if (uri.Port is -1)
@@ -73,15 +73,15 @@ public class Stages
                         });
 
                         pool.Send(request);
-                        Pull(stage.Inlet);
+                        Pull(stage._inlet);
                     });
 
-                SetHandler(stage.Outlet,
+                SetHandler(stage._outlet,
                     onPull: () =>
                     {
                         if (_responseBuffer.TryDequeue(out var response))
                         {
-                            Push(stage.Outlet, response);
+                            Push(stage._outlet, response);
                         }
                         else
                         {
@@ -97,7 +97,7 @@ public class Stages
                     if (_downstreamWaiting)
                     {
                         _downstreamWaiting = false;
-                        Push(_stage.Outlet, response);
+                        Push(_stage._outlet, response);
                     }
                     else
                     {
@@ -105,7 +105,7 @@ public class Stages
                     }
                 });
 
-                Pull(_stage.Inlet);
+                Pull(_stage._inlet);
             }
 
             private HostConnectionPool GetOrCreatePool(TcpOptions options)
@@ -132,11 +132,11 @@ public class Stages
 
     public sealed class ConnectionStage : GraphStage<FlowShape<(IMemoryOwner<byte>, int), (IMemoryOwner<byte>, int)>>
     {
-        public IActorRef ClientManager { get; }
-        public TcpOptions Options { get; }
+        internal IActorRef ClientManager { get; }
+        internal TcpOptions Options { get; }
 
-        public Inlet<(IMemoryOwner<byte>, int)> Inlet = new("tcp.in");
-        public Outlet<(IMemoryOwner<byte>, int)> Outlet = new("tcp.out");
+        internal Inlet<(IMemoryOwner<byte>, int)> Inlet = new("tcp.in");
+        internal Outlet<(IMemoryOwner<byte>, int)> Outlet = new("tcp.out");
 
         public override FlowShape<(IMemoryOwner<byte>, int), (IMemoryOwner<byte>, int)> Shape { get; }
 
@@ -153,7 +153,7 @@ public class Stages
         private sealed class Logic : GraphStageLogic
         {
             private readonly ConnectionStage _stage;
-            private StageActor _self;
+            private StageActor? _self;
             private bool _connected;
             private bool _downstreamWaiting;
             private int _reconnectAttempts;
@@ -179,7 +179,7 @@ public class Stages
                         else
                         {
                             _outboundBuffer.Enqueue(chunk);
-                            _stage.ClientManager.Tell(new ClientManager.CreateTcpRunner(_stage.Options, _self.Ref));
+                            _stage.ClientManager.Tell(new ClientManager.CreateTcpRunner(_stage.Options, _self!.Ref));
                         }
                     },
                     onUpstreamFinish: CompleteStage,
@@ -237,7 +237,10 @@ public class Stages
 
             private void TryReadInbound()
             {
-                if (_inboundReader is null) return;
+                if (_inboundReader is null)
+                {
+                    return;
+                }
 
                 if (_inboundReader.TryRead(out var chunk))
                 {
@@ -289,14 +292,14 @@ public class Stages
 
     public sealed class Http10EncoderStage : GraphStage<FlowShape<HttpRequestMessage, (IMemoryOwner<byte>, int)>>
     {
-        public Inlet<HttpRequestMessage> In { get; } = new("http10.encoder.in");
-        public Outlet<(IMemoryOwner<byte>, int)> Out { get; } = new("http10.encoder.out");
+        private readonly Inlet<HttpRequestMessage> _inlet = new("http10.encoder.in");
+        private readonly Outlet<(IMemoryOwner<byte>, int)> _outlet = new("http10.encoder.out");
 
         public override FlowShape<HttpRequestMessage, (IMemoryOwner<byte>, int)> Shape { get; }
 
         public Http10EncoderStage()
         {
-            Shape = new FlowShape<HttpRequestMessage, (IMemoryOwner<byte>, int)>(In, Out);
+            Shape = new FlowShape<HttpRequestMessage, (IMemoryOwner<byte>, int)>(_inlet, _outlet);
         }
 
         protected override GraphStageLogic CreateLogic(Attributes inheritedAttributes)
@@ -309,10 +312,10 @@ public class Stages
 
             public Logic(Http10EncoderStage stage) : base(stage.Shape)
             {
-                SetHandler(stage.In,
+                SetHandler(stage._inlet,
                     onPush: () =>
                     {
-                        var request = Grab(stage.In);
+                        var request = Grab(stage._inlet);
 
                         try
                         {
@@ -324,7 +327,7 @@ public class Stages
 
                             var written = Http10Encoder.Encode(request, ref buffer);
 
-                            Push(stage.Out, (owner, written));
+                            Push(stage._outlet, (owner, written));
                         }
                         catch (Exception ex)
                         {
@@ -334,21 +337,21 @@ public class Stages
                     onUpstreamFinish: CompleteStage,
                     onUpstreamFailure: FailStage);
 
-                SetHandler(stage.Out, onPull: () => Pull(stage.In), onDownstreamFinish: _ => CompleteStage());
+                SetHandler(stage._outlet, onPull: () => Pull(stage._inlet), onDownstreamFinish: _ => CompleteStage());
             }
         }
     }
 
     public sealed class Http10DecoderStage : GraphStage<FlowShape<(IMemoryOwner<byte>, int), HttpResponseMessage>>
     {
-        public Inlet<(IMemoryOwner<byte>, int)> In { get; } = new("http10.decoder.in");
-        public Outlet<HttpResponseMessage> Out { get; } = new("http10.decoder.out");
+        private readonly Inlet<(IMemoryOwner<byte>, int)> _inlet = new("http10.decoder.in");
+        private readonly Outlet<HttpResponseMessage> _outlet = new("http10.decoder.out");
 
         public override FlowShape<(IMemoryOwner<byte>, int), HttpResponseMessage> Shape { get; }
 
         public Http10DecoderStage()
         {
-            Shape = new FlowShape<(IMemoryOwner<byte>, int), HttpResponseMessage>(In, Out);
+            Shape = new FlowShape<(IMemoryOwner<byte>, int), HttpResponseMessage>(_inlet, _outlet);
         }
 
         protected override GraphStageLogic CreateLogic(Attributes inheritedAttributes)
@@ -360,10 +363,10 @@ public class Stages
 
             public Logic(Http10DecoderStage stage) : base(stage.Shape)
             {
-                SetHandler(stage.In,
+                SetHandler(stage._inlet,
                     onPush: () =>
                     {
-                        var (owner, length) = Grab(stage.In);
+                        var (owner, length) = Grab(stage._inlet);
 
                         try
                         {
@@ -372,13 +375,13 @@ public class Stages
                             if (_decoder.TryDecode(data, out var response) && response is not null)
                             {
                                 owner.Dispose();
-                                Push(stage.Out, response);
+                                Push(stage._outlet, response);
                             }
                             else
                             {
                                 // Not enough data yet – return the buffer and wait for more
                                 owner.Dispose();
-                                Pull(stage.In);
+                                Pull(stage._inlet);
                             }
                         }
                         catch (Exception ex)
@@ -392,7 +395,7 @@ public class Stages
                         // Flush any partial response buffered in the decoder
                         if (_decoder.TryDecodeEof(out var response) && response is not null)
                         {
-                            Emit(stage.Out, response, CompleteStage);
+                            Emit(stage._outlet, response, CompleteStage);
                         }
                         else
                         {
@@ -401,21 +404,21 @@ public class Stages
                     },
                     onUpstreamFailure: FailStage);
 
-                SetHandler(stage.Out,
-                    onPull: () => Pull(stage.In),
+                SetHandler(stage._outlet,
+                    onPull: () => Pull(stage._inlet),
                     onDownstreamFinish: _ => CompleteStage());
             }
         }
     }
-    
+
     public sealed class Http11EncoderStage : GraphStage<FlowShape<HttpRequestMessage, (IMemoryOwner<byte>, int)>>
     {
-        public Inlet<HttpRequestMessage> In { get; } = new("http11.encoder.in");
-        public Outlet<(IMemoryOwner<byte>, int)> Out { get; } = new("http11.encoder.out");
+        private readonly Inlet<HttpRequestMessage> _inlet = new("http11.encoder.in");
+        private readonly Outlet<(IMemoryOwner<byte>, int)> _outlet = new("http11.encoder.out");
 
         public Http11EncoderStage()
         {
-            Shape = new FlowShape<HttpRequestMessage, (IMemoryOwner<byte>, int)>(In, Out);
+            Shape = new FlowShape<HttpRequestMessage, (IMemoryOwner<byte>, int)>(_inlet, _outlet);
         }
 
         public override FlowShape<HttpRequestMessage, (IMemoryOwner<byte>, int)> Shape { get; }
@@ -432,10 +435,10 @@ public class Stages
 
             public Logic(Http11EncoderStage stage) : base(stage.Shape)
             {
-                SetHandler(stage.In,
+                SetHandler(stage._inlet,
                     onPush: () =>
                     {
-                        var request = Grab(stage.In);
+                        var request = Grab(stage._inlet);
 
                         try
                         {
@@ -443,11 +446,11 @@ public class Stages
                             var estimatedSize = MinBufferSize + contentLength;
                             var bufferSize = Math.Min(estimatedSize, MaxBufferSize);
                             var owner = MemoryPool<byte>.Shared.Rent(bufferSize);
-                            var buffer = owner.Memory;
+                            var buffer = owner.Memory.Span;
 
                             var written = Http11Encoder.Encode(request, ref buffer);
 
-                            Push(stage.Out, (owner, written));
+                            Push(stage._outlet, (owner, written));
                         }
                         catch (Exception ex)
                         {
@@ -457,8 +460,8 @@ public class Stages
                     onUpstreamFinish: CompleteStage,
                     onUpstreamFailure: FailStage);
 
-                SetHandler(stage.Out,
-                    onPull: () => Pull(stage.In),
+                SetHandler(stage._outlet,
+                    onPull: () => Pull(stage._inlet),
                     onDownstreamFinish: _ => CompleteStage());
             }
         }
@@ -466,12 +469,12 @@ public class Stages
 
     public sealed class Http11DecoderStage : GraphStage<FlowShape<(IMemoryOwner<byte>, int), HttpResponseMessage>>
     {
-        public Inlet<(IMemoryOwner<byte>, int)> In { get; } = new("http10.decoder.in");
-        public Outlet<HttpResponseMessage> Out { get; } = new("http10.decoder.out");
+        private readonly Inlet<(IMemoryOwner<byte>, int)> _inlet = new("http10.decoder.in");
+        private readonly Outlet<HttpResponseMessage> _outlet = new("http10.decoder.out");
 
         public Http11DecoderStage()
         {
-            Shape = new FlowShape<(IMemoryOwner<byte>, int), HttpResponseMessage>(In, Out);
+            Shape = new FlowShape<(IMemoryOwner<byte>, int), HttpResponseMessage>(_inlet, _outlet);
         }
 
         public override FlowShape<(IMemoryOwner<byte>, int), HttpResponseMessage> Shape { get; }
@@ -487,10 +490,10 @@ public class Stages
 
             public Logic(Http11DecoderStage stage) : base(stage.Shape)
             {
-                SetHandler(stage.In,
+                SetHandler(stage._inlet,
                     onPush: () =>
                     {
-                        var (owner, length) = Grab(stage.In);
+                        var (owner, length) = Grab(stage._inlet);
 
                         try
                         {
@@ -499,13 +502,13 @@ public class Stages
                             if (_decoder.TryDecode(data, out var response))
                             {
                                 owner.Dispose();
-                                EmitMultiple(stage.Out, response);
+                                EmitMultiple(stage._outlet, response);
                             }
                             else
                             {
                                 // Not enough data yet – return the buffer and wait for more
                                 owner.Dispose();
-                                Pull(stage.In);
+                                Pull(stage._inlet);
                             }
                         }
                         catch (Exception ex)
@@ -517,8 +520,8 @@ public class Stages
                     onUpstreamFinish: CompleteStage,
                     onUpstreamFailure: FailStage);
 
-                SetHandler(stage.Out,
-                    onPull: () => Pull(stage.In),
+                SetHandler(stage._outlet,
+                    onPull: () => Pull(stage._inlet),
                     onDownstreamFinish: _ => CompleteStage());
             }
         }
@@ -526,50 +529,65 @@ public class Stages
 
     public sealed class Request2Http2FrameStage : GraphStage<FlowShape<HttpRequestMessage, Http2Frame>>
     {
-        private readonly Inlet<HttpRequestMessage> _in = new("req.in");
+        private readonly Inlet<HttpRequestMessage> _inlet = new("req.in");
+        private readonly Outlet<Http2Frame> _outlet = new("req.out");
+        private readonly Http2RequestEncoder _encoder;
 
-        private readonly Outlet<Http2Frame> _out = new("req.out");
+        public Request2Http2FrameStage(Http2RequestEncoder encoder)
+        {
+            _encoder = encoder;
+        }
 
-        public override FlowShape<HttpRequestMessage, Http2Frame> Shape => new(_in, _out);
+        public override FlowShape<HttpRequestMessage, Http2Frame> Shape => new(_inlet, _outlet);
 
-        protected override GraphStageLogic CreateLogic(Attributes attr) => new Logic(this);
+        protected override GraphStageLogic CreateLogic(Attributes inheritedAttributes) => new Logic(this);
 
         private sealed class Logic : GraphStageLogic
         {
+            private readonly Queue<Http2Frame> _pending = new();
+
             public Logic(Request2Http2FrameStage stage) : base(stage.Shape)
             {
-                SetHandler(stage._in, () =>
+                SetHandler(stage._inlet, onPush: () =>
                 {
-                    var req = Grab(stage._in);
+                    var req = Grab(stage._inlet);
+                    var (_, frames) = stage._encoder.Encode(req);
 
-                    var headers = new List<(SettingsParameter, uint)>();
-
-                    foreach (var h in req.Headers)
+                    foreach (var f in frames)
                     {
+                        _pending.Enqueue(f);
                     }
 
-                    var frame =
-                        new HeadersFrame(streamId: 1, headerBlock: Array.Empty<byte>(),
-                            endStream: req.Content == null);
-
-                    Push(stage._out, frame);
+                    Drain(stage);
                 });
 
-                SetHandler(stage._out, () => { Pull(stage._in); });
+                SetHandler(stage._outlet, onPull: () => Drain(stage));
+            }
+
+            private void Drain(Request2Http2FrameStage stage)
+            {
+                while (_pending.Count > 0 && IsAvailable(stage._outlet))
+                {
+                    Push(stage._outlet, _pending.Dequeue());
+                }
+
+                if (_pending.Count == 0 && !HasBeenPulled(stage._inlet))
+                {
+                    Pull(stage._inlet);
+                }
             }
         }
     }
 
     public sealed class Http2FrameEncoderStage : GraphStage<FlowShape<Http2Frame, (IMemoryOwner<byte>, int)>>
     {
-        private readonly Inlet<Http2Frame> Inlet = new("frameEncoder.in");
-
-        private readonly Outlet<(IMemoryOwner<byte>, int)> Outlet = new("frameEncoder.out");
+        private readonly Inlet<Http2Frame> _inlet = new("frameEncoder.in");
+        private readonly Outlet<(IMemoryOwner<byte>, int)> _outlet = new("frameEncoder.out");
 
         public override FlowShape<Http2Frame, (IMemoryOwner<byte>, int)> Shape =>
-            new(Inlet, Outlet);
+            new(_inlet, _outlet);
 
-        protected override GraphStageLogic CreateLogic(Attributes attributes)
+        protected override GraphStageLogic CreateLogic(Attributes inheritedAttributes)
             => new Logic(this);
 
         private sealed class Logic : GraphStageLogic
@@ -581,30 +599,29 @@ public class Stages
             {
                 _stage = stage;
 
-                SetHandler(stage.Inlet, () =>
+                SetHandler(stage._inlet, () =>
                 {
-                    var frame = Grab(stage.Inlet);
+                    var frame = Grab(stage._inlet);
 
                     var owner = MemoryPool<byte>.Shared.Rent(frame.SerializedSize);
                     var span = owner.Memory.Span;
 
                     frame.WriteTo(ref span);
 
-                    Push(stage.Outlet, (owner, frame.SerializedSize));
+                    Push(stage._outlet, (owner, frame.SerializedSize));
                 });
 
-                SetHandler(stage.Outlet, () => Pull(stage.Inlet));
+                SetHandler(stage._outlet, () => Pull(stage._inlet));
             }
         }
     }
 
     public sealed class Http2FrameDecoderStage : GraphStage<FlowShape<(IMemoryOwner<byte>, int), Http2Frame>>
     {
-        public Inlet<(IMemoryOwner<byte>, int)> Inlet = new("http20.tcp.in");
+        private readonly Inlet<(IMemoryOwner<byte>, int)> _inlet = new("http20.tcp.in");
+        private readonly Outlet<Http2Frame> _outlet = new("http20.frame.out");
 
-        public Outlet<Http2Frame> Outlet = new("http20.frame.out");
-
-        public override FlowShape<(IMemoryOwner<byte>, int), Http2Frame> Shape => new(Inlet, Outlet);
+        public override FlowShape<(IMemoryOwner<byte>, int), Http2Frame> Shape => new(_inlet, _outlet);
 
         protected override GraphStageLogic CreateLogic(Attributes inheritedAttributes)
         {
@@ -621,9 +638,9 @@ public class Stages
 
             public Logic(Http2FrameDecoderStage stage) : base(stage.Shape)
             {
-                SetHandler(stage.Inlet, onPush: () =>
+                SetHandler(stage._inlet, onPush: () =>
                 {
-                    var (owner, length) = Grab(stage.Inlet);
+                    var (owner, length) = Grab(stage._inlet);
 
                     try
                     {
@@ -637,7 +654,7 @@ public class Stages
                     TryParse(stage);
                 });
 
-                SetHandler(stage.Outlet, onPull: () => Pull(stage.Inlet));
+                SetHandler(stage._outlet, onPull: () => Pull(stage._inlet));
             }
 
             private void Append(ReadOnlySpan<byte> data)
@@ -650,7 +667,11 @@ public class Stages
 
             private void EnsureCapacity(int required)
             {
-                if (required <= _buffer.Length) return;
+                if (required <= _buffer.Length)
+                {
+                    return;
+                }
+
                 var newSize = Math.Max(required, _buffer.Length * 2);
 
                 var newOwner = _pool.Rent(newSize);
@@ -691,29 +712,69 @@ public class Stages
 
                     var frame = CreateFrame(type, flags, streamId, payload);
 
-                    Emit(stage.Outlet, frame);
+                    Emit(stage._outlet, frame);
                 }
             }
 
-            private Http2Frame CreateFrame(FrameType type, byte flags, int streamId, byte[] payload)
+            private static Http2Frame CreateFrame(FrameType type, byte flags, int streamId, byte[] payload)
             {
-                switch (type)
+                return type switch
                 {
-                    case FrameType.Data:
-                        return new DataFrame(streamId, payload, (flags & 0x1) != 0);
+                    FrameType.Data => new DataFrame(streamId, payload, (flags & 0x1) != 0),
 
-                    case FrameType.Headers:
-                        return new HeadersFrame(streamId, payload, (flags & 0x1) != 0, (flags & 0x4) != 0);
+                    FrameType.Headers => new HeadersFrame(streamId, payload, (flags & 0x1) != 0, (flags & 0x4) != 0),
 
-                    case FrameType.Continuation:
-                        return new ContinuationFrame(streamId, payload, (flags & 0x4) != 0);
+                    FrameType.Continuation => new ContinuationFrame(streamId, payload, (flags & 0x4) != 0),
 
-                    case FrameType.Ping:
-                        return new PingFrame(payload, (flags & 0x1) != 0);
+                    FrameType.Ping => new PingFrame(payload, (flags & 0x1) != 0),
 
-                    default:
-                        throw new Exception("Unsupported frame");
+                    FrameType.Settings => ParseSettings(payload, flags),
+
+                    FrameType.WindowUpdate => new WindowUpdateFrame(streamId,
+                        (int)(BinaryPrimitives.ReadUInt32BigEndian(payload) & 0x7FFFFFFFu)),
+
+                    FrameType.RstStream => new RstStreamFrame(streamId,
+                        (Http2ErrorCode)BinaryPrimitives.ReadUInt32BigEndian(payload)),
+
+                    FrameType.GoAway => ParseGoAway(payload),
+
+                    FrameType.PushPromise => ParsePushPromise(streamId, flags, payload),
+
+                    _ => throw new Http2Exception(
+                        $"Unknown frame type 0x{(byte)type:X2}",
+                        Http2ErrorCode.ProtocolError,
+                        Http2ErrorScope.Connection)
+                };
+            }
+
+            private static SettingsFrame ParseSettings(byte[] payload, byte flags)
+            {
+                var isAck = (flags & 0x1) != 0;
+                var list = new List<(SettingsParameter, uint)>();
+
+                for (var i = 0; i + 6 <= payload.Length; i += 6)
+                {
+                    var key = (SettingsParameter)BinaryPrimitives.ReadUInt16BigEndian(payload.AsSpan(i));
+                    var value = BinaryPrimitives.ReadUInt32BigEndian(payload.AsSpan(i + 2));
+                    list.Add((key, value));
                 }
+
+                return new SettingsFrame(list, isAck);
+            }
+
+            private static GoAwayFrame ParseGoAway(byte[] payload)
+            {
+                var lastStream = (int)(BinaryPrimitives.ReadUInt32BigEndian(payload) & 0x7FFFFFFFu);
+                var errorCode = (Http2ErrorCode)BinaryPrimitives.ReadUInt32BigEndian(payload.AsSpan(4));
+                var debugData = payload.Length > 8 ? payload[8..] : Array.Empty<byte>();
+                return new GoAwayFrame(lastStream, errorCode, debugData);
+            }
+
+            private static PushPromiseFrame ParsePushPromise(int streamId, byte flags, byte[] payload)
+            {
+                var promised = (int)(BinaryPrimitives.ReadUInt32BigEndian(payload) & 0x7FFFFFFFu);
+                var endHeaders = (flags & 0x4) != 0;
+                return new PushPromiseFrame(streamId, promised, payload[4..], endHeaders);
             }
 
             private void ShiftBuffer(int consumed)
@@ -730,16 +791,13 @@ public class Stages
 
     public sealed class Http2ConnectionStage : GraphStage<BidiShape<Http2Frame, Http2Frame, Http2Frame, Http2Frame>>
     {
-        public readonly Inlet<Http2Frame> InletRaw = new("h2.server.in");
-
-        public readonly Outlet<Http2Frame> OutletStream = new("h2.app.out");
-
-        public readonly Inlet<Http2Frame> InletRequest = new("h2.app.in");
-
-        public readonly Outlet<Http2Frame> OutletRaw = new("h2.server.out");
+        private readonly Inlet<Http2Frame> _inletRaw = new("h2.server.in");
+        private readonly Outlet<Http2Frame> _outletStream = new("h2.app.out");
+        private readonly Inlet<Http2Frame> _inletRequest = new("h2.app.in");
+        private readonly Outlet<Http2Frame> _outletRaw = new("h2.server.out");
 
         public override BidiShape<Http2Frame, Http2Frame, Http2Frame, Http2Frame> Shape
-            => new(InletRaw, OutletStream, InletRequest, OutletRaw);
+            => new(_inletRaw, _outletStream, _inletRequest, _outletRaw);
 
         protected override GraphStageLogic CreateLogic(Attributes inheritedAttributes)
             => new Logic(this);
@@ -756,9 +814,9 @@ public class Stages
             public Logic(Http2ConnectionStage stage) : base(stage.Shape)
             {
                 _stage = stage;
-                SetHandler(stage.InletRaw, onPush: () =>
+                SetHandler(stage._inletRaw, onPush: () =>
                 {
-                    var frame = Grab(stage.InletRaw);
+                    var frame = Grab(stage._inletRaw);
 
                     switch (frame)
                     {
@@ -783,14 +841,14 @@ public class Stages
                             break;
                     }
 
-                    Push(stage.OutletStream, frame);
+                    Push(stage._outletStream, frame);
                 });
 
-                SetHandler(stage.OutletStream, onPull: () => Pull(stage.InletRaw));
+                SetHandler(stage._outletStream, onPull: () => Pull(stage._inletRaw));
 
-                SetHandler(stage.InletRequest, onPush: () =>
+                SetHandler(stage._inletRequest, onPush: () =>
                 {
-                    var frame = Grab(stage.InletRequest);
+                    var frame = Grab(stage._inletRequest);
 
                     switch (frame)
                     {
@@ -799,10 +857,10 @@ public class Stages
                             break;
                     }
 
-                    Push(stage.OutletRaw, frame);
+                    Push(stage._outletRaw, frame);
                 });
 
-                SetHandler(stage.OutletRaw, onPull: () => Pull(stage.InletRequest));
+                SetHandler(stage._outletRaw, onPull: () => Pull(stage._inletRequest));
             }
 
             private void HandleSettings(SettingsFrame frame)
@@ -820,7 +878,7 @@ public class Stages
                     }
                 }
 
-                Emit(_stage.OutletRaw, new SettingsFrame([]));
+                Emit(_stage._outletRaw, new SettingsFrame([], isAck: true));
             }
 
             private void HandleInboundData(DataFrame frame)
@@ -841,16 +899,16 @@ public class Stages
                     FailStage(new Exception("Stream window exceeded"));
                 }
 
-                Emit(_stage.OutletRaw, new WindowUpdateFrame(0, frame.Data.Length));
+                Emit(_stage._outletRaw, new WindowUpdateFrame(0, frame.Data.Length));
 
-                Emit(_stage.OutletRaw, new WindowUpdateFrame(frame.StreamId, frame.Data.Length));
+                Emit(_stage._outletRaw, new WindowUpdateFrame(frame.StreamId, frame.Data.Length));
             }
 
             private void HandlePing(PingFrame ping)
             {
                 if (!ping.IsAck)
                 {
-                    Emit(_stage.OutletRaw, new PingFrame(ping.Data, true));
+                    Emit(_stage._outletRaw, new PingFrame(ping.Data, true));
                 }
             }
 
@@ -882,11 +940,11 @@ public class Stages
 
     public sealed class Http2StreamStage : GraphStage<FlowShape<Http2Frame, HttpResponseMessage>>
     {
-        private readonly Inlet<Http2Frame> Inlet = new("h2.stream.in");
+        private readonly Inlet<Http2Frame> _inlet = new("h2.stream.in");
 
-        private readonly Outlet<HttpResponseMessage> Outlet = new("h2.stream.out");
+        private readonly Outlet<HttpResponseMessage> _outlet = new("h2.stream.out");
 
-        public override FlowShape<Http2Frame, HttpResponseMessage> Shape => new(Inlet, Outlet);
+        public override FlowShape<Http2Frame, HttpResponseMessage> Shape => new(_inlet, _outlet);
 
         protected override GraphStageLogic CreateLogic(Attributes inheritedAttributes)
             => new Logic(this);
@@ -988,9 +1046,9 @@ public class Stages
             public Logic(Http2StreamStage stage) : base(stage.Shape)
             {
                 _stage = stage;
-                SetHandler(stage.Inlet, () =>
+                SetHandler(stage._inlet, () =>
                 {
-                    var frame = Grab(stage.Inlet);
+                    var frame = Grab(stage._inlet);
                     _streams.TryAdd(frame.StreamId, new StreamState(MemoryPool<byte>.Shared));
                     switch (frame)
                     {
@@ -1007,10 +1065,10 @@ public class Stages
                             break;
                     }
 
-                    Pull(stage.Inlet);
+                    Pull(stage._inlet);
                 });
 
-                SetHandler(stage.Outlet, () => { Pull(stage.Inlet); });
+                SetHandler(stage._outlet, () => { Pull(stage._inlet); });
             }
 
             private void HandleHeaders(HeadersFrame frame)
@@ -1045,12 +1103,16 @@ public class Stages
 
                 state.AppendBody(frame.Data.Span);
 
-                if (!frame.EndStream) return;
+                if (!frame.EndStream)
+                {
+                    return;
+                }
+
                 var response = state.Response ?? new HttpResponseMessage();
 
                 response.Content = new ByteArrayContent(state.BodyBuffer[..state.BodyLength].ToArray());
 
-                Push(_stage.Outlet, response);
+                Push(_stage._outlet, response);
 
                 state.Dispose();
                 _streams.Remove(frame.StreamId);
@@ -1080,8 +1142,12 @@ public class Stages
 
                 state.Response = response;
 
-                if (!endStream) return;
-                Push(_stage.Outlet, response);
+                if (!endStream)
+                {
+                    return;
+                }
+
+                Push(_stage._outlet, response);
 
                 state.Dispose();
                 _streams.Remove(streamId);

@@ -1,11 +1,7 @@
-#nullable enable
-using System;
 using System.Buffers.Binary;
-using System.Collections.Generic;
 using TurboHttp.Protocol;
-using Xunit;
 
-namespace TurboHttp.Tests;
+namespace TurboHttp.Tests.RFC9113;
 
 /// <summary>
 /// Phase 29: Fuzz Harness
@@ -74,8 +70,16 @@ public sealed class Http2FuzzHarnessTests
         bool endHeaders = true, bool endStream = false)
     {
         byte flags = 0;
-        if (endHeaders) flags |= 0x4;
-        if (endStream) flags |= 0x1;
+        if (endHeaders)
+        {
+            flags |= 0x4;
+        }
+
+        if (endStream)
+        {
+            flags |= 0x1;
+        }
+
         return BuildRawFrame(0x1, flags, streamId, headerBlock);
     }
 
@@ -201,8 +205,8 @@ public sealed class Http2FuzzHarnessTests
         // Declare length = 20000 > default MaxFrameSize (16384), provide full buffer.
         const int declaredLength = 20000;
         var frame = new byte[9 + declaredLength];
-        frame[0] = (byte)(declaredLength >> 16);
-        frame[1] = (byte)(declaredLength >> 8);
+        frame[0] = declaredLength >> 16;
+        frame[1] = declaredLength >> 8;
         frame[2] = unchecked((byte)declaredLength);
         frame[3] = 0x0; // DATA
         frame[4] = 0x0;

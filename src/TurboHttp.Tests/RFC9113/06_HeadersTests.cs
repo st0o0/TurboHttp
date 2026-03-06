@@ -1,7 +1,6 @@
-using System.Collections.Generic;
 using TurboHttp.Protocol;
 
-namespace TurboHttp.Tests;
+namespace TurboHttp.Tests.RFC9113;
 
 /// <summary>
 /// Phase 12-13: HTTP/2 Decoder — HEADERS Validation.

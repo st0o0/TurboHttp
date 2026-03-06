@@ -1,10 +1,8 @@
-#nullable enable
-
 using System.Net;
 using System.Text;
 using TurboHttp.Protocol;
 
-namespace TurboHttp.Tests;
+namespace TurboHttp.Tests.Integration;
 
 /// <summary>
 /// Phase 60 — Final HTTPWG Core Validation Gate

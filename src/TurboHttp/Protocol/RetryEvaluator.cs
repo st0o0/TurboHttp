@@ -1,7 +1,5 @@
-#nullable enable
-
 using System;
-using System.Net;
+using System.Globalization;
 using System.Net.Http;
 
 namespace TurboHttp.Protocol;
@@ -44,9 +42,7 @@ public static class RetryEvaluator
     ///     A <see cref="RetryDecision"/> indicating whether the request should be retried,
     ///     the reason, and an optional <c>Retry-After</c> delay parsed from the response.
     /// </returns>
-    public static RetryDecision Evaluate(
-        HttpRequestMessage request,
-        HttpResponseMessage? response = null,
+    public static RetryDecision Evaluate(HttpRequestMessage request, HttpResponseMessage? response = null,
         bool networkFailure = false,
         bool bodyPartiallyConsumed = false,
         int attemptCount = 1,
@@ -58,8 +54,7 @@ public static class RetryEvaluator
         // RFC 9110 §9.2.2: MUST NOT automatically retry a request with a non-replayable body.
         if (bodyPartiallyConsumed)
         {
-            return RetryDecision.NoRetry(
-                "RFC 9110 §9.2.2: Request body partially consumed; cannot rewind for retry.");
+            return RetryDecision.NoRetry("RFC 9110 §9.2.2: Request body partially consumed; cannot rewind for retry.");
         }
 
         // Method must be idempotent.
@@ -74,16 +69,14 @@ public static class RetryEvaluator
         // Retry limit.
         if (attemptCount >= policy.MaxRetries)
         {
-            return RetryDecision.NoRetry(
-                $"Retry limit reached ({policy.MaxRetries} attempt(s)).");
+            return RetryDecision.NoRetry($"Retry limit reached ({policy.MaxRetries} attempt(s)).");
         }
 
         // Determine if this failure is retriable.
         if (networkFailure)
         {
             // Network-level failure with no response — safe to retry idempotent methods.
-            return RetryDecision.Retry(
-                "RFC 9110 §9.2.2: Network failure on idempotent method; retrying.");
+            return RetryDecision.Retry("RFC 9110 §9.2.2: Network failure on idempotent method; retrying.");
         }
 
         if (response is null)
@@ -99,23 +92,19 @@ public static class RetryEvaluator
         if (statusCode == 408)
         {
             var delay = policy.RespectRetryAfter ? ParseRetryAfter(response) : null;
-            return RetryDecision.Retry(
-                "RFC 9110 §9.2.2: 408 Request Timeout on idempotent method; retrying.",
-                delay);
+            return RetryDecision.Retry("RFC 9110 §9.2.2: 408 Request Timeout on idempotent method; retrying.", delay);
         }
 
         // 503 Service Unavailable — server temporarily unable to handle the request.
         if (statusCode == 503)
         {
             var delay = policy.RespectRetryAfter ? ParseRetryAfter(response) : null;
-            return RetryDecision.Retry(
-                "RFC 9110 §9.2.2: 503 Service Unavailable on idempotent method; retrying.",
+            return RetryDecision.Retry("RFC 9110 §9.2.2: 503 Service Unavailable on idempotent method; retrying.",
                 delay);
         }
 
         // All other status codes — not a retriable condition.
-        return RetryDecision.NoRetry(
-            $"Status {statusCode} is not a retriable error code (not 408 or 503).");
+        return RetryDecision.NoRetry($"Status {statusCode} is not a retriable error code (not 408 or 503).");
     }
 
     // ── Private Helpers ──────────────────────────────────────────────────────────
@@ -128,14 +117,17 @@ public static class RetryEvaluator
     private static bool IsIdempotent(HttpMethod method)
     {
         // Use reference equality where possible (HttpMethod caches well-known methods).
-        if (method == HttpMethod.Get) return true;
-        if (method == HttpMethod.Head) return true;
-        if (method == HttpMethod.Put) return true;
-        if (method == HttpMethod.Delete) return true;
-        if (method == HttpMethod.Options) return true;
-        if (method == HttpMethod.Trace) return true;
-        // POST, PATCH, CONNECT — not idempotent.
-        return false;
+        return method switch
+        {
+            _ when method == HttpMethod.Get => true,
+            _ when method == HttpMethod.Head => true,
+            _ when method == HttpMethod.Put => true,
+            _ when method == HttpMethod.Delete => true,
+            _ when method == HttpMethod.Options => true,
+            _ when method == HttpMethod.Trace => true,
+            // POST, PATCH, CONNECT — not idempotent.
+            _ => false
+        };
     }
 
     /// <summary>
@@ -161,7 +153,7 @@ public static class RetryEvaluator
             }
 
             // HTTP-date: attempt to parse as a DateTimeOffset.
-            if (DateTimeOffset.TryParse(trimmed, out var date))
+            if (DateTimeOffset.TryParse(trimmed, CultureInfo.InvariantCulture, out var date))
             {
                 var delay = date - DateTimeOffset.UtcNow;
                 // Clamp to zero if date is in the past.

@@ -178,8 +178,15 @@ public sealed class HeadersFrame : Http2Frame
     public override int WriteTo(ref Span<byte> span)
     {
         var flags = HeadersFlags.None;
-        if (EndStream) flags |= HeadersFlags.EndStream;
-        if (EndHeaders) flags |= HeadersFlags.EndHeaders;
+        if (EndStream)
+        {
+            flags |= HeadersFlags.EndStream;
+        }
+
+        if (EndHeaders)
+        {
+            flags |= HeadersFlags.EndHeaders;
+        }
 
         WriteFrameHeader(ref span, HeaderBlockFragment.Length, FrameType.Headers, (byte)flags, StreamId);
         span = span[FrameHeaderSize..];
@@ -243,10 +250,10 @@ public sealed class SettingsFrame : Http2Frame
     public IReadOnlyList<(SettingsParameter, uint)> Parameters { get; }
     public bool IsAck { get; }
 
-    public SettingsFrame(IReadOnlyList<(SettingsParameter Key, uint Value)> parameters) : base(0)
+    public SettingsFrame(IReadOnlyList<(SettingsParameter Key, uint Value)> parameters, bool isAck = false) : base(0)
     {
         Parameters = parameters;
-        IsAck = false;
+        IsAck = isAck;
     }
 
     public override int SerializedSize => FrameHeaderSize + (IsAck ? 0 : Parameters.Count * 6);
@@ -287,7 +294,10 @@ public sealed class PingFrame : Http2Frame
     public PingFrame(byte[] data, bool isAck = false) : base(0)
     {
         if (data.Length != 8)
+        {
             throw new ArgumentException("PING data must be exactly 8 bytes.", nameof(data));
+        }
+
         Data = data;
         IsAck = isAck;
     }
@@ -316,7 +326,10 @@ public sealed class GoAwayFrame : Http2Frame
     public GoAwayFrame(int lastStreamId, Http2ErrorCode errorCode, byte[]? debugData = null) : base(0)
     {
         if (lastStreamId < 0)
+        {
             throw new Http2Exception("Invalid LastStreamId");
+        }
+
         LastStreamId = lastStreamId;
         ErrorCode = errorCode;
         DebugData = debugData ?? [];

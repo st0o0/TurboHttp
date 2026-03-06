@@ -1,8 +1,7 @@
-using System;
 using System.Buffers.Binary;
 using TurboHttp.Protocol;
 
-namespace TurboHttp.Tests;
+namespace TurboHttp.Tests.RFC9113;
 
 /// <summary>
 /// Phase 24-25: Resource Exhaustion Protection
@@ -446,7 +445,7 @@ public sealed class Http2ResourceExhaustionTests
         }
 
         Assert.NotNull(capException);
-        Assert.Equal(Http2ErrorCode.ProtocolError, capException!.ErrorCode);
+        Assert.Equal(Http2ErrorCode.ProtocolError, capException.ErrorCode);
         Assert.Contains("Stream ID space exhausted", capException.Message);
     }
 

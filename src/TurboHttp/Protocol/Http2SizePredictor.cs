@@ -32,11 +32,7 @@ public sealed class Http2SizePredictor(bool useHuffman = true)
         {
             var bodySize = GetContentLength(content);
             prediction.BodyBytes = (int)bodySize;
-
-            prediction.FrameCount += PredictDataFrames(
-                bodySize,
-                availableWindow,
-                ref prediction);
+            prediction.FrameCount += PredictDataFrames(bodySize, availableWindow, ref prediction);
         }
         else
         {
@@ -131,7 +127,11 @@ public sealed class Http2SizePredictor(bool useHuffman = true)
         }
 
         // Content Headers
-        if (request.Content?.Headers == null) return list;
+        if (request.Content?.Headers == null)
+        {
+            return list;
+        }
+
         foreach (var header in request.Content.Headers)
         {
             var lowerName = header.Key.ToLowerInvariant();
@@ -146,8 +146,7 @@ public sealed class Http2SizePredictor(bool useHuffman = true)
         return list;
     }
 
-    private static string FormatAuthority(Uri uri)
-        => uri.IsDefaultPort ? uri.Host : $"{uri.Host}:{uri.Port}";
+    private static string FormatAuthority(Uri uri) => uri.IsDefaultPort ? uri.Host : $"{uri.Host}:{uri.Port}";
 }
 
 public sealed class Http2RequestPrediction

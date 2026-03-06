@@ -1,10 +1,8 @@
-#nullable enable
-
 using System.Net;
 using System.Text;
 using TurboHttp.Protocol;
 
-namespace TurboHttp.Tests;
+namespace TurboHttp.Tests.RFC1945;
 
 public sealed class Http10DecoderHeaderTests
 {
@@ -34,7 +32,7 @@ public sealed class Http10DecoderHeaderTests
         Assert.NotNull(response.Content);
 
         Assert.True(response.Content.Headers.TryGetValues("Content-Type", out var values));
-        Assert.Contains("text/plain", values!);
+        Assert.Contains("text/plain", values);
     }
 
     [Fact(DisplayName = "RFC1945-4-HDR-002: Custom header parsed correctly")]

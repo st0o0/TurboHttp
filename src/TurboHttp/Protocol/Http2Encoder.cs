@@ -92,7 +92,11 @@ public sealed class Http2Encoder(bool useHuffman = true)
 
         bytesWritten += WriteHeadersWithContinuation(ref span, streamId, headerBlock, endStream: !hasBody);
 
-        if (!hasBody) return (streamId, bytesWritten);
+        if (!hasBody)
+        {
+            return (streamId, bytesWritten);
+        }
+
         span = buffer[bytesWritten..].Span;
         bytesWritten += WriteData(ref span, streamId, request.Content!, endStream: true);
         return (streamId, bytesWritten);
@@ -165,7 +169,7 @@ public sealed class Http2Encoder(bool useHuffman = true)
 
     public void UpdateConnectionWindow(int increment)
     {
-        if (increment < 1 || increment > 0x7FFFFFFF)
+        if (increment is < 1 or > 0x7FFFFFFF)
         {
             throw new ArgumentOutOfRangeException(nameof(increment));
         }
@@ -175,7 +179,7 @@ public sealed class Http2Encoder(bool useHuffman = true)
 
     public void UpdateStreamWindow(int streamId, int increment)
     {
-        if (increment < 1 || increment > 0x7FFFFFFF)
+        if (increment is < 1 or > 0x7FFFFFFF)
         {
             throw new ArgumentOutOfRangeException(nameof(increment));
         }
@@ -209,9 +213,7 @@ public sealed class Http2Encoder(bool useHuffman = true)
                     case ":method":
                         if (hasMethod)
                         {
-                            throw new Http2Exception(
-                                "RFC 7540 §8.1.2.1: Duplicate :method pseudo-header",
-                                Http2ErrorCode.ProtocolError);
+                            throw new Http2Exception("RFC 7540 §8.1.2.1: Duplicate :method pseudo-header");
                         }
 
                         hasMethod = true;
@@ -219,9 +221,7 @@ public sealed class Http2Encoder(bool useHuffman = true)
                     case ":path":
                         if (hasPath)
                         {
-                            throw new Http2Exception(
-                                "RFC 7540 §8.1.2.1: Duplicate :path pseudo-header",
-                                Http2ErrorCode.ProtocolError);
+                            throw new Http2Exception("RFC 7540 §8.1.2.1: Duplicate :path pseudo-header");
                         }
 
                         hasPath = true;
@@ -229,9 +229,7 @@ public sealed class Http2Encoder(bool useHuffman = true)
                     case ":scheme":
                         if (hasScheme)
                         {
-                            throw new Http2Exception(
-                                "RFC 7540 §8.1.2.1: Duplicate :scheme pseudo-header",
-                                Http2ErrorCode.ProtocolError);
+                            throw new Http2Exception("RFC 7540 §8.1.2.1: Duplicate :scheme pseudo-header");
                         }
 
                         hasScheme = true;
@@ -239,17 +237,13 @@ public sealed class Http2Encoder(bool useHuffman = true)
                     case ":authority":
                         if (hasAuthority)
                         {
-                            throw new Http2Exception(
-                                "RFC 7540 §8.1.2.1: Duplicate :authority pseudo-header",
-                                Http2ErrorCode.ProtocolError);
+                            throw new Http2Exception("RFC 7540 §8.1.2.1: Duplicate :authority pseudo-header");
                         }
 
                         hasAuthority = true;
                         break;
                     default:
-                        throw new Http2Exception(
-                            $"RFC 7540 §8.1.2.1: Unknown request pseudo-header '{name}'",
-                            Http2ErrorCode.ProtocolError);
+                        throw new Http2Exception($"RFC 7540 §8.1.2.1: Unknown request pseudo-header '{name}'");
                 }
             }
             else
@@ -264,21 +258,33 @@ public sealed class Http2Encoder(bool useHuffman = true)
         if (lastPseudoIndex > firstRegularIndex)
         {
             throw new Http2Exception(
-                $"RFC 7540 §8.1.2.1: Pseudo-header at index {lastPseudoIndex} appears after regular header at index {firstRegularIndex}",
-                Http2ErrorCode.ProtocolError);
+                $"RFC 7540 §8.1.2.1: Pseudo-header at index {lastPseudoIndex} appears after regular header at index {firstRegularIndex}");
         }
 
-        var missing = new System.Text.StringBuilder();
-        if (!hasMethod) missing.Append(missing.Length > 0 ? ", :method" : ":method");
-        if (!hasPath) missing.Append(missing.Length > 0 ? ", :path" : ":path");
-        if (!hasScheme) missing.Append(missing.Length > 0 ? ", :scheme" : ":scheme");
-        if (!hasAuthority) missing.Append(missing.Length > 0 ? ", :authority" : ":authority");
+        var missing = new StringBuilder();
+        if (!hasMethod)
+        {
+            missing.Append(missing.Length > 0 ? ", :method" : ":method");
+        }
+
+        if (!hasPath)
+        {
+            missing.Append(missing.Length > 0 ? ", :path" : ":path");
+        }
+
+        if (!hasScheme)
+        {
+            missing.Append(missing.Length > 0 ? ", :scheme" : ":scheme");
+        }
+
+        if (!hasAuthority)
+        {
+            missing.Append(missing.Length > 0 ? ", :authority" : ":authority");
+        }
 
         if (missing.Length > 0)
         {
-            throw new Http2Exception(
-                $"RFC 7540 §8.1.2.1: Missing required pseudo-headers: {missing}",
-                Http2ErrorCode.ProtocolError);
+            throw new Http2Exception($"RFC 7540 §8.1.2.1: Missing required pseudo-headers: {missing}");
         }
     }
 
@@ -287,7 +293,7 @@ public sealed class Http2Encoder(bool useHuffman = true)
         // _nextStreamId < 0 means it wrapped around past int.MaxValue (stream ID space exhausted)
         if (_nextStreamId < 0)
         {
-            throw new Http2Exception("Stream ID space exhausted", Http2ErrorCode.ProtocolError);
+            throw new Http2Exception("Stream ID space exhausted");
         }
 
         var id = _nextStreamId;
@@ -330,7 +336,10 @@ public sealed class Http2Encoder(bool useHuffman = true)
             endStream,
             endHeaders);
 
-        if (endHeaders) return bytesWritten;
+        if (endHeaders)
+        {
+            return bytesWritten;
+        }
 
         // CONTINUATION Frames — always index into the original `span` via `bytesWritten`
         var pos = firstChunkSize;
@@ -341,8 +350,7 @@ public sealed class Http2Encoder(bool useHuffman = true)
             var isLast = pos + chunkSize >= headerBlock.Length;
             pos += chunkSize;
 
-            bytesWritten += Http2FrameWriter.WriteContinuationFrame(
-                span[bytesWritten..], streamId, chunk, isLast);
+            bytesWritten += Http2FrameWriter.WriteContinuationFrame(span[bytesWritten..], streamId, chunk, isLast);
         }
 
         return bytesWritten;

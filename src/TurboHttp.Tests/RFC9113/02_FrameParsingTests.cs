@@ -1,11 +1,6 @@
-#nullable enable
-
-using System;
-using System.Buffers.Binary;
 using TurboHttp.Protocol;
-using Xunit;
 
-namespace TurboHttp.Tests;
+namespace TurboHttp.Tests.RFC9113;
 
 /// <summary>
 /// RFC 7540 §4 — HTTP/2 Frame Layer
@@ -105,9 +100,9 @@ public sealed class Http2FrameParsingCoreTests
         // Build a SETTINGS frame with 66006 bytes payload (11001 entries × 6 = 66006).
         const int payloadLen = 66006;
         var buf = new byte[9 + payloadLen];
-        buf[0] = (byte)(payloadLen >> 16);
-        buf[1] = (byte)((payloadLen >> 8) & 0xFF);
-        buf[2] = (byte)(payloadLen & 0xFF);
+        buf[0] = payloadLen >> 16;
+        buf[1] = (payloadLen >> 8) & 0xFF;
+        buf[2] = payloadLen & 0xFF;
         buf[3] = 0x04; // SETTINGS
         buf[4] = 0x00; // no flags
         // stream = 0 (bytes 5–8 remain zero)
@@ -117,7 +112,7 @@ public sealed class Http2FrameParsingCoreTests
         }
 
         // Raise max frame size to accept the large frame.
-        var maxSizeSettings = new SettingsFrame([(SettingsParameter.MaxFrameSize, (uint)(payloadLen + 100))]).Serialize();
+        var maxSizeSettings = new SettingsFrame([(SettingsParameter.MaxFrameSize, payloadLen + 100)]).Serialize();
         var decoder = new Http2Decoder();
         decoder.TryDecode(maxSizeSettings, out _);
 
@@ -149,9 +144,9 @@ public sealed class Http2FrameParsingCoreTests
         // DATA frame: 9-byte header + 16384-byte payload
         const int maxPayload = 16384;
         var dataFrame = new byte[9 + maxPayload];
-        dataFrame[0] = (byte)(maxPayload >> 16);
-        dataFrame[1] = (byte)((maxPayload >> 8) & 0xFF);
-        dataFrame[2] = (byte)(maxPayload & 0xFF);
+        dataFrame[0] = maxPayload >> 16;
+        dataFrame[1] = (maxPayload >> 8) & 0xFF;
+        dataFrame[2] = maxPayload & 0xFF;
         dataFrame[3] = 0x00; // DATA
         dataFrame[4] = 0x01; // END_STREAM
         dataFrame[5] = 0; dataFrame[6] = 0; dataFrame[7] = 0; dataFrame[8] = 1; // stream = 1
@@ -166,9 +161,9 @@ public sealed class Http2FrameParsingCoreTests
     {
         const int overSize = 16385;
         var frame = new byte[9 + overSize];
-        frame[0] = (byte)(overSize >> 16);
-        frame[1] = (byte)(overSize >> 8);
-        frame[2] = (byte)(overSize & 0xFF);
+        frame[0] = overSize >> 16;
+        frame[1] = overSize >> 8;
+        frame[2] = overSize & 0xFF;
         frame[3] = 0x04; // SETTINGS
         frame[4] = 0x00;
         // stream = 0
@@ -186,15 +181,15 @@ public sealed class Http2FrameParsingCoreTests
         // Raise max frame size to 32768, then send a 32768-byte SETTINGS frame.
         const int newMax = 32768;
         const int payloadLen = 32766; // closest multiple of 6 ≤ 32768
-        var maxSizeSettings = new SettingsFrame([(SettingsParameter.MaxFrameSize, (uint)newMax)]).Serialize();
+        var maxSizeSettings = new SettingsFrame([(SettingsParameter.MaxFrameSize, newMax)]).Serialize();
 
         var decoder = new Http2Decoder();
         decoder.TryDecode(maxSizeSettings, out _);
 
         var buf = new byte[9 + payloadLen];
-        buf[0] = (byte)(payloadLen >> 16);
-        buf[1] = (byte)((payloadLen >> 8) & 0xFF);
-        buf[2] = (byte)(payloadLen & 0xFF);
+        buf[0] = payloadLen >> 16;
+        buf[1] = (payloadLen >> 8) & 0xFF;
+        buf[2] = payloadLen & 0xFF;
         buf[3] = 0x04; // SETTINGS
         buf[4] = 0x00;
         // stream = 0
@@ -287,9 +282,9 @@ public sealed class Http2FrameParsingCoreTests
         // Unknown frame with 16384-byte payload (within default max)
         const int payloadLen = 16384;
         var frame = new byte[9 + payloadLen];
-        frame[0] = (byte)(payloadLen >> 16);
-        frame[1] = (byte)((payloadLen >> 8) & 0xFF);
-        frame[2] = (byte)(payloadLen & 0xFF);
+        frame[0] = payloadLen >> 16;
+        frame[1] = (payloadLen >> 8) & 0xFF;
+        frame[2] = payloadLen & 0xFF;
         frame[3] = 0xEE; // unknown type
         frame[4] = 0x00;
         frame[5] = 0; frame[6] = 0; frame[7] = 0; frame[8] = 1; // stream = 1

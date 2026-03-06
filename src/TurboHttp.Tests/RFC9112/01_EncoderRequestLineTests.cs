@@ -1,9 +1,8 @@
-#nullable enable
 using System.Buffers;
 using System.Text;
 using TurboHttp.Protocol;
 
-namespace TurboHttp.Tests;
+namespace TurboHttp.Tests.RFC9112;
 
 public sealed class Http11EncoderRequestLineTests
 {
@@ -28,7 +27,11 @@ public sealed class Http11EncoderRequestLineTests
     {
         var request = new HttpRequestMessage(new HttpMethod("get"), "https://example.com/");
         var buffer = new Memory<byte>(new byte[4096]);
-        Assert.Throws<ArgumentException>(() => Http11Encoder.Encode(request, ref buffer));
+        Assert.Throws<ArgumentException>(() =>
+        {
+            var span = buffer.Span;
+            Http11Encoder.Encode(request, ref span);
+        });
     }
 
     [Fact(DisplayName = "RFC7230-3.1.1: Every request-line ends with CRLF")]
@@ -109,15 +112,17 @@ public sealed class Http11EncoderRequestLineTests
     {
         using var owner = MemoryPool<byte>.Shared.Rent(4096);
         var buffer = owner.Memory;
-        var written = Http11Encoder.Encode(request, ref buffer);
-        return Encoding.ASCII.GetString(buffer.Span[..(int)written]);
+        var span = buffer.Span;
+        var written = Http11Encoder.Encode(request, ref span);
+        return Encoding.ASCII.GetString(buffer.Span[..written]);
     }
 
     private static string EncodeAbsolute(HttpRequestMessage request)
     {
         using var owner = MemoryPool<byte>.Shared.Rent(4096);
         var buffer = owner.Memory;
-        var written = Http11Encoder.Encode(request, ref buffer, absoluteForm: true);
-        return Encoding.ASCII.GetString(buffer.Span[..(int)written]);
+        var span = buffer.Span;
+        var written = Http11Encoder.Encode(request, ref span, absoluteForm: true);
+        return Encoding.ASCII.GetString(buffer.Span[..written]);
     }
 }

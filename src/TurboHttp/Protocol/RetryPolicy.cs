@@ -1,5 +1,3 @@
-#nullable enable
-
 namespace TurboHttp.Protocol;
 
 /// <summary>

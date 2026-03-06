@@ -1,10 +1,7 @@
-#nullable enable
 using System.Buffers.Binary;
-using System.Collections.Generic;
 using TurboHttp.Protocol;
-using Xunit;
 
-namespace TurboHttp.Tests;
+namespace TurboHttp.Tests.RFC9113;
 
 /// <summary>
 /// Phase 26: Error Mapping &amp; Correct Codes
@@ -47,8 +44,16 @@ public sealed class Http2ErrorMappingTests
         bool endStream = false, bool endHeaders = true)
     {
         byte flags = 0;
-        if (endStream) flags |= 0x1;
-        if (endHeaders) flags |= 0x4;
+        if (endStream)
+        {
+            flags |= 0x1;
+        }
+
+        if (endHeaders)
+        {
+            flags |= 0x4;
+        }
+
         return BuildRawFrame(0x1, flags, streamId, headerBlock);
     }
 

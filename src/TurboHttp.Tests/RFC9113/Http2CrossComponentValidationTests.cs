@@ -1,10 +1,7 @@
-#nullable enable
 using System.Buffers.Binary;
-using System.Collections.Generic;
 using TurboHttp.Protocol;
-using Xunit;
 
-namespace TurboHttp.Tests;
+namespace TurboHttp.Tests.RFC9113;
 
 /// <summary>
 /// Phase 27-28: Cross-Component Validation
@@ -54,8 +51,16 @@ public sealed class Http2CrossComponentValidationTests
         bool endStream = false, bool endHeaders = true)
     {
         byte flags = 0;
-        if (endStream) flags |= 0x1;
-        if (endHeaders) flags |= 0x4;
+        if (endStream)
+        {
+            flags |= 0x1;
+        }
+
+        if (endHeaders)
+        {
+            flags |= 0x4;
+        }
+
         return BuildRawFrame(0x1, flags, streamId, headerBlock);
     }
 
@@ -450,11 +455,11 @@ public sealed class Http2CrossComponentValidationTests
         // Literal without indexing (bit pattern 0000xxxx = 0x00), prefix 4 bits, index=0
         hpack.Add(0x00);
         // Name: literal string "X-UPPER"
-        var upperName = System.Text.Encoding.ASCII.GetBytes("X-UPPER");
+        var upperName = "X-UPPER"u8.ToArray();
         hpack.Add((byte)upperName.Length); // not Huffman
         hpack.AddRange(upperName);
         // Value: "test"
-        var val = System.Text.Encoding.ASCII.GetBytes("test");
+        var val = "test"u8.ToArray();
         hpack.Add((byte)val.Length);
         hpack.AddRange(val);
 

@@ -1,5 +1,3 @@
-#nullable enable
-
 using System;
 using System.Collections.Generic;
 using System.Net.Http;
@@ -13,10 +11,13 @@ public enum SameSitePolicy
 {
     /// <summary>No SameSite attribute present.</summary>
     Unspecified,
+
     /// <summary>Cookie sent only for same-site requests.</summary>
     Strict,
+
     /// <summary>Cookie sent for same-site and top-level cross-site navigations.</summary>
     Lax,
+
     /// <summary>Cookie sent for all requests (requires Secure).</summary>
     None,
 }

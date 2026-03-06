@@ -286,11 +286,18 @@ public sealed class Http11EdgeCaseTests
             while (total < 4)
             {
                 var n = await stream.ReadAsync(buf.AsMemory(total), cts.Token);
-                if (n == 0) break;
+                if (n == 0)
+                {
+                    break;
+                }
+
                 total += n;
                 // Look for \r\n\r\n in what we've read so far
                 var s = Encoding.ASCII.GetString(buf, 0, total);
-                if (s.Contains("\r\n\r\n")) break;
+                if (s.Contains("\r\n\r\n"))
+                {
+                    break;
+                }
             }
 
             await stream.WriteAsync(responseBytes, cts.Token);

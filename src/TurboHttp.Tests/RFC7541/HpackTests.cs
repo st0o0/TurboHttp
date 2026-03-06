@@ -1,6 +1,6 @@
 using TurboHttp.Protocol;
 
-namespace TurboHttp.Tests;
+namespace TurboHttp.Tests.RFC7541;
 
 public sealed class HpackTests
 {

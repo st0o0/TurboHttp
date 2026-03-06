@@ -1,5 +1,3 @@
-#nullable enable
-
 using System;
 using System.Collections.Generic;
 
@@ -17,8 +15,7 @@ namespace TurboHttp.Protocol;
 public sealed class PerHostConnectionLimiter
 {
     private readonly int _maxConnectionsPerHost;
-    private readonly Dictionary<string, int> _active =
-        new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, int> _active = new(StringComparer.OrdinalIgnoreCase);
     private readonly object _lock = new();
 
     /// <summary>
@@ -36,8 +33,7 @@ public sealed class PerHostConnectionLimiter
     {
         if (maxConnectionsPerHost < 0)
         {
-            throw new ArgumentOutOfRangeException(
-                nameof(maxConnectionsPerHost),
+            throw new ArgumentOutOfRangeException(nameof(maxConnectionsPerHost),
                 "Maximum connections per host must be >= 0.");
         }
 
@@ -58,7 +54,7 @@ public sealed class PerHostConnectionLimiter
 
         lock (_lock)
         {
-            return _active.TryGetValue(host, out var count) ? count : 0;
+            return _active.GetValueOrDefault(host, 0);
         }
     }
 
@@ -81,7 +77,7 @@ public sealed class PerHostConnectionLimiter
 
         lock (_lock)
         {
-            var current = _active.TryGetValue(host, out var c) ? c : 0;
+            var current = _active.GetValueOrDefault(host, 0);
             if (current >= _maxConnectionsPerHost)
             {
                 return false;

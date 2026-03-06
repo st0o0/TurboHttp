@@ -1,9 +1,9 @@
-#nullable enable
 using System.Buffers;
 using System.Text;
+using FluentAssertions.Common;
 using TurboHttp.Protocol;
 
-namespace TurboHttp.Tests;
+namespace TurboHttp.Tests.RFC9112;
 
 public sealed class Http11EncoderBodyTests
 {
@@ -78,8 +78,9 @@ public sealed class Http11EncoderBodyTests
         };
         using var owner = MemoryPool<byte>.Shared.Rent(4096);
         var buffer = owner.Memory;
-        var written = Http11Encoder.Encode(request, ref buffer);
-        var bytes = buffer.Span[..(int)written].ToArray();
+        var span = buffer.Span;
+        var written = Http11Encoder.Encode(request, ref span);
+        var bytes = buffer.Span[..written].ToArray();
 
         // Find body start (after \r\n\r\n)
         var bodyStart = -1;
@@ -91,6 +92,7 @@ public sealed class Http11EncoderBodyTests
                 break;
             }
         }
+
         Assert.True(bodyStart > 0);
         var body = bytes[bodyStart..(bodyStart + binaryData.Length)];
         Assert.Equal(binaryData, body);
@@ -108,8 +110,9 @@ public sealed class Http11EncoderBodyTests
 
         using var owner = MemoryPool<byte>.Shared.Rent(4096);
         var buffer = owner.Memory;
-        var written = Http11Encoder.Encode(request, ref buffer);
-        var bytes = buffer.Span[..(int)written].ToArray();
+        var span = buffer.Span;
+        var written = Http11Encoder.Encode(request, ref span);
+        var bytes = buffer.Span[..written].ToArray();
         var result = Encoding.ASCII.GetString(bytes);
 
         // Verify Transfer-Encoding: chunked is present
@@ -137,8 +140,9 @@ public sealed class Http11EncoderBodyTests
 
         using var owner = MemoryPool<byte>.Shared.Rent(4096);
         var buffer = owner.Memory;
-        var written = Http11Encoder.Encode(request, ref buffer);
-        var bytes = buffer.Span[..(int)written].ToArray();
+        var span = buffer.Span;
+        var written = Http11Encoder.Encode(request, ref span);
+        var bytes = buffer.Span[..written].ToArray();
         var result = Encoding.ASCII.GetString(bytes);
 
         // Verify the message ends with the final chunk: 0\r\n\r\n
@@ -157,8 +161,9 @@ public sealed class Http11EncoderBodyTests
 
         using var owner = MemoryPool<byte>.Shared.Rent(4096);
         var buffer = owner.Memory;
-        var written = Http11Encoder.Encode(request, ref buffer);
-        var bytes = buffer.Span[..(int)written].ToArray();
+        var span = buffer.Span;
+        var written = Http11Encoder.Encode(request, ref span);
+        var bytes = buffer.Span[..written].ToArray();
         var result = Encoding.ASCII.GetString(bytes);
 
         // RFC 7230 Section 3.3.2: Content-Length MUST NOT be sent when Transfer-Encoding is present
@@ -215,7 +220,11 @@ public sealed class Http11EncoderBodyTests
             Content = content
         };
         var buffer = new Memory<byte>(new byte[200]);
-        Assert.Throws<ArgumentException>(() => Http11Encoder.Encode(request, ref buffer));
+        Assert.Throws<ArgumentException>(() =>
+        {
+            var span = buffer.Span;
+            Http11Encoder.Encode(request, ref span);
+        });
     }
 
     [Fact]
@@ -223,14 +232,19 @@ public sealed class Http11EncoderBodyTests
     {
         var request = new HttpRequestMessage(HttpMethod.Get, "https://example.com/");
         var buffer = new Memory<byte>(new byte[1]);
-        Assert.Throws<ArgumentException>(() => Http11Encoder.Encode(request, ref buffer));
+        Assert.Throws<ArgumentException>(() =>
+        {
+            var span = buffer.Span;
+            Http11Encoder.Encode(request, ref span);
+        });
     }
 
     private static string Encode(HttpRequestMessage request)
     {
         using var owner = MemoryPool<byte>.Shared.Rent(4096);
         var buffer = owner.Memory;
-        var written = Http11Encoder.Encode(request, ref buffer);
-        return Encoding.ASCII.GetString(buffer.Span[..(int)written]);
+        var span = buffer.Span;
+        var written = Http11Encoder.Encode(request, ref span);
+        return Encoding.ASCII.GetString(buffer.Span[..written]);
     }
 }

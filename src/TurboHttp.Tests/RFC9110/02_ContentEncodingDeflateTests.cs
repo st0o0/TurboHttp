@@ -1,10 +1,8 @@
-#nullable enable
-
 using System.IO.Compression;
 using System.Text;
 using TurboHttp.Protocol;
 
-namespace TurboHttp.Tests;
+namespace TurboHttp.Tests.RFC9110;
 
 /// <summary>
 /// RFC 9110 §8.4 — Content-Encoding: deflate, br, and identity tests.
@@ -139,7 +137,7 @@ public sealed class ContentEncodingDeflateTests
     // ── HTTP/1.1 Deflate Tests ──────────────────────────────────────────────
 
     [Fact(DisplayName = "RFC9110-8.4-deflate-001: Should_DecompressDeflate_When_ContentEncodingIsDeflate")]
-    public void Should_DecompressDeflate_When_ContentEncodingIsDeflate()
+    public async Task Should_DecompressDeflate_When_ContentEncodingIsDeflate()
     {
         var original = "Hello, deflate!"u8.ToArray();
         var compressed = DeflateCompress(original);
@@ -148,31 +146,31 @@ public sealed class ContentEncodingDeflateTests
         var decoder = new Http11Decoder();
 
         Assert.True(decoder.TryDecode(responseBytes, out var responses));
-        var body = responses![0].Content!.ReadAsByteArrayAsync().Result;
+        var body = await responses[0].Content.ReadAsByteArrayAsync();
         Assert.Equal(original, body);
     }
 
     [Fact(DisplayName = "RFC9110-8.4-deflate-002: Should_LeaveBodyUnchanged_When_ContentEncodingIsIdentity")]
-    public void Should_LeaveBodyUnchanged_When_ContentEncodingIsIdentity()
+    public async Task Should_LeaveBodyUnchanged_When_ContentEncodingIsIdentity()
     {
         var original = "plain text"u8.ToArray();
         var responseBytes = BuildHttp11ResponseBytes(200, "identity", original);
         var decoder = new Http11Decoder();
 
         Assert.True(decoder.TryDecode(responseBytes, out var responses));
-        var body = responses![0].Content!.ReadAsByteArrayAsync().Result;
+        var body = await responses[0].Content.ReadAsByteArrayAsync();
         Assert.Equal(original, body);
     }
 
     [Fact(DisplayName = "RFC9110-8.4-deflate-003: Should_LeaveBodyUnchanged_When_NoContentEncoding")]
-    public void Should_LeaveBodyUnchanged_When_NoContentEncoding()
+    public async Task Should_LeaveBodyUnchanged_When_NoContentEncoding()
     {
         var original = "plain text"u8.ToArray();
         var responseBytes = BuildHttp11ResponseBytes(200, null, original);
         var decoder = new Http11Decoder();
 
         Assert.True(decoder.TryDecode(responseBytes, out var responses));
-        var body = responses![0].Content!.ReadAsByteArrayAsync().Result;
+        var body = await responses[0].Content.ReadAsByteArrayAsync();
         Assert.Equal(original, body);
     }
 
@@ -183,8 +181,7 @@ public sealed class ContentEncodingDeflateTests
         var responseBytes = BuildHttp11ResponseBytes(200, "zstd", body);
         var decoder = new Http11Decoder();
 
-        var ex = Assert.Throws<HttpDecoderException>(() =>
-            decoder.TryDecode(responseBytes, out _));
+        var ex = Assert.Throws<HttpDecoderException>(() => decoder.TryDecode(responseBytes, out _));
 
         Assert.Equal(HttpDecodeError.DecompressionFailed, ex.DecodeError);
     }
@@ -192,7 +189,7 @@ public sealed class ContentEncodingDeflateTests
     // ── HTTP/1.1 Brotli Tests ────────────────────────────────────────────────
 
     [Fact(DisplayName = "RFC9110-8.4-br-001: Should_DecompressBrotli_When_ContentEncodingIsBr")]
-    public void Should_DecompressBrotli_When_ContentEncodingIsBr()
+    public async Task Should_DecompressBrotli_When_ContentEncodingIsBr()
     {
         var original = "Hello, Brotli!"u8.ToArray();
         var compressed = BrotliCompress(original);
@@ -201,12 +198,12 @@ public sealed class ContentEncodingDeflateTests
         var decoder = new Http11Decoder();
 
         Assert.True(decoder.TryDecode(responseBytes, out var responses));
-        var body = responses![0].Content!.ReadAsByteArrayAsync().Result;
+        var body = await responses[0].Content.ReadAsByteArrayAsync();
         Assert.Equal(original, body);
     }
 
     [Fact(DisplayName = "RFC9110-8.4-br-002: Should_DecompressBrotli_LargeContent")]
-    public void Should_DecompressBrotli_LargeContent()
+    public async Task Should_DecompressBrotli_LargeContent()
     {
         var original = new byte[16 * 1024];
         for (var i = 0; i < original.Length; i++)
@@ -219,14 +216,14 @@ public sealed class ContentEncodingDeflateTests
         var decoder = new Http11Decoder(maxBodySize: 100_000);
 
         Assert.True(decoder.TryDecode(responseBytes, out var responses));
-        var body = responses![0].Content!.ReadAsByteArrayAsync().Result;
+        var body = await responses[0].Content.ReadAsByteArrayAsync();
         Assert.Equal(original, body);
     }
 
     // ── HTTP/1.0 Deflate Tests ──────────────────────────────────────────────
 
     [Fact(DisplayName = "RFC9110-8.4-deflate-h10-001: Should_DecompressDeflate_In_Http10_Response")]
-    public void Should_DecompressDeflate_In_Http10_Response()
+    public async Task Should_DecompressDeflate_In_Http10_Response()
     {
         var original = "deflate in http/1.0"u8.ToArray();
         var compressed = DeflateCompress(original);
@@ -234,14 +231,14 @@ public sealed class ContentEncodingDeflateTests
         var decoder = new Http10Decoder();
 
         Assert.True(decoder.TryDecode(responseBytes, out var response));
-        var body = response!.Content!.ReadAsByteArrayAsync().Result;
+        var body = await response!.Content.ReadAsByteArrayAsync();
         Assert.Equal(original, body);
     }
 
     // ── HTTP/1.0 Brotli Tests ────────────────────────────────────────────────
 
     [Fact(DisplayName = "RFC9110-8.4-br-h10-001: Should_DecompressBrotli_In_Http10_Response")]
-    public void Should_DecompressBrotli_In_Http10_Response()
+    public async Task Should_DecompressBrotli_In_Http10_Response()
     {
         var original = "brotli in http/1.0"u8.ToArray();
         var compressed = BrotliCompress(original);
@@ -249,14 +246,14 @@ public sealed class ContentEncodingDeflateTests
         var decoder = new Http10Decoder();
 
         Assert.True(decoder.TryDecode(responseBytes, out var response));
-        var body = response!.Content!.ReadAsByteArrayAsync().Result;
+        var body = await response!.Content.ReadAsByteArrayAsync();
         Assert.Equal(original, body);
     }
 
     // ── HTTP/2 Deflate Tests ─────────────────────────────────────────────────
 
     [Fact(DisplayName = "RFC9110-8.4-deflate-h2-001: Should_DecompressDeflate_In_Http2_Response")]
-    public void Should_DecompressDeflate_In_Http2_Response()
+    public async Task Should_DecompressDeflate_In_Http2_Response()
     {
         var original = "deflate in http/2"u8.ToArray();
         var compressed = DeflateCompress(original);
@@ -264,28 +261,28 @@ public sealed class ContentEncodingDeflateTests
         var decoder = new Http2Decoder();
 
         Assert.True(decoder.TryDecode(responseBytes, out var result));
-        var body = result.Responses[0].Response.Content!.ReadAsByteArrayAsync().Result;
+        var body = await result.Responses[0].Response.Content.ReadAsByteArrayAsync();
         Assert.Equal(original, body);
     }
 
     // ── HTTP/2 Identity and No-Encoding Tests ────────────────────────────────
 
     [Fact(DisplayName = "RFC9110-8.4-identity-h2-001: Should_LeaveBodyUnchanged_When_Http2_NoContentEncoding")]
-    public void Should_LeaveBodyUnchanged_When_Http2_NoContentEncoding()
+    public async Task Should_LeaveBodyUnchanged_When_Http2_NoContentEncoding()
     {
         var original = "plain http2"u8.ToArray();
         var responseBytes = BuildHttp2Response(1, null, original);
         var decoder = new Http2Decoder();
 
         Assert.True(decoder.TryDecode(responseBytes, out var result));
-        var body = result.Responses[0].Response.Content!.ReadAsByteArrayAsync().Result;
+        var body = await result.Responses[0].Response.Content.ReadAsByteArrayAsync();
         Assert.Equal(original, body);
     }
 
     // ── Transfer-Encoding vs Content-Encoding Distinction ────────────────────
 
     [Fact(DisplayName = "RFC9110-8.4-distinction-001: Should_NotConfuse_TransferEncoding_WithContentEncoding")]
-    public void Should_NotConfuse_TransferEncoding_WithContentEncoding()
+    public async Task Should_NotConfuse_TransferEncoding_WithContentEncoding()
     {
         var original = "hello chunked"u8.ToArray();
         var chunkHex = original.Length.ToString("x");
@@ -302,7 +299,7 @@ public sealed class ContentEncodingDeflateTests
         var decoder = new Http11Decoder();
 
         Assert.True(decoder.TryDecode(responseBytes, out var responses));
-        var body = responses![0].Content!.ReadAsByteArrayAsync().Result;
+        var body = await responses[0].Content.ReadAsByteArrayAsync();
         Assert.Equal(original, body);
     }
 }

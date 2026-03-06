@@ -1,15 +1,9 @@
-#nullable enable
-
-using System;
-using System.IO;
 using System.IO.Compression;
 using System.Net;
-using System.Net.Http;
 using System.Text;
 using TurboHttp.Protocol;
-using Xunit;
 
-namespace TurboHttp.Tests;
+namespace TurboHttp.Tests.Integration;
 
 /// <summary>
 /// Phase 59 — Cross-Feature Integrity Validation.
@@ -43,6 +37,7 @@ public sealed class CrossFeatureIntegrityTests
         {
             gz.Write(raw);
         }
+
         return ms.ToArray();
     }
 
@@ -55,6 +50,7 @@ public sealed class CrossFeatureIntegrityTests
         {
             zlib.Write(raw);
         }
+
         return ms.ToArray();
     }
 
@@ -339,7 +335,7 @@ public sealed class CrossFeatureIntegrityTests
     [Fact(DisplayName = "CFI-023: Identity encoding returns body unchanged")]
     public void Decompress_Identity_ReturnBodyUnchanged()
     {
-        var body = Encoding.UTF8.GetBytes("plain text body");
+        var body = "plain text body"u8.ToArray();
 
         var result = ContentEncodingDecoder.Decompress(body, "identity");
 
@@ -349,7 +345,7 @@ public sealed class CrossFeatureIntegrityTests
     [Fact(DisplayName = "CFI-024: Null content-encoding returns body unchanged")]
     public void Decompress_NullEncoding_ReturnBodyUnchanged()
     {
-        var body = Encoding.UTF8.GetBytes("raw body");
+        var body = "raw body"u8.ToArray();
 
         var result = ContentEncodingDecoder.Decompress(body, null);
 
@@ -368,10 +364,9 @@ public sealed class CrossFeatureIntegrityTests
     [Fact(DisplayName = "CFI-026: Unknown encoding throws HttpDecoderException with DecompressionFailed")]
     public void Decompress_UnknownEncoding_ThrowsHttpDecoderException()
     {
-        var body = Encoding.UTF8.GetBytes("some data");
+        var body = "some data"u8.ToArray();
 
-        var ex = Assert.Throws<HttpDecoderException>(
-            () => ContentEncodingDecoder.Decompress(body, "zstd"));
+        var ex = Assert.Throws<HttpDecoderException>(() => ContentEncodingDecoder.Decompress(body, "zstd"));
 
         Assert.Equal(HttpDecodeError.DecompressionFailed, ex.DecodeError);
     }
@@ -617,7 +612,7 @@ public sealed class CrossFeatureIntegrityTests
     // ═════════════════════════════════════════════════════════════════════════════
 
     [Fact(DisplayName = "CFI-051: HEAD decoded via TryDecodeHead — body is always empty")]
-    public void Head_TryDecodeHead_BodyAlwaysEmpty()
+    public async Task Head_TryDecodeHead_BodyAlwaysEmpty()
     {
         // Craft a response that has Content-Length and a body section
         const string rawResponse =
@@ -634,12 +629,12 @@ public sealed class CrossFeatureIntegrityTests
 
         Assert.True(ok);
         Assert.Single(responses);
-        var body = responses[0].Content.ReadAsByteArrayAsync().GetAwaiter().GetResult();
+        var body = await responses[0].Content.ReadAsByteArrayAsync();
         Assert.Empty(body);
     }
 
-    [Fact(DisplayName = "CFI-052: HEAD response with large Content-Length — body still empty")]
-    public void Head_LargeContentLength_BodyStillEmpty()
+    [Fact(DisplayName = "CFI-052: HEAD response with large Content-Length — body still empty", Timeout = 10000)]
+    public async Task Head_LargeContentLength_BodyStillEmpty()
     {
         const string rawResponse =
             "HTTP/1.1 200 OK\r\n" +
@@ -655,12 +650,13 @@ public sealed class CrossFeatureIntegrityTests
 
         Assert.True(ok);
         Assert.Single(responses);
-        var body = responses[0].Content.ReadAsByteArrayAsync().GetAwaiter().GetResult();
+        var body = await responses[0].Content.ReadAsByteArrayAsync();
         Assert.Empty(body);
     }
 
-    [Fact(DisplayName = "CFI-053: HEAD response with Content-Encoding — headers preserved, body empty")]
-    public void Head_ContentEncoding_HeadersPreserved_BodyEmpty()
+    [Fact(DisplayName = "CFI-053: HEAD response with Content-Encoding — headers preserved, body empty",
+        Timeout = 10000)]
+    public async Task Head_ContentEncoding_HeadersPreserved_BodyEmpty()
     {
         const string rawResponse =
             "HTTP/1.1 200 OK\r\n" +
@@ -678,7 +674,7 @@ public sealed class CrossFeatureIntegrityTests
 
         // Content-Encoding header is preserved (metadata), but body is empty
         var response = responses[0];
-        var body = response.Content.ReadAsByteArrayAsync().GetAwaiter().GetResult();
+        var body = await responses[0].Content.ReadAsByteArrayAsync();
         Assert.Empty(body);
 
         // Content-Encoding header should be on the content headers

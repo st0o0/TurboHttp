@@ -1,12 +1,6 @@
-#nullable enable
-
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
 using TurboHttp.Protocol;
-using Xunit;
 
-namespace TurboHttp.Tests;
+namespace TurboHttp.Tests.RFC9113;
 
 /// <summary>
 /// RFC 9113 §5.1 — HTTP/2 Stream States (Phase 5-6: Full Stream Lifecycle).

@@ -1,8 +1,7 @@
-#nullable enable
 using System.Text;
 using TurboHttp.Protocol;
 
-namespace TurboHttp.Tests;
+namespace TurboHttp.Tests.RFC1945;
 
 /// <summary>
 /// RFC 1945 Round-Trip Fragmentation Tests
@@ -42,7 +41,7 @@ public sealed class Http10RoundTripFragmentationTests
 
         Assert.True(result2);
         Assert.NotNull(response2);
-        Assert.Equal("Hello", await response2!.Content.ReadAsStringAsync());
+        Assert.Equal("Hello", await response2.Content.ReadAsStringAsync());
     }
 
     [Fact(DisplayName = "RFC1945-RT-F02: Fragmented at header boundary")]
@@ -68,7 +67,7 @@ public sealed class Http10RoundTripFragmentationTests
     }
 
     [Fact(DisplayName = "RFC1945-RT-F03: Fragmented at CRLF CRLF boundary")]
-    public void Should_HandleFragmentationAtHeaderEndBoundary_When_RoundTrip()
+    public async Task Should_HandleFragmentationAtHeaderEndBoundary_When_RoundTrip()
     {
         var decoder = new Http10Decoder();
         var fullResponse = "HTTP/1.0 200 OK\r\nContent-Length: 6\r\n\r\nFooBar";
@@ -86,7 +85,7 @@ public sealed class Http10RoundTripFragmentationTests
         var result2 = decoder.TryDecode(fragment2, out var response2);
 
         Assert.True(result2);
-        Assert.Equal("FooBar", response2!.Content.ReadAsStringAsync().Result);
+        Assert.Equal("FooBar", await response2!.Content.ReadAsStringAsync());
     }
 
     [Fact(DisplayName = "RFC1945-RT-F04: Fragmented body delivery")]
@@ -104,14 +103,14 @@ public sealed class Http10RoundTripFragmentationTests
 
         Assert.False(result1); // Should need body data
 
-        // Send partial body
+        // Send first half of body (only new data, not cumulative)
         var midPoint = headerEndIndex + (bodyText.Length / 2);
-        var fragment2 = bytes[..midPoint];
+        var fragment2 = bytes[headerEndIndex..midPoint];
         var result2 = decoder.TryDecode(fragment2, out var response2);
 
         Assert.False(result2); // Still incomplete
 
-        // Send remaining body
+        // Send all remaining data
         var fragment3 = bytes[midPoint..];
         var result3 = decoder.TryDecode(fragment3, out var response3);
 

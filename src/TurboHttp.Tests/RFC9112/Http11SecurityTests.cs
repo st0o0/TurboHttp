@@ -1,7 +1,7 @@
 using System.Text;
 using TurboHttp.Protocol;
 
-namespace TurboHttp.Tests;
+namespace TurboHttp.Tests.RFC9112;
 
 public sealed class Http11SecurityTests
 {
@@ -271,9 +271,9 @@ public sealed class Http11SecurityTests
     {
         // Manually build bytes to embed a bare \r inside a header value.
         // Bytes: "HTTP/1.1 200 OK\r\n" + "X-Foo: hello\rworld\r\n" + "Content-Length: 0\r\n" + "\r\n"
-        var prefix = Encoding.ASCII.GetBytes("HTTP/1.1 200 OK\r\nX-Foo: hello");
+        var prefix = "HTTP/1.1 200 OK\r\nX-Foo: hello"u8.ToArray();
         var bareCr = new byte[] { 0x0D }; // bare CR (not followed by LF)
-        var suffix = Encoding.ASCII.GetBytes("world\r\nContent-Length: 0\r\n\r\n");
+        var suffix = "world\r\nContent-Length: 0\r\n\r\n"u8.ToArray();
 
         var bytes = new byte[prefix.Length + bareCr.Length + suffix.Length];
         prefix.CopyTo(bytes, 0);
@@ -287,9 +287,9 @@ public sealed class Http11SecurityTests
     /// </summary>
     private static ReadOnlyMemory<byte> BuildResponseWithNulInHeaderValue()
     {
-        var prefix = Encoding.ASCII.GetBytes("HTTP/1.1 200 OK\r\nX-Foo: hello");
+        var prefix = "HTTP/1.1 200 OK\r\nX-Foo: hello"u8.ToArray();
         var nul = new byte[] { 0x00 };
-        var suffix = Encoding.ASCII.GetBytes("world\r\nContent-Length: 0\r\n\r\n");
+        var suffix = "world\r\nContent-Length: 0\r\n\r\n"u8.ToArray();
 
         var bytes = new byte[prefix.Length + nul.Length + suffix.Length];
         prefix.CopyTo(bytes, 0);

@@ -1,12 +1,7 @@
-#nullable enable
-
-using System;
 using System.Net;
-using System.Net.Http;
 using TurboHttp.Protocol;
-using Xunit;
 
-namespace TurboHttp.Tests;
+namespace TurboHttp.Tests.Integration;
 
 /// <summary>
 /// Tests for <see cref="RetryEvaluator"/> and <see cref="RetryPolicy"/>.

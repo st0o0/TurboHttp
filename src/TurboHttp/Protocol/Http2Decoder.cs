@@ -88,11 +88,11 @@ public sealed class Http2Decoder
     /// Returns the current SETTINGS_INITIAL_WINDOW_SIZE if no per-stream WINDOW_UPDATE has been received.
     /// </summary>
     public long GetStreamSendWindow(int streamId) =>
-        _streamSendWindows.TryGetValue(streamId, out var w) ? w : _initialWindowSize;
+        _streamSendWindows.GetValueOrDefault(streamId, _initialWindowSize);
 
     /// <summary>Returns the RFC 9113 §5.1 lifecycle state for the given stream.</summary>
     public Http2StreamLifecycleState GetStreamLifecycleState(int streamId) =>
-        _streamLifecycle.TryGetValue(streamId, out var state) ? state : Http2StreamLifecycleState.Idle;
+        _streamLifecycle.GetValueOrDefault(streamId, Http2StreamLifecycleState.Idle);
 
     /// <summary>
     /// Returns the last-stream-id from the most recent GOAWAY frame received,
@@ -142,8 +142,7 @@ public sealed class Http2Decoder
         if (frameType != FrameType.Settings || streamId != 0)
         {
             throw new Http2Exception(
-                $"RFC 7540 §3.5: Server connection preface must be a SETTINGS frame on stream 0; got type={frameType}, streamId={streamId}.",
-                Http2ErrorCode.ProtocolError);
+                $"RFC 7540 §3.5: Server connection preface must be a SETTINGS frame on stream 0; got type={frameType}, streamId={streamId}.");
         }
 
         return true;
@@ -195,8 +194,7 @@ public sealed class Http2Decoder
             if ((rawStreamWord & 0x80000000u) != 0)
             {
                 throw new Http2Exception(
-                    "RFC 7540 §4.1: R-bit MUST be unset; a set R-bit is a PROTOCOL_ERROR.",
-                    Http2ErrorCode.ProtocolError);
+                    "RFC 7540 §4.1: R-bit MUST be unset; a set R-bit is a PROTOCOL_ERROR.");
             }
 
             var streamId = (int)(rawStreamWord & 0x7FFFFFFFu);
@@ -213,8 +211,7 @@ public sealed class Http2Decoder
             if (_continuationBuffer != null && frameType != FrameType.Continuation)
             {
                 throw new Http2Exception(
-                    $"RFC 7540 §6.10: Expected CONTINUATION frame but received {frameType} while awaiting header block completion.",
-                    Http2ErrorCode.ProtocolError);
+                    $"RFC 7540 §6.10: Expected CONTINUATION frame but received {frameType} while awaiting header block completion.");
             }
 
             var payload = working.Slice(9, payloadLength);
@@ -236,7 +233,8 @@ public sealed class Http2Decoder
                     break;
 
                 case FrameType.Settings:
-                    HandleSettings(flags, payload, payloadLength, streamId, settingsList, controlFrames, settingsAcksToSend);
+                    HandleSettings(flags, payload, payloadLength, streamId, settingsList, controlFrames,
+                        settingsAcksToSend);
                     break;
 
                 case FrameType.Ping:
@@ -255,29 +253,29 @@ public sealed class Http2Decoder
                             $"RFC 7540 §6.4: RST_STREAM payload must be exactly 4 bytes; got {payload.Length}.",
                             Http2ErrorCode.FrameSizeError);
                     }
+
+                {
+                    var error = (Http2ErrorCode)BinaryPrimitives.ReadUInt32BigEndian(payload.Span);
+                    rstStreams.Add((streamId, error));
+
+                    // Decrement active count only if the stream was being tracked.
+                    if (_streams.Remove(streamId))
                     {
-                        var error = (Http2ErrorCode)BinaryPrimitives.ReadUInt32BigEndian(payload.Span);
-                        rstStreams.Add((streamId, error));
-
-                        // Decrement active count only if the stream was being tracked.
-                        if (_streams.Remove(streamId))
-                        {
-                            _activeStreamCount--;
-                        }
-
-                        AddClosedStreamId(streamId);
-                        // RFC 9113 §5.1: RST_STREAM moves stream to closed.
-                        _streamLifecycle[streamId] = Http2StreamLifecycleState.Closed;
-
-                        // Security: rapid RST_STREAM cycling protection (mitigates CVE-2023-44487).
-                        _rstStreamCount++;
-                        if (_rstStreamCount > 100)
-                        {
-                            throw new Http2Exception(
-                                $"RFC 7540 security: Excessive RST_STREAM frames ({_rstStreamCount}) — possible rapid-reset attack (CVE-2023-44487).",
-                                Http2ErrorCode.ProtocolError);
-                        }
+                        _activeStreamCount--;
                     }
+
+                    AddClosedStreamId(streamId);
+                    // RFC 9113 §5.1: RST_STREAM moves stream to closed.
+                    _streamLifecycle[streamId] = Http2StreamLifecycleState.Closed;
+
+                    // Security: rapid RST_STREAM cycling protection (mitigates CVE-2023-44487).
+                    _rstStreamCount++;
+                    if (_rstStreamCount > 100)
+                    {
+                        throw new Http2Exception(
+                            $"RFC 7540 security: Excessive RST_STREAM frames ({_rstStreamCount}) — possible rapid-reset attack (CVE-2023-44487).");
+                    }
+                }
 
                     break;
 
@@ -286,8 +284,7 @@ public sealed class Http2Decoder
                     if (streamId != 0)
                     {
                         throw new Http2Exception(
-                            $"RFC 7540 §6.8: GOAWAY frame received on stream {streamId}; MUST be on stream 0.",
-                            Http2ErrorCode.ProtocolError);
+                            $"RFC 7540 §6.8: GOAWAY frame received on stream {streamId}; MUST be on stream 0.");
                     }
 
                     goAway = ParseGoAway(payload);
@@ -297,29 +294,20 @@ public sealed class Http2Decoder
                     // RFC 7540 §6.8: Streams with IDs greater than lastStreamId were NOT
                     // processed by the peer and MUST be retried on a new connection.
                     // Clean them up so no further processing is attempted.
+                {
+                    foreach (var sid in _streams.Keys.Where(x => x > _goAwayLastStreamId))
                     {
-                        var toCancel = new List<int>();
-                        foreach (var sid in _streams.Keys)
-                        {
-                            if (sid > _goAwayLastStreamId)
-                            {
-                                toCancel.Add(sid);
-                            }
-                        }
-
-                        foreach (var sid in toCancel)
-                        {
-                            _streams.Remove(sid);
-                            AddClosedStreamId(sid);
-                            _streamLifecycle[sid] = Http2StreamLifecycleState.Closed;
-                            _activeStreamCount--;
-                        }
+                        _streams.Remove(sid);
+                        AddClosedStreamId(sid);
+                        _streamLifecycle[sid] = Http2StreamLifecycleState.Closed;
+                        _activeStreamCount--;
                     }
+                }
 
                     break;
 
                 case FrameType.PushPromise:
-                    HandlePushPromise(payload, flags, streamId, promisedStreamIds);
+                    HandlePushPromise(payload, flags, promisedStreamIds);
                     break;
 
                 case FrameType.Priority:
@@ -331,7 +319,10 @@ public sealed class Http2Decoder
             }
         }
 
-        if (!decoded) return false;
+        if (!decoded)
+        {
+            return false;
+        }
 
         result = new Http2DecodeResult(
             responses.ToImmutable(),
@@ -388,16 +379,13 @@ public sealed class Http2Decoder
         // RFC 7540 §6.1: DATA frames MUST be associated with a stream.
         if (streamId == 0)
         {
-            throw new Http2Exception(
-                "RFC 7540 §6.1: DATA frame received on stream 0.",
-                Http2ErrorCode.ProtocolError);
+            throw new Http2Exception("RFC 7540 §6.1: DATA frame received on stream 0.");
         }
 
         // RFC 7540 §6.1 / §5.1: DATA on a closed stream is a stream error of type STREAM_CLOSED.
         if (_closedStreamIds.Contains(streamId))
         {
-            throw new Http2Exception(
-                $"RFC 7540 §6.1: DATA received on closed stream {streamId}.",
+            throw new Http2Exception($"RFC 7540 §6.1: DATA received on closed stream {streamId}.",
                 Http2ErrorCode.StreamClosed,
                 Http2ErrorScope.Stream,
                 streamId);
@@ -412,8 +400,7 @@ public sealed class Http2Decoder
             if (_emptyDataFrameCount > 10000)
             {
                 throw new Http2Exception(
-                    $"RFC 7540 security: Excessive zero-length DATA frames ({_emptyDataFrameCount}) — connection terminated.",
-                    Http2ErrorCode.ProtocolError);
+                    $"RFC 7540 security: Excessive zero-length DATA frames ({_emptyDataFrameCount}) — connection terminated.");
             }
         }
 
@@ -430,8 +417,7 @@ public sealed class Http2Decoder
             // RFC 9113 §5.1: A DATA frame on an idle stream (no preceding HEADERS) is a connection
             // error of type PROTOCOL_ERROR. The stream was never opened by a HEADERS frame.
             throw new Http2Exception(
-                $"RFC 9113 §5.1: DATA frame received on idle stream {streamId}; no preceding HEADERS frame was received.",
-                Http2ErrorCode.ProtocolError);
+                $"RFC 9113 §5.1: DATA frame received on idle stream {streamId}; no preceding HEADERS frame was received.");
         }
 
         // RFC 7540 §5.2: Enforce stream-level receive window.
@@ -472,18 +458,13 @@ public sealed class Http2Decoder
         }
     }
 
-    private void HandleHeaders(
-        ReadOnlyMemory<byte> payload,
-        byte flags,
-        int streamId,
+    private void HandleHeaders(ReadOnlyMemory<byte> payload, byte flags, int streamId,
         ImmutableList<(int, HttpResponseMessage)>.Builder responses)
     {
         // RFC 7540 §6.2: HEADERS frames MUST be associated with a stream.
         if (streamId == 0)
         {
-            throw new Http2Exception(
-                "RFC 7540 §6.2: HEADERS frame received on stream 0.",
-                Http2ErrorCode.ProtocolError);
+            throw new Http2Exception("RFC 7540 §6.2: HEADERS frame received on stream 0.");
         }
 
         // RFC 7540 §6.2 / §5.1: HEADERS on an already-closed stream is a connection error of type STREAM_CLOSED.
@@ -498,16 +479,14 @@ public sealed class Http2Decoder
         if (streamId % 2 == 0 && !_promisedStreamIds.Contains(streamId))
         {
             throw new Http2Exception(
-                $"RFC 7540 §5.1.1: HEADERS on even stream {streamId} without preceding PUSH_PROMISE is PROTOCOL_ERROR.",
-                Http2ErrorCode.ProtocolError);
+                $"RFC 7540 §5.1.1: HEADERS on even stream {streamId} without preceding PUSH_PROMISE is PROTOCOL_ERROR.");
         }
 
         // RFC 7540: No new streams accepted after GOAWAY.
         if (_receivedGoAway && !_streams.ContainsKey(streamId))
         {
             throw new Http2Exception(
-                $"RFC 7540 §6.8: No new streams accepted after GOAWAY; stream {streamId} rejected.",
-                Http2ErrorCode.ProtocolError);
+                $"RFC 7540 §6.8: No new streams accepted after GOAWAY; stream {streamId} rejected.");
         }
 
         // RFC 7540 §5.1.2 / §6.5.2: Enforce MAX_CONCURRENT_STREAMS for new streams.
@@ -538,7 +517,11 @@ public sealed class Http2Decoder
 
         if ((flags & 0x20) != 0)
         {
-            if (data.Length < 5) return;
+            if (data.Length < 5)
+            {
+                return;
+            }
+
             data = data[5..]; // 4B Stream Dependency + 1B Weight
         }
 
@@ -576,9 +559,7 @@ public sealed class Http2Decoder
         // RFC 7540 §6.10: CONTINUATION frames MUST be associated with a stream.
         if (streamId == 0)
         {
-            throw new Http2Exception(
-                "RFC 7540 §6.10: CONTINUATION frame received on stream 0.",
-                Http2ErrorCode.ProtocolError);
+            throw new Http2Exception("RFC 7540 §6.10: CONTINUATION frame received on stream 0.");
         }
 
         // RFC 7540 §6.10: A CONTINUATION frame MUST follow a HEADERS or PUSH_PROMISE
@@ -586,8 +567,7 @@ public sealed class Http2Decoder
         if (_continuationBuffer == null || streamId != _continuationStreamId)
         {
             throw new Http2Exception(
-                $"RFC 7540 §6.10: CONTINUATION on stream {streamId} but expected stream {_continuationStreamId}.",
-                Http2ErrorCode.ProtocolError);
+                $"RFC 7540 §6.10: CONTINUATION on stream {streamId} but expected stream {_continuationStreamId}.");
         }
 
         // Security: reject excessive CONTINUATION frames (header-block flood protection).
@@ -595,8 +575,7 @@ public sealed class Http2Decoder
         if (_continuationFrameCount >= 1000)
         {
             throw new Http2Exception(
-                $"RFC 7540 security: Excessive CONTINUATION frames ({_continuationFrameCount}) — possible header-block flood attack.",
-                Http2ErrorCode.ProtocolError);
+                $"RFC 7540 security: Excessive CONTINUATION frames ({_continuationFrameCount}) — possible header-block flood attack.");
         }
 
         var newSize = _continuationBufferLength + payload.Length;
@@ -640,8 +619,7 @@ public sealed class Http2Decoder
         if (streamId != 0)
         {
             throw new Http2Exception(
-                $"RFC 7540 §6.5: SETTINGS frame received on stream {streamId}; MUST be on stream 0.",
-                Http2ErrorCode.ProtocolError);
+                $"RFC 7540 §6.5: SETTINGS frame received on stream {streamId}; MUST be on stream 0.");
         }
 
         if ((flags & (byte)SettingsFlags.Ack) != 0)
@@ -693,8 +671,7 @@ public sealed class Http2Decoder
         if (streamId != 0)
         {
             throw new Http2Exception(
-                $"RFC 7540 §6.7: PING frame received on stream {streamId}; MUST be on stream 0.",
-                Http2ErrorCode.ProtocolError);
+                $"RFC 7540 §6.7: PING frame received on stream {streamId}; MUST be on stream 0.");
         }
 
         // RFC 7540 §6.7: PING payload MUST be exactly 8 bytes.
@@ -746,8 +723,7 @@ public sealed class Http2Decoder
         if (increment == 0)
         {
             throw new Http2Exception(
-                "RFC 7540 §6.9: WINDOW_UPDATE increment of 0 is a PROTOCOL_ERROR.",
-                Http2ErrorCode.ProtocolError);
+                "RFC 7540 §6.9: WINDOW_UPDATE increment of 0 is a PROTOCOL_ERROR.");
         }
 
         // RFC 7540 §6.9.1: A sender MUST NOT allow a flow-control window to exceed 2^31-1.
@@ -766,7 +742,7 @@ public sealed class Http2Decoder
         }
         else
         {
-            var current = _streamSendWindows.TryGetValue(streamId, out var w) ? w : (long)_initialWindowSize;
+            var current = _streamSendWindows.GetValueOrDefault(streamId, _initialWindowSize);
             var newWindow = current + increment;
             if (newWindow > 0x7FFFFFFF)
             {
@@ -787,15 +763,20 @@ public sealed class Http2Decoder
     private void HandlePushPromise(
         ReadOnlyMemory<byte> payload,
         byte flags,
-        int streamId,
         ImmutableList<int>.Builder promisedStreamIds)
     {
-        if (payload.Length < 4) return;
+        if (payload.Length < 4)
+        {
+            return;
+        }
 
         // Strip padding if PADDED flag is set (0x8).
         var data = (flags & 0x8) != 0 ? StripPadding(payload, flags, padded: true) : payload;
 
-        if (data.Length < 4) return;
+        if (data.Length < 4)
+        {
+            return;
+        }
 
         var promisedStreamId = (int)(BinaryPrimitives.ReadUInt32BigEndian(data.Span) & 0x7FFFFFFFu);
         _promisedStreamIds.Add(promisedStreamId);
@@ -814,18 +795,15 @@ public sealed class Http2Decoder
         var seenStatus = false;
         var seenRegularHeader = false;
 
-        foreach (var header in headers)
+        foreach (var name in headers.Select(x => x.Name))
         {
-            var name = header.Name;
-
             // RFC 9113 §8.2: Header field names MUST be lowercase in HTTP/2.
             foreach (var c in name)
             {
-                if (c >= 'A' && c <= 'Z')
+                if (c is >= 'A' and <= 'Z')
                 {
                     throw new Http2Exception(
-                        $"RFC 9113 §8.2: Header field name '{name}' contains uppercase character '{c}'; all names MUST be lowercase.",
-                        Http2ErrorCode.ProtocolError);
+                        $"RFC 9113 §8.2: Header field name '{name}' contains uppercase character '{c}'; all names MUST be lowercase.");
                 }
             }
 
@@ -835,8 +813,7 @@ public sealed class Http2Decoder
                 if (seenRegularHeader)
                 {
                     throw new Http2Exception(
-                        $"RFC 9113 §8.3: Pseudo-header '{name}' appears after regular header fields; PROTOCOL_ERROR.",
-                        Http2ErrorCode.ProtocolError);
+                        $"RFC 9113 §8.3: Pseudo-header '{name}' appears after regular header fields; PROTOCOL_ERROR.");
                 }
 
                 switch (name)
@@ -845,8 +822,7 @@ public sealed class Http2Decoder
                         if (seenStatus)
                         {
                             throw new Http2Exception(
-                                "RFC 9113 §8.3.2: Duplicate ':status' pseudo-header in response; PROTOCOL_ERROR.",
-                                Http2ErrorCode.ProtocolError);
+                                "RFC 9113 §8.3.2: Duplicate ':status' pseudo-header in response; PROTOCOL_ERROR.");
                         }
 
                         seenStatus = true;
@@ -858,14 +834,12 @@ public sealed class Http2Decoder
                     case ":authority":
                         // RFC 9113 §8.3.2: Request pseudo-headers MUST NOT appear in responses.
                         throw new Http2Exception(
-                            $"RFC 9113 §8.3.2: Request pseudo-header '{name}' is forbidden in response HEADERS; PROTOCOL_ERROR.",
-                            Http2ErrorCode.ProtocolError);
+                            $"RFC 9113 §8.3.2: Request pseudo-header '{name}' is forbidden in response HEADERS; PROTOCOL_ERROR.");
 
                     default:
                         // RFC 9113 §8.3: Unknown pseudo-headers are invalid.
                         throw new Http2Exception(
-                            $"RFC 9113 §8.3: Unknown pseudo-header '{name}' is invalid; PROTOCOL_ERROR.",
-                            Http2ErrorCode.ProtocolError);
+                            $"RFC 9113 §8.3: Unknown pseudo-header '{name}' is invalid; PROTOCOL_ERROR.");
                 }
             }
             else
@@ -876,8 +850,7 @@ public sealed class Http2Decoder
                 if (name is "connection" or "keep-alive" or "proxy-connection" or "transfer-encoding" or "upgrade")
                 {
                     throw new Http2Exception(
-                        $"RFC 9113 §8.2.2: Connection-specific header '{name}' is forbidden in HTTP/2; PROTOCOL_ERROR.",
-                        Http2ErrorCode.ProtocolError);
+                        $"RFC 9113 §8.2.2: Connection-specific header '{name}' is forbidden in HTTP/2; PROTOCOL_ERROR.");
                 }
             }
         }
@@ -886,15 +859,11 @@ public sealed class Http2Decoder
         if (!seenStatus)
         {
             throw new Http2Exception(
-                "RFC 9113 §8.3.2: Response HEADERS block is missing required ':status' pseudo-header; PROTOCOL_ERROR.",
-                Http2ErrorCode.ProtocolError);
+                "RFC 9113 §8.3.2: Response HEADERS block is missing required ':status' pseudo-header; PROTOCOL_ERROR.");
         }
     }
 
-    private void ProcessCompleteHeaders(
-        ReadOnlySpan<byte> headerBlock,
-        byte flags,
-        int streamId,
+    private void ProcessCompleteHeaders(ReadOnlySpan<byte> headerBlock, byte flags, int streamId,
         ImmutableList<(int, HttpResponseMessage)>.Builder responses)
     {
         // RFC 9113 §4.3: A decompression failure MUST be treated as a connection error
@@ -906,10 +875,10 @@ public sealed class Http2Decoder
         }
         catch (HpackException ex)
         {
-            throw new Http2Exception(
-                $"RFC 9113 §4.3: HPACK decompression failure — {ex.Message}",
+            throw new Http2Exception($"RFC 9113 §4.3: HPACK decompression failure — {ex.Message}",
                 Http2ErrorCode.CompressionError);
         }
+
         ValidateResponseHeaders(decodedHeaders);
         var state = new StreamState(decodedHeaders);
         var endStream = (flags & (byte)HeadersFlags.EndStream) != 0;
@@ -939,8 +908,7 @@ public sealed class Http2Decoder
                     if (value < 16384 || value > 16777215)
                     {
                         throw new Http2Exception(
-                            $"RFC 7540 §6.5.2: SETTINGS_MAX_FRAME_SIZE {value} is outside the valid range [16384, 16777215].",
-                            Http2ErrorCode.ProtocolError);
+                            $"RFC 7540 §6.5.2: SETTINGS_MAX_FRAME_SIZE {value} is outside the valid range [16384, 16777215].");
                     }
 
                     _maxFrameSize = (int)value;
@@ -951,8 +919,7 @@ public sealed class Http2Decoder
                     if (value > 1)
                     {
                         throw new Http2Exception(
-                            $"RFC 7540 §6.5.2: SETTINGS_ENABLE_PUSH value {value} is invalid; only 0 or 1 are permitted.",
-                            Http2ErrorCode.ProtocolError);
+                            $"RFC 7540 §6.5.2: SETTINGS_ENABLE_PUSH value {value} is invalid; only 0 or 1 are permitted.");
                     }
 
                     break;
@@ -966,27 +933,27 @@ public sealed class Http2Decoder
                             Http2ErrorCode.FlowControlError);
                     }
 
+                {
+                    var newInitial = (int)value;
+                    var delta = (long)newInitial - _initialWindowSize;
+
+                    // RFC 7540 §6.9.2: Adjust send windows for all currently open streams by the delta.
+                    foreach (var sid in _streams.Keys)
                     {
-                        var newInitial = (int)value;
-                        var delta = (long)newInitial - _initialWindowSize;
-
-                        // RFC 7540 §6.9.2: Adjust send windows for all currently open streams by the delta.
-                        foreach (var sid in _streams.Keys)
+                        var current = _streamSendWindows.GetValueOrDefault(sid, _initialWindowSize);
+                        var updated = current + delta;
+                        if (updated > 0x7FFFFFFF)
                         {
-                            var current = _streamSendWindows.TryGetValue(sid, out var w) ? w : (long)_initialWindowSize;
-                            var updated = current + delta;
-                            if (updated > 0x7FFFFFFF)
-                            {
-                                throw new Http2Exception(
-                                    $"RFC 7540 §6.9.2: SETTINGS_INITIAL_WINDOW_SIZE update would overflow stream {sid} send window.",
-                                    Http2ErrorCode.FlowControlError);
-                            }
-
-                            _streamSendWindows[sid] = updated;
+                            throw new Http2Exception(
+                                $"RFC 7540 §6.9.2: SETTINGS_INITIAL_WINDOW_SIZE update would overflow stream {sid} send window.",
+                                Http2ErrorCode.FlowControlError);
                         }
 
-                        _initialWindowSize = newInitial;
+                        _streamSendWindows[sid] = updated;
                     }
+
+                    _initialWindowSize = newInitial;
+                }
 
                     break;
 
@@ -1022,9 +989,17 @@ public sealed class Http2Decoder
         byte flags,
         bool padded)
     {
-        if (!padded || data.IsEmpty) return data;
+        if (!padded || data.IsEmpty)
+        {
+            return data;
+        }
+
         var padLength = data.Span[0];
-        if (1 + padLength > data.Length) return data;
+        if (1 + padLength > data.Length)
+        {
+            return data;
+        }
+
         return data.Slice(1, data.Length - 1 - padLength);
     }
 
@@ -1043,7 +1018,11 @@ public sealed class Http2Decoder
 
     private static GoAwayFrame ParseGoAway(ReadOnlyMemory<byte> payload)
     {
-        if (payload.Length < 8) return new GoAwayFrame(0, Http2ErrorCode.ProtocolError);
+        if (payload.Length < 8)
+        {
+            return new GoAwayFrame(0, Http2ErrorCode.ProtocolError);
+        }
+
         var lastStreamId = (int)(BinaryPrimitives.ReadUInt32BigEndian(payload.Span) & 0x7FFFFFFFu);
         var errorCode = (Http2ErrorCode)BinaryPrimitives.ReadUInt32BigEndian(payload.Span[4..]);
         var debugData = payload.Length > 8 ? payload[8..].ToArray() : null;
@@ -1060,8 +1039,7 @@ public sealed class Http2Decoder
         if (_closedStreamIds.Count >= MaxClosedStreamIds)
         {
             throw new Http2Exception(
-                $"RFC 9113 security: Stream ID space exhausted — {_closedStreamIds.Count} closed stream IDs tracked; connection terminated to prevent memory exhaustion.",
-                Http2ErrorCode.ProtocolError);
+                $"RFC 9113 security: Stream ID space exhausted — {_closedStreamIds.Count} closed stream IDs tracked; connection terminated to prevent memory exhaustion.");
         }
 
         _closedStreamIds.Add(streamId);
@@ -1069,8 +1047,15 @@ public sealed class Http2Decoder
 
     private static ReadOnlyMemory<byte> Combine(ReadOnlyMemory<byte> a, ReadOnlyMemory<byte> b)
     {
-        if (a.IsEmpty) return b;
-        if (b.IsEmpty) return a;
+        if (a.IsEmpty)
+        {
+            return b;
+        }
+
+        if (b.IsEmpty)
+        {
+            return a;
+        }
 
         var merged = new byte[a.Length + b.Length];
         a.Span.CopyTo(merged);
@@ -1098,7 +1083,10 @@ public sealed class Http2Decoder
 
         public void AppendBody(ReadOnlySpan<byte> data)
         {
-            if (data.IsEmpty) return;
+            if (data.IsEmpty)
+            {
+                return;
+            }
 
             var newSize = _bodyLength + data.Length;
 
@@ -1198,7 +1186,11 @@ public sealed class Http2Decoder
                 }
             }
 
-            if (_bodyBuffer == null) return response;
+            if (_bodyBuffer == null)
+            {
+                return response;
+            }
+
             ArrayPool<byte>.Shared.Return(_bodyBuffer);
             _bodyBuffer = null;
 

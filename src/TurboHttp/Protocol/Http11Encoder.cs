@@ -1,5 +1,4 @@
 using System;
-using System.Buffers;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net.Http;
@@ -95,18 +94,6 @@ public static class Http11Encoder
         return bytesWritten;
     }
 
-    /// <summary>
-    /// Encodes an HTTP/1.1 request into a Memory buffer (legacy compatibility).
-    /// </summary>
-    public static int Encode(HttpRequestMessage request, ref Memory<byte> buffer, bool absoluteForm = false)
-    {
-        var span = buffer.Span;
-        var written = Encode(request, ref span, absoluteForm);
-        // Note: Don't advance buffer here - let caller decide if they want to advance
-        // buffer = buffer[written..];  // REMOVED - this was causing tests to fail
-        return written;
-    }
-
     // ── Request Line ────────────────────────────────────────────────────────────
 
     private static int WriteRequestLine(HttpRequestMessage request, ref Span<byte> buffer, bool absoluteForm)
@@ -176,8 +163,7 @@ public static class Http11Encoder
 
     // ── Headers ─────────────────────────────────────────────────────────────────
 
-    private static int WriteHeaders(
-        IEnumerable<KeyValuePair<string, IEnumerable<string>>> headers,
+    private static int WriteHeaders(IEnumerable<KeyValuePair<string, IEnumerable<string>>> headers,
         ref Span<byte> buffer,
         bool skipHost)
     {
@@ -300,7 +286,11 @@ public static class Http11Encoder
             first = false;
         }
 
-        if (!first) bytesWritten += WriteBytes(ref buffer, ", "u8);
+        if (!first)
+        {
+            bytesWritten += WriteBytes(ref buffer, ", "u8);
+        }
+
         bytesWritten += WriteBytes(ref buffer, "keep-alive\r\n"u8);
 
         return bytesWritten;

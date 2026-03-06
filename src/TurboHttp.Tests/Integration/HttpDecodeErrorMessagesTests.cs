@@ -1,10 +1,7 @@
-#nullable enable
-
 using System.Text;
 using TurboHttp.Protocol;
-using Xunit;
 
-namespace TurboHttp.Tests;
+namespace TurboHttp.Tests.Integration;
 
 /// <summary>
 /// Phase 34 — Error Codes &amp; Messages

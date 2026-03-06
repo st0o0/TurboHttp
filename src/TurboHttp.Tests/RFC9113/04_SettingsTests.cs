@@ -1,12 +1,7 @@
-#nullable enable
-
-using System;
 using System.Buffers.Binary;
-using System.Collections.Generic;
 using TurboHttp.Protocol;
-using Xunit;
 
-namespace TurboHttp.Tests;
+namespace TurboHttp.Tests.RFC9113;
 
 /// <summary>
 /// RFC 7540 §6.5 — SETTINGS Synchronization (Phase 8-9).
@@ -108,15 +103,15 @@ public sealed class Http2SettingsSynchronizationTests
 
         // Raise to 32768
         const int newMax = 32768;
-        var updateSettings = new SettingsFrame([(SettingsParameter.MaxFrameSize, (uint)newMax)]).Serialize();
+        var updateSettings = new SettingsFrame([(SettingsParameter.MaxFrameSize, newMax)]).Serialize();
         decoder.TryDecode(updateSettings, out _);
 
         // Now build a SETTINGS frame with a payload size of 32742 bytes (5457 × 6 = 32742)
         const int payloadLen = 32742;
         var bigFrame = new byte[9 + payloadLen];
-        bigFrame[0] = (byte)(payloadLen >> 16);
-        bigFrame[1] = (byte)(payloadLen >> 8);
-        bigFrame[2] = (byte)(payloadLen & 0xFF);
+        bigFrame[0] = payloadLen >> 16;
+        bigFrame[1] = payloadLen >> 8;
+        bigFrame[2] = payloadLen & 0xFF;
         bigFrame[3] = 0x04; // SETTINGS
         // fill with valid SETTINGS entries (HeaderTableSize=4096 repeated)
         for (var i = 0; i < payloadLen; i += 6)
@@ -458,7 +453,10 @@ public sealed class Http2SettingsSynchronizationTests
         {
             var p = (SettingsParameter)BinaryPrimitives.ReadUInt16BigEndian(data.AsSpan(payloadStart + i));
             var v = BinaryPrimitives.ReadUInt32BigEndian(data.AsSpan(payloadStart + i + 2));
-            if (p == param && v == expectedValue) return true;
+            if (p == param && v == expectedValue)
+            {
+                return true;
+            }
         }
 
         return false;

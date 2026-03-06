@@ -1,9 +1,8 @@
-#nullable enable
 using System.Net.Http.Headers;
 using System.Text;
 using TurboHttp.Protocol;
 
-namespace TurboHttp.Tests;
+namespace TurboHttp.Tests.RFC1945;
 
 /// <summary>
 /// RFC 1945 §4 — Header encoding and suppression tests.

@@ -60,9 +60,13 @@ public sealed class FakeConnectionStage : GraphStage<FlowShape<(IMemoryOwner<byt
                 onPull: () =>
                 {
                     if (_buffer.TryDequeue(out var chunk))
+                    {
                         Push(stage.Out, chunk);
+                    }
                     else
+                    {
                         _downstreamWaiting = true;
+                    }
                 },
                 onDownstreamFinish: _ => CompleteStage());
         }

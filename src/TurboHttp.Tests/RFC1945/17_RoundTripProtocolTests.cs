@@ -1,9 +1,8 @@
-#nullable enable
 using System.Net;
 using System.Text;
 using TurboHttp.Protocol;
 
-namespace TurboHttp.Tests;
+namespace TurboHttp.Tests.RFC1945;
 
 /// <summary>
 /// RFC 1945 Round-Trip Protocol Tests
@@ -138,8 +137,8 @@ public sealed class Http10RoundTripProtocolTests
         decoder.TryDecode(data, out var response);
 
         Assert.NotNull(response);
-        Assert.True(response.Headers.Contains("Content-Type") ||
-                    response.Headers.Contains("content-type"));
+        Assert.True(response.Content.Headers.Contains("Content-Type") ||
+                    response.Content.Headers.Contains("content-type"));
     }
 
     [Fact(DisplayName = "RFC1945-RT-P09: Request encoding deterministic")]

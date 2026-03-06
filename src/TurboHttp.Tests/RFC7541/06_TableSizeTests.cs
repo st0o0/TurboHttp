@@ -1,9 +1,7 @@
-#nullable enable
-
 using System.Text;
 using TurboHttp.Protocol;
 
-namespace TurboHttp.Tests;
+namespace TurboHttp.Tests.RFC7541;
 
 /// <summary>
 /// RFC 7540 §6.5.2 — SETTINGS_MAX_HEADER_LIST_SIZE enforcement in the HPACK decoder.

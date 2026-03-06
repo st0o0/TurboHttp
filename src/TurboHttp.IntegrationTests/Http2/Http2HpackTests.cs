@@ -1,5 +1,4 @@
 using System.Net;
-using System.Text;
 using TurboHttp.IntegrationTests.Shared;
 using TurboHttp.Protocol;
 

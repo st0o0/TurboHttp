@@ -1,0 +1,151 @@
+using System;
+using System.Buffers.Binary;
+using System.Collections.Generic;
+
+namespace TurboHttp.Protocol;
+
+/// <summary>
+/// Decodes raw bytes into HTTP/2 frame objects.
+/// Handles TCP fragmentation via an internal remainder buffer.
+/// Pure frame parsing — no HPACK, no stream state.
+/// </summary>
+public sealed class Http2FrameDecoder
+{
+    private ReadOnlyMemory<byte> _remainder = ReadOnlyMemory<byte>.Empty;
+
+    /// <summary>
+    /// Feeds bytes and returns all complete frames decoded so far.
+    /// Incomplete trailing bytes are buffered for the next call.
+    /// </summary>
+    public IReadOnlyList<Http2Frame> Decode(ReadOnlyMemory<byte> incoming)
+    {
+        var working = _remainder.IsEmpty ? incoming : Combine(_remainder, incoming);
+        var frames = new List<Http2Frame>();
+
+        while (working.Length >= 9)
+        {
+            var span = working.Span;
+            var payloadLen = (span[0] << 16) | (span[1] << 8) | span[2];
+            if (working.Length < 9 + payloadLen)
+            {
+                break;
+            }
+
+            var type = (FrameType)span[3];
+            var flags = span[4];
+            var streamId = (int)(BinaryPrimitives.ReadUInt32BigEndian(span[5..]) & 0x7FFFFFFFu);
+            var payload = working.Slice(9, payloadLen);
+
+            frames.Add(CreateFrame(type, flags, streamId, payload));
+            working = working[(9 + payloadLen)..];
+        }
+
+        _remainder = working.IsEmpty ? ReadOnlyMemory<byte>.Empty : working.ToArray();
+        return frames;
+    }
+
+    public void Reset() => _remainder = ReadOnlyMemory<byte>.Empty;
+
+    // ── Frame object creation — all 9 types ──────────────────────────────────
+
+    private static Http2Frame CreateFrame(
+        FrameType type, byte flags, int streamId, ReadOnlyMemory<byte> payload)
+    {
+        return type switch
+        {
+            FrameType.Data => new DataFrame(
+                streamId,
+                payload.ToArray(),
+                (flags & (byte)DataFlags.EndStream) != 0),
+
+            FrameType.Headers => new HeadersFrame(
+                streamId,
+                payload.ToArray(),
+                (flags & (byte)HeadersFlags.EndStream) != 0,
+                (flags & (byte)HeadersFlags.EndHeaders) != 0),
+
+            FrameType.Continuation => new ContinuationFrame(
+                streamId,
+                payload.ToArray(),
+                (flags & (byte)ContinuationFlags.EndHeaders) != 0),
+
+            FrameType.Ping => CreatePing(flags, payload),
+
+            FrameType.Settings => ParseSettings(payload, flags),
+
+            FrameType.WindowUpdate => new WindowUpdateFrame(
+                streamId,
+                (int)(BinaryPrimitives.ReadUInt32BigEndian(payload.Span) & 0x7FFFFFFFu)),
+
+            FrameType.RstStream => new RstStreamFrame(
+                streamId,
+                (Http2ErrorCode)BinaryPrimitives.ReadUInt32BigEndian(payload.Span)),
+
+            FrameType.GoAway => ParseGoAway(payload),
+
+            FrameType.PushPromise => ParsePushPromise(streamId, flags, payload),
+
+            _ => throw new Http2Exception(
+                $"Unknown frame type 0x{(byte)type:X2}",
+                Http2ErrorCode.ProtocolError,
+                Http2ErrorScope.Connection)
+        };
+    }
+
+    private static PingFrame CreatePing(byte flags, ReadOnlyMemory<byte> payload)
+    {
+        if (payload.Length != 8)
+        {
+            throw new Http2Exception(
+                $"PING frame must be exactly 8 bytes, got {payload.Length}",
+                Http2ErrorCode.FrameSizeError,
+                Http2ErrorScope.Connection);
+        }
+
+        return new PingFrame(payload.ToArray(), (flags & (byte)PingFlags.Ack) != 0);
+    }
+
+    private static SettingsFrame ParseSettings(ReadOnlyMemory<byte> payload, byte flags)
+    {
+        var isAck = (flags & (byte)SettingsFlags.Ack) != 0;
+        var list = new List<(SettingsParameter, uint)>();
+        var span = payload.Span;
+
+        for (var i = 0; i + 6 <= span.Length; i += 6)
+        {
+            var key = (SettingsParameter)BinaryPrimitives.ReadUInt16BigEndian(span[i..]);
+            var value = BinaryPrimitives.ReadUInt32BigEndian(span[(i + 2)..]);
+            list.Add((key, value));
+        }
+
+        return new SettingsFrame(list, isAck);
+    }
+
+    private static GoAwayFrame ParseGoAway(ReadOnlyMemory<byte> payload)
+    {
+        var span = payload.Span;
+        var lastStream = (int)(BinaryPrimitives.ReadUInt32BigEndian(span) & 0x7FFFFFFFu);
+        var errorCode = (Http2ErrorCode)BinaryPrimitives.ReadUInt32BigEndian(span[4..]);
+        var debugData = span.Length > 8 ? payload.Slice(8).ToArray() : Array.Empty<byte>();
+        return new GoAwayFrame(lastStream, errorCode, debugData);
+    }
+
+    private static PushPromiseFrame ParsePushPromise(
+        int streamId, byte flags, ReadOnlyMemory<byte> payload)
+    {
+        var span = payload.Span;
+        var promised = (int)(BinaryPrimitives.ReadUInt32BigEndian(span) & 0x7FFFFFFFu);
+        var endHeaders = (flags & (byte)HeadersFlags.EndHeaders) != 0;
+        var headerBlock = payload.Slice(4).ToArray();
+        return new PushPromiseFrame(streamId, promised, headerBlock, endHeaders);
+    }
+
+    private static ReadOnlyMemory<byte> Combine(
+        ReadOnlyMemory<byte> a, ReadOnlyMemory<byte> b)
+    {
+        var result = new byte[a.Length + b.Length];
+        a.Span.CopyTo(result);
+        b.Span.CopyTo(result.AsSpan(a.Length));
+        return result;
+    }
+}

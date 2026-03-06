@@ -1,9 +1,8 @@
-#nullable enable
 using System.Net;
 using System.Text;
 using TurboHttp.Protocol;
 
-namespace TurboHttp.Tests;
+namespace TurboHttp.Tests.RFC9112;
 
 public sealed class Http11RoundTripPipeliningTests
 {
@@ -108,7 +107,7 @@ public sealed class Http11RoundTripPipeliningTests
     [Fact(DisplayName = "RFC7230-5.1: HTTP/1.1 1xx status skipped, final status returned")]
     public async Task Should_SkipContinue_And_Return200_When_100ContinueRoundTrip()
     {
-        var continue100 = Encoding.ASCII.GetBytes("HTTP/1.1 100 Continue\r\n\r\n");
+        var continue100 = "HTTP/1.1 100 Continue\r\n\r\n"u8.ToArray();
         var ok200Sb = new StringBuilder();
         ok200Sb.Append("HTTP/1.1 200 OK\r\n");
         ok200Sb.Append("Content-Length: 4\r\n");

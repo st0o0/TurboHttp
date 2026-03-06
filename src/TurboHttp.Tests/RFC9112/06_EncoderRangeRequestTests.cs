@@ -1,9 +1,8 @@
-#nullable enable
 using System.Buffers;
 using System.Text;
 using TurboHttp.Protocol;
 
-namespace TurboHttp.Tests;
+namespace TurboHttp.Tests.RFC9112;
 
 public sealed class Http11EncoderRangeRequestTests
 {
@@ -54,14 +53,19 @@ public sealed class Http11EncoderRangeRequestTests
         var request = new HttpRequestMessage(HttpMethod.Get, "https://example.com/resource");
         request.Headers.TryAddWithoutValidation("Range", "bytes=abc-xyz");
         var buffer = new Memory<byte>(new byte[4096]);
-        Assert.Throws<ArgumentException>(() => Http11Encoder.Encode(request, ref buffer));
+        Assert.Throws<ArgumentException>(() =>
+        {
+            var span = buffer.Span;
+            Http11Encoder.Encode(request, ref span);
+        });
     }
 
     private static string Encode(HttpRequestMessage request)
     {
         using var owner = MemoryPool<byte>.Shared.Rent(4096);
         var buffer = owner.Memory;
-        var written = Http11Encoder.Encode(request, ref buffer);
-        return Encoding.ASCII.GetString(buffer.Span[..(int)written]);
+        var span = buffer.Span;
+        var written = Http11Encoder.Encode(request, ref span);
+        return Encoding.ASCII.GetString(buffer.Span[..written]);
     }
 }

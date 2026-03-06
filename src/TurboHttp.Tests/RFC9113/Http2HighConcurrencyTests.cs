@@ -1,13 +1,7 @@
-#nullable enable
-using System;
 using System.Buffers.Binary;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
 using TurboHttp.Protocol;
-using Xunit;
 
-namespace TurboHttp.Tests;
+namespace TurboHttp.Tests.RFC9113;
 
 /// <summary>
 /// Phase 30: High-Concurrency Validation

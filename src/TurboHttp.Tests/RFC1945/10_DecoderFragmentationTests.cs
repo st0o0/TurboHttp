@@ -1,10 +1,8 @@
-#nullable enable
-
 using System.Net;
 using System.Text;
 using TurboHttp.Protocol;
 
-namespace TurboHttp.Tests;
+namespace TurboHttp.Tests.RFC1945;
 
 public sealed class Http10DecoderFragmentationTests
 {
@@ -25,7 +23,9 @@ public sealed class Http10DecoderFragmentationTests
         for (var i = 0; i <= haystack.Length - needle.Length; i++)
         {
             if (haystack.Slice(i, needle.Length).SequenceEqual(needle))
+            {
                 return i;
+            }
         }
 
         return -1;

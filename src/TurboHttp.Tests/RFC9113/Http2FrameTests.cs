@@ -1,6 +1,6 @@
 using TurboHttp.Protocol;
 
-namespace TurboHttp.Tests;
+namespace TurboHttp.Tests.RFC9113;
 
 public sealed class Http2FrameTests
 {

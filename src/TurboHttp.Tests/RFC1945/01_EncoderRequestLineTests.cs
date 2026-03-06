@@ -1,8 +1,7 @@
-#nullable enable
 using System.Text;
 using TurboHttp.Protocol;
 
-namespace TurboHttp.Tests;
+namespace TurboHttp.Tests.RFC1945;
 
 /// <summary>
 /// RFC 1945 §5.1 — Request-Line encoding tests.
@@ -173,7 +172,9 @@ public sealed class Http10EncoderRequestLineTests
     {
         var request = new HttpRequestMessage(new HttpMethod(method), "http://example.com/res");
         if (method is "POST" or "PUT" or "PATCH")
+        {
             request.Content = new StringContent("body");
+        }
 
         var (requestLine, _, _) = ParseRaw(request);
 

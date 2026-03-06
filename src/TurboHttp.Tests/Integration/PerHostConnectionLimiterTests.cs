@@ -1,10 +1,6 @@
-#nullable enable
-
-using System;
 using TurboHttp.Protocol;
-using Xunit;
 
-namespace TurboHttp.Tests;
+namespace TurboHttp.Tests.Integration;
 
 /// <summary>
 /// Tests for <see cref="PerHostConnectionLimiter"/>.

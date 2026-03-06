@@ -1,6 +1,5 @@
-#nullable enable
-
 using System;
+using System.Linq;
 using System.Net;
 using System.Net.Http;
 
@@ -103,31 +102,21 @@ public static class ConnectionReuseEvaluator
         }
 
         // HTTP/1.1: persistent connections are the default (RFC 9112 §9.3).
-        {
-            var (timeout, maxRequests) = ParseKeepAliveParameters(response);
-            return ConnectionReuseDecision.KeepAlive(
-                "RFC 9112 §9.3: HTTP/1.1 persistent connection (default).",
-                timeout,
-                maxRequests);
-        }
+        var (timeout2, maxRequests2) = ParseKeepAliveParameters(response);
+        return ConnectionReuseDecision.KeepAlive(
+            "RFC 9112 §9.3: HTTP/1.1 persistent connection (default).",
+            timeout2,
+            maxRequests2);
     }
 
     // ── Private Helpers ──────────────────────────────────────────────────────────
 
     private static bool HasConnectionToken(HttpResponseMessage response, string token)
     {
-        foreach (var t in response.Headers.Connection)
-        {
-            if (t.Equals(token, StringComparison.OrdinalIgnoreCase))
-            {
-                return true;
-            }
-        }
-        return false;
+        return response.Headers.Connection.Any(t => t.Equals(token, StringComparison.OrdinalIgnoreCase));
     }
 
-    private static (TimeSpan? timeout, int? maxRequests) ParseKeepAliveParameters(
-        HttpResponseMessage response)
+    private static (TimeSpan? timeout, int? maxRequests) ParseKeepAliveParameters(HttpResponseMessage response)
     {
         if (!response.Headers.TryGetValues("Keep-Alive", out var values))
         {
@@ -152,13 +141,11 @@ public static class ConnectionReuseEvaluator
                 var key = trimmed[..eqIdx].Trim();
                 var val = trimmed[(eqIdx + 1)..].Trim();
 
-                if (key.Equals("timeout", StringComparison.OrdinalIgnoreCase)
-                    && int.TryParse(val, out var seconds))
+                if (key.Equals("timeout", StringComparison.OrdinalIgnoreCase) && int.TryParse(val, out var seconds))
                 {
                     timeout = TimeSpan.FromSeconds(seconds);
                 }
-                else if (key.Equals("max", StringComparison.OrdinalIgnoreCase)
-                         && int.TryParse(val, out var max))
+                else if (key.Equals("max", StringComparison.OrdinalIgnoreCase) && int.TryParse(val, out var max))
                 {
                     maxRequests = max;
                 }

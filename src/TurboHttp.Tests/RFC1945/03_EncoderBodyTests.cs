@@ -1,8 +1,7 @@
-#nullable enable
 using System.Text;
 using TurboHttp.Protocol;
 
-namespace TurboHttp.Tests;
+namespace TurboHttp.Tests.RFC1945;
 
 /// <summary>
 /// RFC 1945 §7.2 — Body encoding tests.
@@ -42,7 +41,9 @@ public sealed class Http10EncoderBodyTests
         for (var i = 0; i <= haystack.Length - needle.Length; i++)
         {
             if (haystack.Slice(i, needle.Length).SequenceEqual(needle))
+            {
                 return i;
+            }
         }
         return -1;
     }

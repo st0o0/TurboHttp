@@ -1,8 +1,6 @@
-using System.Collections.Generic;
-using System.Linq;
 using TurboHttp.Protocol;
 
-namespace TurboHttp.Tests;
+namespace TurboHttp.Tests.RFC9113;
 
 /// <summary>
 /// Phase 32-33: Http2Decoder MAX_CONCURRENT_STREAMS enforcement.
@@ -653,7 +651,7 @@ public sealed class Http2DecoderMaxConcurrentStreamsTests
         // Apply a very large (but valid as uint) limit; stored as int (capped)
         var settings = new SettingsFrame(new List<(SettingsParameter, uint)>
         {
-            (SettingsParameter.MaxConcurrentStreams, (uint)int.MaxValue),
+            (SettingsParameter.MaxConcurrentStreams, int.MaxValue),
         }).Serialize();
 
         decoder.TryDecode(settings, out _);

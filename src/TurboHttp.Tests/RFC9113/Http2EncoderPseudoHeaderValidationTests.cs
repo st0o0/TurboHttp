@@ -1,12 +1,8 @@
-#nullable enable
 using System.Buffers;
-using System.Collections.Generic;
-using System.Linq;
-using System.Net.Http;
 using System.Text;
 using TurboHttp.Protocol;
 
-namespace TurboHttp.Tests;
+namespace TurboHttp.Tests.RFC9113;
 
 /// <summary>
 /// Phase 29-30: Http2Encoder — Pseudo-Header Validation (RFC 7540 §8.1.2.1)

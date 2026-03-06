@@ -1,9 +1,6 @@
-#nullable enable
-
-using System.Buffers;
 using TurboHttp.Protocol;
 
-namespace TurboHttp.Tests;
+namespace TurboHttp.Tests.RFC7541;
 
 /// <summary>
 /// RFC 7541 Appendix A — HPACK Static Table

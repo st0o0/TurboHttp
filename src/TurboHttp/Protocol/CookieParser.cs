@@ -1,5 +1,3 @@
-#nullable enable
-
 using System;
 using System.Globalization;
 
@@ -125,7 +123,7 @@ internal static class CookieParser
         if (maxAgeSecs.HasValue)
         {
             expiresAt = maxAgeSecs.Value <= 0
-                ? now.AddSeconds(-1)          // Max-Age=0 → expired immediately (delete)
+                ? now.AddSeconds(-1) // Max-Age=0 → expired immediately (delete)
                 : now.AddSeconds(maxAgeSecs.Value);
         }
 

@@ -1,12 +1,7 @@
-#nullable enable
-
-using System;
 using System.Net;
-using System.Net.Http;
 using TurboHttp.Protocol;
-using Xunit;
 
-namespace TurboHttp.Tests;
+namespace TurboHttp.Tests.Integration;
 
 /// <summary>
 /// RFC 6265 — Cookie management tests.

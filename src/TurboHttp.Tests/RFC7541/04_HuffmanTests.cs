@@ -1,8 +1,7 @@
-using System;
 using System.Text;
 using TurboHttp.Protocol;
 
-namespace TurboHttp.Tests;
+namespace TurboHttp.Tests.RFC7541;
 
 /// <summary>
 /// Tests for HuffmanCodec — RFC 7541 §5.2 (String Literal Representation)
@@ -123,7 +122,7 @@ public sealed class HuffmanDecoderTests
     public void HF012_MixedCodeLengths_Decode()
     {
         // Mix short (5-bit) and long (28-bit) codes
-        var input = Encoding.ASCII.GetBytes("GET /index.html HTTP/1.1");
+        var input = "GET /index.html HTTP/1.1"u8.ToArray();
         var encoded = HuffmanCodec.Encode(input);
         var decoded = HuffmanCodec.Decode(encoded);
         Assert.Equal(input, decoded);

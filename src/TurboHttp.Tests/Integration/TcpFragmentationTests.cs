@@ -1,10 +1,8 @@
-using System.Collections.Generic;
-using System.Linq;
 using System.Net;
 using System.Text;
 using TurboHttp.Protocol;
 
-namespace TurboHttp.Tests;
+namespace TurboHttp.Tests.Integration;
 
 /// <summary>
 /// Phase 10: TCP Fragmentation — Systematic Matrix
@@ -29,7 +27,7 @@ public sealed class TcpFragmentationTests
     ///   Total: 43 bytes
     /// </summary>
     private static byte[] Raw10() =>
-        Encoding.ASCII.GetBytes("HTTP/1.0 200 OK\r\nContent-Length: 5\r\n\r\nhello");
+        "HTTP/1.0 200 OK\r\nContent-Length: 5\r\n\r\nhello"u8.ToArray();
 
     /// <summary>
     /// Minimal HTTP/1.1 200 response with a 5-byte body "hello".
@@ -41,7 +39,7 @@ public sealed class TcpFragmentationTests
     ///   Total: 43 bytes
     /// </summary>
     private static byte[] Raw11() =>
-        Encoding.ASCII.GetBytes("HTTP/1.1 200 OK\r\nContent-Length: 5\r\n\r\nhello");
+        "HTTP/1.1 200 OK\r\nContent-Length: 5\r\n\r\nhello"u8.ToArray();
 
     /// <summary>
     /// HTTP/1.1 chunked response with a single 10-byte chunk.
@@ -266,7 +264,7 @@ public sealed class TcpFragmentationTests
     public async System.Threading.Tasks.Task Should_AssembleComplete_When_Http11DeliveredOneByteAtATime()
     {
         // Use a short response: "HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nhi" = 41 bytes
-        var data = Encoding.ASCII.GetBytes("HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nhi");
+        var data = "HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nhi"u8.ToArray();
         var decoder = new Http11Decoder();
 
         // Feed every byte except the last; each call must return false
@@ -349,7 +347,7 @@ public sealed class TcpFragmentationTests
         var hpack = new HpackEncoder(useHuffman: false);
         var headerBlock = hpack.Encode(new List<(string, string)> { (":status", "200") });
         var headersFrame = new Protocol.HeadersFrame(1, headerBlock, endStream: false, endHeaders: true).Serialize();
-        var bodyBytes = Encoding.UTF8.GetBytes("hello world");
+        var bodyBytes = "hello world"u8.ToArray();
         var dataFrame = new Protocol.DataFrame(1, bodyBytes, endStream: true).Serialize();
 
         var combined = Combine(headersFrame, dataFrame);

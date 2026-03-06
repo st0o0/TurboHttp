@@ -1,10 +1,8 @@
-#nullable enable
-
 using System.Buffers;
 using System.Text;
 using TurboHttp.Protocol;
 
-namespace TurboHttp.Tests;
+namespace TurboHttp.Tests.RFC7541;
 
 /// <summary>
 /// RFC 7541 §4 — HPACK Dynamic Table Engine

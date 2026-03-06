@@ -1,7 +1,7 @@
 using System.Text;
 using TurboHttp.Protocol;
 
-namespace TurboHttp.Tests;
+namespace TurboHttp.Tests.RFC9112;
 
 /// <summary>
 /// RFC 9112 negative path hardening tests — Phase 70 Step 7.
@@ -75,7 +75,7 @@ public sealed class Http11NegativePathTests
         // RFC 9112 §2.2: a recipient MUST NOT treat a bare LF as a line terminator.
         // Our decoder uses strict CRLF matching; bare-LF input is treated as incomplete data.
         var decoder = new Http11Decoder();
-        var raw = Encoding.ASCII.GetBytes("HTTP/1.1 200 OK\nContent-Length: 0\n\n");
+        var raw = "HTTP/1.1 200 OK\nContent-Length: 0\n\n"u8.ToArray();
 
         var decoded = decoder.TryDecode(raw, out var responses);
 
@@ -142,7 +142,8 @@ public sealed class Http11NegativePathTests
 
     // ── RFC 9112 §6 — Transfer-Encoding & Body Framing ────────────────────────
 
-    [Fact(DisplayName = "RFC9112-6-TE-001: Transfer-Encoding: gzip (non-chunked) with no Content-Length yields empty body")]
+    [Fact(DisplayName =
+        "RFC9112-6-TE-001: Transfer-Encoding: gzip (non-chunked) with no Content-Length yields empty body")]
     public void RFC9112_6_TransferEncoding_NonChunkedWithoutContentLength_YieldsEmptyBody()
     {
         // When Transfer-Encoding is present but is not "chunked" (e.g., "gzip"),
@@ -165,7 +166,7 @@ public sealed class Http11NegativePathTests
     }
 
     [Fact(DisplayName = "RFC9112-6-TE-002: Bytes after Content-Length boundary are not consumed by current response")]
-    public void RFC9112_6_Body_BytesAfterContentLengthTreatedAsPipelinedResponse()
+    public async Task RFC9112_6_Body_BytesAfterContentLengthTreatedAsPipelinedResponse()
     {
         // RFC 9112 §6.3: content length terminates the body exactly.
         // Extra bytes following the declared body must be treated as the next pipelined response,
@@ -188,8 +189,8 @@ public sealed class Http11NegativePathTests
         Assert.True(decoded);
         Assert.Equal(2, responses.Count);
 
-        var body1 = responses[0].Content.ReadAsByteArrayAsync().GetAwaiter().GetResult();
-        var body2 = responses[1].Content.ReadAsByteArrayAsync().GetAwaiter().GetResult();
+        var body1 = await responses[0].Content.ReadAsByteArrayAsync();
+        var body2 = await responses[1].Content.ReadAsByteArrayAsync();
 
         Assert.Equal("Hello"u8.ToArray(), body1);
         Assert.Equal("Bye"u8.ToArray(), body2);
@@ -197,8 +198,9 @@ public sealed class Http11NegativePathTests
 
     // ── RFC 9110 §15 — No-Body Status Codes ───────────────────────────────────
 
-    [Fact(DisplayName = "RFC9110-15-204-001: 204 No Content always produces empty body regardless of Content-Length header")]
-    public void RFC9110_15_Response204_AlwaysHasEmptyBody()
+    [Fact(DisplayName =
+        "RFC9110-15-204-001: 204 No Content always produces empty body regardless of Content-Length header")]
+    public async Task RFC9110_15_Response204_AlwaysHasEmptyBody()
     {
         // RFC 9110 §15.3.5: A 204 response MUST NOT include a message body.
         // The decoder must return an empty body even if Content-Length is present in headers.
@@ -211,12 +213,13 @@ public sealed class Http11NegativePathTests
         Assert.Single(responses);
         Assert.Equal(System.Net.HttpStatusCode.NoContent, responses[0].StatusCode);
 
-        var body = responses[0].Content.ReadAsByteArrayAsync().GetAwaiter().GetResult();
+        var body = await responses[0].Content.ReadAsByteArrayAsync();
         Assert.Empty(body);
     }
 
-    [Fact(DisplayName = "RFC9110-15-304-001: 304 Not Modified always produces empty body regardless of Content-Length header")]
-    public void RFC9110_15_Response304_AlwaysHasEmptyBody()
+    [Fact(DisplayName =
+        "RFC9110-15-304-001: 304 Not Modified always produces empty body regardless of Content-Length header")]
+    public async Task RFC9110_15_Response304_AlwaysHasEmptyBody()
     {
         // RFC 9110 §15.4.5: A 304 response MUST NOT contain a message body.
         var decoder = new Http11Decoder();
@@ -228,14 +231,14 @@ public sealed class Http11NegativePathTests
         Assert.Single(responses);
         Assert.Equal(System.Net.HttpStatusCode.NotModified, responses[0].StatusCode);
 
-        var body = responses[0].Content.ReadAsByteArrayAsync().GetAwaiter().GetResult();
+        var body = await responses[0].Content.ReadAsByteArrayAsync();
         Assert.Empty(body);
     }
 
     // ── RFC 9112 §9 — Request/Response Smuggling Protection ───────────────────
 
     [Fact(DisplayName = "RFC9112-9-SMUG-001: Multiple Content-Length with same value is accepted per RFC 9112 §6.3")]
-    public void RFC9112_9_MultipleContentLength_SameValue_Accepted()
+    public async Task RFC9112_9_MultipleContentLength_SameValue_Accepted()
     {
         // RFC 9112 §6.3: If a message is received with multiple Content-Length header fields
         // with identical values, the recipient MAY treat the message as having a single value.
@@ -253,7 +256,7 @@ public sealed class Http11NegativePathTests
 
         Assert.True(decoded);
         Assert.Single(responses);
-        var body = responses[0].Content.ReadAsByteArrayAsync().GetAwaiter().GetResult();
+        var body = await responses[0].Content.ReadAsByteArrayAsync();
         Assert.Equal("Hello"u8.ToArray(), body);
     }
 
@@ -314,7 +317,7 @@ public sealed class Http11NegativePathTests
     }
 
     [Fact(DisplayName = "RFC9112-7-CHK-002: Chunked body with all-caps hex chunk size accepted")]
-    public void RFC9112_7_Chunked_UpperCaseHexChunkSizeAccepted()
+    public async Task RFC9112_7_Chunked_UpperCaseHexChunkSizeAccepted()
     {
         // RFC 9112 §7.1: chunk-size = 1*HEXDIG; HEXDIG includes both upper and lower case A-F.
         var decoder = new Http11Decoder();
@@ -330,8 +333,8 @@ public sealed class Http11NegativePathTests
 
         Assert.True(decoded);
         Assert.Single(responses);
-        var body = responses[0].Content.ReadAsByteArrayAsync().GetAwaiter().GetResult();
+        var body = await responses[0].Content.ReadAsByteArrayAsync();
         Assert.Equal(10, body.Length);
-        Assert.Equal(Encoding.ASCII.GetBytes("0123456789"), body);
+        Assert.Equal("0123456789"u8.ToArray(), body);
     }
 }

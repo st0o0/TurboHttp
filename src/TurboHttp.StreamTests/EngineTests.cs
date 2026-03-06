@@ -85,9 +85,13 @@ public sealed class
                 onPull: () =>
                 {
                     if (_buffer.TryDequeue(out var chunk))
+                    {
                         Push(stage.Out, chunk);
+                    }
                     else
+                    {
                         _downstreamWaiting = true;
+                    }
                 },
                 onDownstreamFinish: _ => CompleteStage());
         }
@@ -149,7 +153,10 @@ public abstract class EngineTestBase : TestKit
             .RunWith(Sink.ForEach<HttpResponseMessage>(res =>
             {
                 results.Add(res);
-                if (results.Count == expectedCount) tcs.TrySetResult();
+                if (results.Count == expectedCount)
+                {
+                    tcs.TrySetResult();
+                }
             }), Materializer);
 
         await tcs.Task.WaitAsync(TimeSpan.FromSeconds(5));

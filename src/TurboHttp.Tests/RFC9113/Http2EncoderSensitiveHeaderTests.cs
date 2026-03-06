@@ -1,12 +1,8 @@
-#nullable enable
 using System.Buffers;
-using System.Collections.Generic;
-using System.Linq;
-using System.Net.Http;
 using System.Text;
 using TurboHttp.Protocol;
 
-namespace TurboHttp.Tests;
+namespace TurboHttp.Tests.RFC9113;
 
 /// <summary>
 /// Phase 31: Http2Encoder — Sensitive Header Handling (RFC 7541 §7.1.3).

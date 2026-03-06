@@ -1,9 +1,7 @@
-#nullable enable
-
 using System.Text;
 using TurboHttp.Protocol;
 
-namespace TurboHttp.Tests;
+namespace TurboHttp.Tests.RFC7541;
 
 /// <summary>
 /// RFC 7541 §6 — HPACK Header Block Decoding

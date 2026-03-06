@@ -1,5 +1,3 @@
-#nullable enable
-
 using System;
 using System.Collections.Generic;
 using System.Net;
@@ -38,11 +36,11 @@ public sealed class RedirectHandler
     public static bool IsRedirect(HttpResponseMessage response)
     {
         ArgumentNullException.ThrowIfNull(response);
-        return response.StatusCode is HttpStatusCode.MovedPermanently  // 301
-            or HttpStatusCode.Found                                     // 302
-            or HttpStatusCode.SeeOther                                  // 303
-            or HttpStatusCode.TemporaryRedirect                         // 307
-            or HttpStatusCode.PermanentRedirect;                        // 308
+        return response.StatusCode is HttpStatusCode.MovedPermanently // 301
+            or HttpStatusCode.Found // 302
+            or HttpStatusCode.SeeOther // 303
+            or HttpStatusCode.TemporaryRedirect // 307
+            or HttpStatusCode.PermanentRedirect; // 308
     }
 
     /// <summary>
@@ -65,7 +63,7 @@ public sealed class RedirectHandler
     {
         ArgumentNullException.ThrowIfNull(original);
         ArgumentNullException.ThrowIfNull(response);
-        ArgumentNullException.ThrowIfNull(original.RequestUri, nameof(original.RequestUri));
+        ArgumentNullException.ThrowIfNull(original.RequestUri);
 
         // Register the current URL on first call (before first redirect)
         if (_redirectCount == 0)
@@ -156,8 +154,7 @@ public sealed class RedirectHandler
 
         if (string.IsNullOrWhiteSpace(locationValue))
         {
-            throw new RedirectException(
-                "RFC 9110 §15.4: Location header is empty.",
+            throw new RedirectException("RFC 9110 §15.4: Location header is empty.",
                 RedirectError.MissingLocationHeader);
         }
 

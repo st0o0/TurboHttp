@@ -1,6 +1,5 @@
 using System.Net;
 using TurboHttp.IntegrationTests.Shared;
-using TurboHttp.Protocol;
 
 namespace TurboHttp.IntegrationTests.Http2;
 

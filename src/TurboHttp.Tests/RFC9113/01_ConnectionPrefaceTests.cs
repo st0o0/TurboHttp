@@ -1,10 +1,7 @@
-#nullable enable
-using System;
 using System.Buffers.Binary;
 using TurboHttp.Protocol;
-using Xunit;
 
-namespace TurboHttp.Tests;
+namespace TurboHttp.Tests.RFC9113;
 
 /// <summary>
 /// RFC 9113 §3.4 — HTTP/2 Connection Preface

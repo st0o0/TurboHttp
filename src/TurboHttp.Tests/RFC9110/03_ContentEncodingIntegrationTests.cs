@@ -1,11 +1,8 @@
-#nullable enable
-
 using System.IO.Compression;
-using System.Net;
 using System.Text;
 using TurboHttp.Protocol;
 
-namespace TurboHttp.Tests;
+namespace TurboHttp.Tests.RFC9110;
 
 /// <summary>
 /// RFC 9110 §8.4 — Content-Encoding integration tests.
@@ -76,7 +73,7 @@ public sealed class ContentEncodingIntegrationTests
     // ── Stacked Encoding Tests ───────────────────────────────────────────────
 
     [Fact(DisplayName = "RFC9110-8.4-stacked-001: Should_DecompressStackedEncodings_GzipThenBr")]
-    public void Should_DecompressStackedEncodings_GzipThenBr()
+    public async Task Should_DecompressStackedEncodings_GzipThenBr()
     {
         // "gzip, br" means: gzip applied first, br applied last (outermost).
         // Decode in reverse: br first, then gzip.
@@ -88,12 +85,12 @@ public sealed class ContentEncodingIntegrationTests
         var decoder = new Http11Decoder();
 
         Assert.True(decoder.TryDecode(responseBytes, out var responses));
-        var body = responses![0].Content!.ReadAsByteArrayAsync().Result;
+        var body = await responses[0].Content.ReadAsByteArrayAsync();
         Assert.Equal(original, body);
     }
 
     [Fact(DisplayName = "RFC9110-8.4-stacked-002: Should_DecompressStackedEncodings_DeflateGzipBr")]
-    public void Should_DecompressStackedEncodings_DeflateGzipBr()
+    public async Task Should_DecompressStackedEncodings_DeflateGzipBr()
     {
         // "deflate, gzip, br" means: deflate first, br last.
         // Decode in reverse: br, gzip, deflate.
@@ -106,7 +103,7 @@ public sealed class ContentEncodingIntegrationTests
         var decoder = new Http11Decoder();
 
         Assert.True(decoder.TryDecode(responseBytes, out var responses));
-        var body = responses![0].Content!.ReadAsByteArrayAsync().Result;
+        var body = await responses[0].Content.ReadAsByteArrayAsync();
         Assert.Equal(original, body);
     }
 
@@ -121,10 +118,10 @@ public sealed class ContentEncodingIntegrationTests
         var decoder = new Http11Decoder();
 
         Assert.True(decoder.TryDecode(responseBytes, out var responses));
-        var response = responses![0];
+        var response = responses[0];
 
         // Content-Encoding header should be removed after all decompression
-        Assert.Empty(response.Content!.Headers.ContentEncoding);
+        Assert.Empty(response.Content.Headers.ContentEncoding);
     }
 
     [Fact(DisplayName = "RFC9110-8.4-stacked-004: Should_DecompressStackedEncodings_UpdateContentLength")]
@@ -138,9 +135,9 @@ public sealed class ContentEncodingIntegrationTests
         var decoder = new Http11Decoder();
 
         Assert.True(decoder.TryDecode(responseBytes, out var responses));
-        var response = responses![0];
+        var response = responses[0];
 
-        Assert.Equal(original.Length, response.Content!.Headers.ContentLength);
+        Assert.Equal(original.Length, response.Content.Headers.ContentLength);
     }
 
     // ── Accept-Encoding Injection Tests ──────────────────────────────────────
@@ -209,7 +206,7 @@ public sealed class ContentEncodingIntegrationTests
     // ── Content-Encoding + Accept-Encoding Round-Trip Tests ─────────────────
 
     [Fact(DisplayName = "RFC9110-8.4-roundtrip-001: Should_HandleRequestResponseWithCompressionCycle")]
-    public void Should_HandleRequestResponseWithCompressionCycle()
+    public async Task Should_HandleRequestResponseWithCompressionCycle()
     {
         // Request injection
         var request = new HttpRequestMessage(HttpMethod.Get, "http://example.com/api");
@@ -228,14 +225,14 @@ public sealed class ContentEncodingIntegrationTests
         var decoder = new Http11Decoder();
 
         Assert.True(decoder.TryDecode(responseBytes, out var responses));
-        var decompressed = responses![0].Content!.ReadAsByteArrayAsync().Result;
+        var decompressed = await responses[0].Content.ReadAsByteArrayAsync();
 
         Assert.Equal(responseBody, decompressed);
-        Assert.Empty(responses[0].Content!.Headers.ContentEncoding);
+        Assert.Empty(responses[0].Content.Headers.ContentEncoding);
     }
 
     [Fact(DisplayName = "RFC9110-8.4-roundtrip-002: Should_PreserveContentOnNoEncoding_WithAcceptEncodingHeader")]
-    public void Should_PreserveContentOnNoEncoding_WithAcceptEncodingHeader()
+    public async Task Should_PreserveContentOnNoEncoding_WithAcceptEncodingHeader()
     {
         // Request with Accept-Encoding
         var request = new HttpRequestMessage(HttpMethod.Get, "http://example.com/");
@@ -249,13 +246,13 @@ public sealed class ContentEncodingIntegrationTests
         var decoder = new Http11Decoder();
 
         Assert.True(decoder.TryDecode(responseBytes, out var responses));
-        var body = responses![0].Content!.ReadAsByteArrayAsync().Result;
+        var body = await responses[0].Content.ReadAsByteArrayAsync();
 
         Assert.Equal(responseBody, body);
     }
 
     [Fact(DisplayName = "RFC9110-8.4-roundtrip-003: Should_SupportBrotliRoundTrip")]
-    public void Should_SupportBrotliRoundTrip()
+    public async Task Should_SupportBrotliRoundTrip()
     {
         // Request with Accept-Encoding that includes brotli
         var request = new HttpRequestMessage(HttpMethod.Get, "http://example.com/api");
@@ -273,7 +270,7 @@ public sealed class ContentEncodingIntegrationTests
         var decoder = new Http11Decoder();
 
         Assert.True(decoder.TryDecode(responseBytes, out var responses));
-        var decompressed = responses![0].Content!.ReadAsByteArrayAsync().Result;
+        var decompressed = await responses[0].Content.ReadAsByteArrayAsync();
 
         Assert.Equal(responseBody, decompressed);
     }
@@ -281,7 +278,7 @@ public sealed class ContentEncodingIntegrationTests
     // ── HTTP Version Compatibility ───────────────────────────────────────────
 
     [Fact(DisplayName = "RFC9110-8.4-compat-001: Should_DecodeStackedEncodingsConsistentlyAcrossVersions")]
-    public void Should_DecodeStackedEncodingsConsistentlyAcrossVersions()
+    public async Task Should_DecodeStackedEncodingsConsistentlyAcrossVersions()
     {
         var original = "version compatibility test"u8.ToArray();
         var gzipped = GzipCompress(original);
@@ -291,7 +288,7 @@ public sealed class ContentEncodingIntegrationTests
         var http11Response = BuildHttp11ResponseBytes(200, "gzip, br", stacked);
         var http11Decoder = new Http11Decoder();
         Assert.True(http11Decoder.TryDecode(http11Response, out var http11Responses));
-        var http11Body = http11Responses![0].Content!.ReadAsByteArrayAsync().Result;
+        var http11Body = await http11Responses[0].Content.ReadAsByteArrayAsync();
 
         Assert.Equal(original, http11Body);
     }

@@ -1,11 +1,9 @@
-#nullable enable
-
 using System.IO.Compression;
 using System.Net;
 using System.Text;
 using TurboHttp.Protocol;
 
-namespace TurboHttp.Tests;
+namespace TurboHttp.Tests.RFC9110;
 
 /// <summary>
 /// RFC 9110 §8.4 — Content-Encoding: gzip decompression tests.
@@ -129,7 +127,7 @@ public sealed class ContentEncodingGzipTests
     // ── HTTP/1.1 Gzip Decompression Tests ────────────────────────────────────
 
     [Fact(DisplayName = "RFC9110-8.4-gzip-001: Should_DecompressGzip_When_ContentEncodingIsGzip")]
-    public void Should_DecompressGzip_When_ContentEncodingIsGzip()
+    public async Task Should_DecompressGzip_When_ContentEncodingIsGzip()
     {
         var original = "Hello, World!"u8.ToArray();
         var compressed = GzipCompress(original);
@@ -141,7 +139,7 @@ public sealed class ContentEncodingGzipTests
         Assert.NotNull(responses);
         Assert.Single(responses);
 
-        var body = responses[0].Content!.ReadAsByteArrayAsync().Result;
+        var body = await responses[0].Content.ReadAsByteArrayAsync();
         Assert.Equal(original, body);
     }
 
@@ -154,9 +152,9 @@ public sealed class ContentEncodingGzipTests
         var decoder = new Http11Decoder();
 
         Assert.True(decoder.TryDecode(responseBytes, out var responses));
-        var response = responses![0];
+        var response = responses[0];
 
-        Assert.Empty(response.Content!.Headers.ContentEncoding);
+        Assert.Empty(response.Content.Headers.ContentEncoding);
     }
 
     [Fact(DisplayName = "RFC9110-8.4-gzip-003: Should_UpdateContentLength_After_Decompression")]
@@ -168,13 +166,13 @@ public sealed class ContentEncodingGzipTests
         var decoder = new Http11Decoder();
 
         Assert.True(decoder.TryDecode(responseBytes, out var responses));
-        var response = responses![0];
+        var response = responses[0];
 
-        Assert.Equal(original.Length, response.Content!.Headers.ContentLength);
+        Assert.Equal(original.Length, response.Content.Headers.ContentLength);
     }
 
     [Fact(DisplayName = "RFC9110-8.4-gzip-004: Should_DecompressGzip_CaseInsensitive")]
-    public void Should_DecompressGzip_CaseInsensitive()
+    public async Task Should_DecompressGzip_CaseInsensitive()
     {
         var original = "test"u8.ToArray();
         var compressed = GzipCompress(original);
@@ -182,12 +180,12 @@ public sealed class ContentEncodingGzipTests
         var decoder = new Http11Decoder();
 
         Assert.True(decoder.TryDecode(responseBytes, out var responses));
-        var body = responses![0].Content!.ReadAsByteArrayAsync().Result;
+        var body = await responses[0].Content.ReadAsByteArrayAsync();
         Assert.Equal(original, body);
     }
 
     [Fact(DisplayName = "RFC9110-8.4-gzip-005: Should_DecompressXGzip_WhenContentEncodingIsXGzip")]
-    public void Should_DecompressXGzip_WhenContentEncodingIsXGzip()
+    public async Task Should_DecompressXGzip_WhenContentEncodingIsXGzip()
     {
         var original = "x-gzip test"u8.ToArray();
         var compressed = GzipCompress(original);
@@ -195,19 +193,19 @@ public sealed class ContentEncodingGzipTests
         var decoder = new Http11Decoder();
 
         Assert.True(decoder.TryDecode(responseBytes, out var responses));
-        var body = responses![0].Content!.ReadAsByteArrayAsync().Result;
+        var body = await responses[0].Content.ReadAsByteArrayAsync();
         Assert.Equal(original, body);
     }
 
     [Fact(DisplayName = "RFC9110-8.4-gzip-006: Should_HandleEmptyGzip_WhenEmptyBodyWithGzipEncoding")]
-    public void Should_HandleEmptyGzip_WhenEmptyBodyWithGzipEncoding()
+    public async Task Should_HandleEmptyGzip_WhenEmptyBodyWithGzipEncoding()
     {
         var compressed = GzipCompress([]);
         var responseBytes = BuildHttp11ResponseBytes(200, "gzip", compressed);
         var decoder = new Http11Decoder();
 
         Assert.True(decoder.TryDecode(responseBytes, out var responses));
-        var body = responses![0].Content!.ReadAsByteArrayAsync().Result;
+        var body = await responses[0].Content.ReadAsByteArrayAsync();
         Assert.Empty(body);
     }
 
@@ -217,23 +215,22 @@ public sealed class ContentEncodingGzipTests
         // Valid gzip header (10 bytes) + garbage deflate data
         var corrupt = new byte[]
         {
-            0x1f, 0x8b,             // gzip magic
-            0x08,                   // compression method = deflate
-            0x00,                   // flags = none
+            0x1f, 0x8b, // gzip magic
+            0x08, // compression method = deflate
+            0x00, // flags = none
             0x00, 0x00, 0x00, 0x00, // mtime
-            0x00,                   // xfl
-            0xff,                   // OS = unknown
-            0xDE, 0xAD, 0xBE, 0xEF, 0xDE, 0xAD, 0xBE, 0xEF  // garbage data
+            0x00, // xfl
+            0xff, // OS = unknown
+            0xDE, 0xAD, 0xBE, 0xEF, 0xDE, 0xAD, 0xBE, 0xEF // garbage data
         };
         var responseBytes = BuildHttp11ResponseBytes(200, "gzip", corrupt);
         var decoder = new Http11Decoder();
 
-        Assert.Throws<HttpDecoderException>(() =>
-            decoder.TryDecode(responseBytes, out _));
+        Assert.Throws<HttpDecoderException>(() => decoder.TryDecode(responseBytes, out _));
     }
 
     [Fact(DisplayName = "RFC9110-8.4-gzip-008: Should_DecompressLargeGzipBody_64KB")]
-    public void Should_DecompressLargeGzipBody_64KB()
+    public async Task Should_DecompressLargeGzipBody_64KB()
     {
         var original = new byte[64 * 1024];
         for (var i = 0; i < original.Length; i++)
@@ -246,42 +243,41 @@ public sealed class ContentEncodingGzipTests
         var decoder = new Http11Decoder(maxBodySize: 200_000);
 
         Assert.True(decoder.TryDecode(responseBytes, out var responses));
-        var body = responses![0].Content!.ReadAsByteArrayAsync().Result;
+        var body = await responses[0].Content.ReadAsByteArrayAsync();
         Assert.Equal(original, body);
     }
 
     [Fact(DisplayName = "RFC9110-8.4-gzip-009: Should_DecompressGzip_Utf8_MultibyteCotent")]
-    public void Should_DecompressGzip_Utf8_MultibyteContent()
+    public async Task Should_DecompressGzip_Utf8_MultibyteContent()
     {
-        var original = Encoding.UTF8.GetBytes("こんにちは世界 — Hello, World!");
+        var original = "こんにちは世界 — Hello, World!"u8.ToArray();
         var compressed = GzipCompress(original);
         var responseBytes = BuildHttp11ResponseBytes(200, "gzip", compressed,
             contentType: "text/plain; charset=utf-8");
         var decoder = new Http11Decoder();
 
         Assert.True(decoder.TryDecode(responseBytes, out var responses));
-        var body = responses![0].Content!.ReadAsByteArrayAsync().Result;
+        var body = await responses[0].Content.ReadAsByteArrayAsync();
         Assert.Equal(original, body);
         Assert.Equal("こんにちは世界 — Hello, World!", Encoding.UTF8.GetString(body));
     }
 
     [Fact(DisplayName = "RFC9110-8.4-gzip-010: Should_NotDecompress_204_NoBodyResponse")]
-    public void Should_NotDecompress_204_NoBodyResponse()
+    public async Task Should_NotDecompress_204_NoBodyResponse()
     {
-        var responseBytes = Encoding.ASCII.GetBytes(
-            "HTTP/1.1 204 No Content\r\nContent-Encoding: gzip\r\n\r\n");
+        var responseBytes = "HTTP/1.1 204 No Content\r\nContent-Encoding: gzip\r\n\r\n"u8.ToArray();
         var decoder = new Http11Decoder();
 
         Assert.True(decoder.TryDecode(responseBytes, out var responses));
-        Assert.Equal(HttpStatusCode.NoContent, responses![0].StatusCode);
-        var body = responses[0].Content!.ReadAsByteArrayAsync().Result;
+        Assert.Equal(HttpStatusCode.NoContent, responses[0].StatusCode);
+        var body = await responses[0].Content.ReadAsByteArrayAsync();
         Assert.Empty(body);
     }
 
     // ── HTTP/1.0 Gzip Decompression Tests ────────────────────────────────────
 
     [Fact(DisplayName = "RFC9110-8.4-gzip-h10-001: Should_DecompressGzip_When_Http10_ContentEncoding")]
-    public void Should_DecompressGzip_When_Http10_ContentEncoding()
+    public async Task Should_DecompressGzip_When_Http10_ContentEncoding()
     {
         var original = "HTTP/1.0 gzip test"u8.ToArray();
         var compressed = GzipCompress(original);
@@ -291,7 +287,7 @@ public sealed class ContentEncodingGzipTests
 
         Assert.True(decoder.TryDecode(responseBytes, out var response));
         Assert.NotNull(response);
-        var body = response!.Content!.ReadAsByteArrayAsync().Result;
+        var body = await response.Content.ReadAsByteArrayAsync();
         Assert.Equal(original, body);
     }
 
@@ -304,7 +300,7 @@ public sealed class ContentEncodingGzipTests
         var decoder = new Http10Decoder();
 
         Assert.True(decoder.TryDecode(responseBytes, out var response));
-        Assert.Empty(response!.Content!.Headers.ContentEncoding);
+        Assert.Empty(response!.Content.Headers.ContentEncoding);
     }
 
     [Fact(DisplayName = "RFC9110-8.4-gzip-h10-003: Should_UpdateContentLength_After_Http10_Decompression")]
@@ -316,13 +312,13 @@ public sealed class ContentEncodingGzipTests
         var decoder = new Http10Decoder();
 
         Assert.True(decoder.TryDecode(responseBytes, out var response));
-        Assert.Equal(original.Length, response!.Content!.Headers.ContentLength);
+        Assert.Equal(original.Length, response!.Content.Headers.ContentLength);
     }
 
     // ── HTTP/2 Gzip Decompression Tests ──────────────────────────────────────
 
     [Fact(DisplayName = "RFC9110-8.4-gzip-h2-001: Should_DecompressGzip_When_Http2_ContentEncoding")]
-    public void Should_DecompressGzip_When_Http2_ContentEncoding()
+    public async Task Should_DecompressGzip_When_Http2_ContentEncoding()
     {
         var original = "HTTP/2 gzip test"u8.ToArray();
         var compressed = GzipCompress(original);
@@ -333,7 +329,7 @@ public sealed class ContentEncodingGzipTests
         Assert.True(decoder.TryDecode(responseBytes, out var result));
         Assert.Single(result.Responses);
 
-        var body = result.Responses[0].Response.Content!.ReadAsByteArrayAsync().Result;
+        var body = await result.Responses[0].Response.Content.ReadAsByteArrayAsync();
         Assert.Equal(original, body);
     }
 
@@ -348,7 +344,7 @@ public sealed class ContentEncodingGzipTests
         Assert.True(decoder.TryDecode(responseBytes, out var result));
         var response = result.Responses[0].Response;
 
-        Assert.Empty(response.Content!.Headers.ContentEncoding);
+        Assert.Empty(response.Content.Headers.ContentEncoding);
     }
 
     [Fact(DisplayName = "RFC9110-8.4-gzip-h2-003: Should_UpdateContentLength_After_Http2_Decompression")]
@@ -362,11 +358,11 @@ public sealed class ContentEncodingGzipTests
         Assert.True(decoder.TryDecode(responseBytes, out var result));
         var response = result.Responses[0].Response;
 
-        Assert.Equal(original.Length, response.Content!.Headers.ContentLength);
+        Assert.Equal(original.Length, response.Content.Headers.ContentLength);
     }
 
     [Fact(DisplayName = "RFC9110-8.4-gzip-h2-004: Should_DecompressBrotli_ViaHttp2")]
-    public void Should_DecompressBrotli_ViaHttp2()
+    public async Task Should_DecompressBrotli_ViaHttp2()
     {
         var original = "HTTP/2 brotli test"u8.ToArray();
         using var output = new MemoryStream();
@@ -380,7 +376,7 @@ public sealed class ContentEncodingGzipTests
         var decoder = new Http2Decoder();
 
         Assert.True(decoder.TryDecode(responseBytes, out var result));
-        var body = result.Responses[0].Response.Content!.ReadAsByteArrayAsync().Result;
+        var body = await result.Responses[0].Response.Content.ReadAsByteArrayAsync();
         Assert.Equal(original, body);
     }
 }
