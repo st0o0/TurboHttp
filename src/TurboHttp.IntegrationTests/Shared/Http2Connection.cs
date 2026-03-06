@@ -14,7 +14,7 @@ public sealed class Http2Connection : IAsyncDisposable
     private readonly TcpClient _tcp;
     private readonly NetworkStream _stream;
     private readonly Http2Decoder _decoder;
-    private readonly Http2Encoder _encoder;
+    private readonly Http2RequestEncoder _encoder;
     private readonly byte[] _readBuffer;
 
     // Track the connection receive window so we can send WINDOW_UPDATE when needed.
@@ -23,7 +23,7 @@ public sealed class Http2Connection : IAsyncDisposable
     private const int ReadBufferSize = 65536;
     private const int EncodeBufferSize = 2 * 1024 * 1024;
 
-    private Http2Connection(TcpClient tcp, Http2Encoder encoder)
+    private Http2Connection(TcpClient tcp, Http2RequestEncoder encoder)
     {
         _tcp = tcp;
         _stream = tcp.GetStream();
@@ -46,7 +46,7 @@ public sealed class Http2Connection : IAsyncDisposable
         var tcp = new TcpClient();
         await tcp.ConnectAsync(IPAddress.Loopback, port, cts.Token);
 
-        var conn = new Http2Connection(tcp, new Http2Encoder());
+        var conn = new Http2Connection(tcp, new Http2RequestEncoder());
         await conn.PerformPrefaceAsync(cts.Token);
         return conn;
     }
@@ -59,10 +59,23 @@ public sealed class Http2Connection : IAsyncDisposable
     /// </summary>
     public async Task<int> SendRequestAsync(HttpRequestMessage request, CancellationToken ct = default)
     {
+        var (streamId, frames) = _encoder.Encode(request);
+
         var buffer = new byte[EncodeBufferSize];
-        var memory = buffer.AsMemory();
-        var (streamId, bytesWritten) = _encoder.Encode(request, ref memory);
-        await _stream.WriteAsync(buffer.AsMemory(0, bytesWritten), ct);
+        var offset = 0;
+
+        foreach (var frame in frames)
+        {
+            var frameBytes = frame.Serialize();
+            if (offset + frameBytes.Length > buffer.Length)
+            {
+                throw new InvalidOperationException($"Frame buffer exhausted: {offset} + {frameBytes.Length} > {buffer.Length}");
+            }
+            frameBytes.CopyTo(buffer, offset);
+            offset += frameBytes.Length;
+        }
+
+        await _stream.WriteAsync(buffer.AsMemory(0, offset), ct);
         return streamId;
     }
 
@@ -190,7 +203,7 @@ public sealed class Http2Connection : IAsyncDisposable
     /// </summary>
     public async Task<byte[]> PingAsync(byte[] data, CancellationToken ct = default)
     {
-        var pingBytes = Http2Encoder.EncodePing(data);
+        var pingBytes = Http2FrameUtils.EncodePing(data);
         await _stream.WriteAsync(pingBytes, ct);
 
         using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
@@ -225,21 +238,21 @@ public sealed class Http2Connection : IAsyncDisposable
     /// <summary>Sends an HTTP/2 GOAWAY frame to the server.</summary>
     public Task SendGoAwayAsync(int lastStreamId, Http2ErrorCode errorCode, CancellationToken ct = default)
     {
-        var frame = Http2Encoder.EncodeGoAway(lastStreamId, errorCode);
+        var frame = Http2FrameUtils.EncodeGoAway(lastStreamId, errorCode);
         return _stream.WriteAsync(frame, ct).AsTask();
     }
 
     /// <summary>Sends an HTTP/2 RST_STREAM frame for <paramref name="streamId"/>.</summary>
     public Task SendRstStreamAsync(int streamId, Http2ErrorCode errorCode, CancellationToken ct = default)
     {
-        var frame = Http2Encoder.EncodeRstStream(streamId, errorCode);
+        var frame = Http2FrameUtils.EncodeRstStream(streamId, errorCode);
         return _stream.WriteAsync(frame, ct).AsTask();
     }
 
     /// <summary>Sends an HTTP/2 WINDOW_UPDATE frame.</summary>
     public Task SendWindowUpdateAsync(int streamId, int increment, CancellationToken ct = default)
     {
-        var frame = Http2Encoder.EncodeWindowUpdate(streamId, increment);
+        var frame = Http2FrameUtils.EncodeWindowUpdate(streamId, increment);
         return _stream.WriteAsync(frame, ct).AsTask();
     }
 
@@ -247,7 +260,7 @@ public sealed class Http2Connection : IAsyncDisposable
     public Task SendSettingsAsync(ReadOnlySpan<(SettingsParameter Key, uint Value)> parameters,
         CancellationToken ct = default)
     {
-        var frame = Http2Encoder.EncodeSettings(parameters);
+        var frame = Http2FrameUtils.EncodeSettings(parameters);
         return _stream.WriteAsync(frame, ct).AsTask();
     }
 
@@ -379,7 +392,7 @@ public sealed class Http2Connection : IAsyncDisposable
     private async Task PerformPrefaceAsync(CancellationToken ct)
     {
         // RFC 7540 §3.5: Send client connection preface (magic string + SETTINGS frame).
-        var preface = Http2Encoder.BuildConnectionPreface();
+        var preface = Http2FrameUtils.BuildConnectionPreface();
         await _stream.WriteAsync(preface, ct);
 
         // Read until we receive the server's initial SETTINGS frame.
@@ -425,7 +438,7 @@ public sealed class Http2Connection : IAsyncDisposable
             var increment = InitialReceiveWindow - current;
             if (increment > 0)
             {
-                var wu = Http2Encoder.EncodeWindowUpdate(0, increment);
+                var wu = Http2FrameUtils.EncodeWindowUpdate(0, increment);
                 await _stream.WriteAsync(wu, ct);
                 // Update decoder so it knows the extra receive space is available.
                 _decoder.SetConnectionReceiveWindow(InitialReceiveWindow);
@@ -447,7 +460,7 @@ public sealed class Http2Connection : IAsyncDisposable
             var increment = InitialReceiveWindow - current;
             if (increment > 0)
             {
-                var wu = Http2Encoder.EncodeWindowUpdate(streamId, increment);
+                var wu = Http2FrameUtils.EncodeWindowUpdate(streamId, increment);
                 await _stream.WriteAsync(wu, ct);
                 // Update decoder so it accepts future DATA frames within the new window.
                 _decoder.SetStreamReceiveWindow(streamId, InitialReceiveWindow);

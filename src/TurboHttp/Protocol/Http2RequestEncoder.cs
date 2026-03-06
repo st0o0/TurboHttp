@@ -12,8 +12,10 @@ namespace TurboHttp.Protocol;
 public sealed class Http2RequestEncoder
 {
     private readonly HpackEncoder _hpack;
-    private readonly int _maxFrameSize;
+    private int _maxFrameSize;
     private int _nextStreamId = 1;
+    private long _connectionSendWindow = 65535; // Initial window size per RFC 7540
+    private readonly Dictionary<int, long> _streamSendWindows = new();
 
     public Http2RequestEncoder(bool useHuffman = false, int maxFrameSize = 16384)
     {
@@ -41,6 +43,8 @@ public sealed class Http2RequestEncoder
         _nextStreamId += 2;
 
         var headers = BuildHeaderList(request);
+        ValidatePseudoHeaders(headers);
+
         var headerBlock = _hpack.Encode(headers).ToArray();
         var hasBody = request.Content != null;
 
@@ -62,6 +66,22 @@ public sealed class Http2RequestEncoder
         }
 
         return (streamId, frames);
+    }
+
+    /// <summary>
+    /// TEST ONLY: Encodes a request and extracts the raw HPACK header block.
+    /// Used by RFC compliance tests to verify header encoding details.
+    /// </summary>
+    internal byte[] EncodeToHpackBlock(HttpRequestMessage request)
+    {
+        if (request is null)
+            throw new ArgumentNullException(nameof(request));
+        if (request.RequestUri is null)
+            throw new ArgumentNullException(nameof(request.RequestUri));
+
+        var headers = BuildHeaderList(request);
+        ValidatePseudoHeaders(headers);
+        return _hpack.Encode(headers).ToArray();
     }
 
     private void EncodeHeaders(
@@ -148,6 +168,131 @@ public sealed class Http2RequestEncoder
         }
 
         return headers;
+    }
+
+    // ── Pseudo-Header Validation (RFC 7540 §8.1.2.1) ──────────────────────────
+
+    /// <summary>
+    /// Validates pseudo-headers per RFC 7540 §8.1.2.1:
+    /// - All four required: :method, :path, :scheme, :authority
+    /// - Must appear before regular headers
+    /// - Must have exactly one of each (no duplicates)
+    /// - No other pseudo-headers allowed
+    /// </summary>
+    internal static void ValidatePseudoHeaders(List<(string Name, string Value)> headers)
+    {
+        var hasMethod = false;
+        var hasPath = false;
+        var hasScheme = false;
+        var hasAuthority = false;
+        var lastPseudoIndex = -1;
+        var firstRegularIndex = int.MaxValue;
+
+        for (var i = 0; i < headers.Count; i++)
+        {
+            var (name, _) = headers[i];
+
+            if (name.StartsWith(':'))
+            {
+                lastPseudoIndex = i;
+
+                switch (name)
+                {
+                    case ":method":
+                        if (hasMethod)
+                            throw new Http2Exception("RFC 7540 §8.1.2.1: Duplicate :method pseudo-header");
+                        hasMethod = true;
+                        break;
+                    case ":path":
+                        if (hasPath)
+                            throw new Http2Exception("RFC 7540 §8.1.2.1: Duplicate :path pseudo-header");
+                        hasPath = true;
+                        break;
+                    case ":scheme":
+                        if (hasScheme)
+                            throw new Http2Exception("RFC 7540 §8.1.2.1: Duplicate :scheme pseudo-header");
+                        hasScheme = true;
+                        break;
+                    case ":authority":
+                        if (hasAuthority)
+                            throw new Http2Exception("RFC 7540 §8.1.2.1: Duplicate :authority pseudo-header");
+                        hasAuthority = true;
+                        break;
+                    default:
+                        throw new Http2Exception($"RFC 7540 §8.1.2.1: Unknown request pseudo-header '{name}'");
+                }
+            }
+            else
+            {
+                if (firstRegularIndex == int.MaxValue)
+                    firstRegularIndex = i;
+            }
+        }
+
+        if (lastPseudoIndex > firstRegularIndex)
+        {
+            throw new Http2Exception(
+                $"RFC 7540 §8.1.2.1: Pseudo-header at index {lastPseudoIndex} appears after regular header at index {firstRegularIndex}");
+        }
+
+        var missing = new System.Text.StringBuilder();
+        if (!hasMethod)
+            missing.Append(missing.Length > 0 ? ", :method" : ":method");
+        if (!hasPath)
+            missing.Append(missing.Length > 0 ? ", :path" : ":path");
+        if (!hasScheme)
+            missing.Append(missing.Length > 0 ? ", :scheme" : ":scheme");
+        if (!hasAuthority)
+            missing.Append(missing.Length > 0 ? ", :authority" : ":authority");
+
+        if (missing.Length > 0)
+            throw new Http2Exception($"RFC 7540 §8.1.2.1: Missing required pseudo-headers: {missing}");
+    }
+
+    // ── Flow Control Window Management ────────────────────────────────────────
+
+    /// <summary>
+    /// Updates the connection-level send window when server sends WINDOW_UPDATE on stream 0.
+    /// RFC 7540 §6.9: Sender increases window size via WINDOW_UPDATE.
+    /// </summary>
+    public void UpdateConnectionWindow(int increment)
+    {
+        if (increment is < 1 or > 0x7FFFFFFF)
+        {
+            throw new ArgumentOutOfRangeException(nameof(increment));
+        }
+
+        _connectionSendWindow += increment;
+    }
+
+    /// <summary>
+    /// Updates the stream-level send window when server sends WINDOW_UPDATE on a stream.
+    /// RFC 7540 §6.9: Sender increases stream window size via WINDOW_UPDATE.
+    /// </summary>
+    public void UpdateStreamWindow(int streamId, int increment)
+    {
+        if (increment is < 1 or > 0x7FFFFFFF)
+        {
+            throw new ArgumentOutOfRangeException(nameof(increment));
+        }
+
+        _streamSendWindows.TryGetValue(streamId, out var current);
+        _streamSendWindows[streamId] = current + increment;
+    }
+
+    /// <summary>
+    /// Applies server settings to the encoder (e.g., MAX_FRAME_SIZE).
+    /// RFC 7540 §6.5: Received SETTINGS ACK updates encoder state.
+    /// </summary>
+    public void ApplyServerSettings(IEnumerable<(SettingsParameter Key, uint Value)> settings)
+    {
+        foreach (var (key, val) in settings)
+        {
+            if (key == SettingsParameter.MaxFrameSize)
+            {
+                _maxFrameSize = (int)val;
+            }
+        }
     }
 
     // Forbidden connection-specific headers per RFC 9113 §8.2.2

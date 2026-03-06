@@ -22,10 +22,7 @@ public sealed class Http2SizePredictor(bool useHuffman = true)
         var availableWindow = Math.Min(maxFrameSize, Math.Min(connectionWindow, streamWindow));
 
         // Headers + Continuation Frames
-        prediction.FrameCount += PredictHeaderFrames(
-            headerBlock.Length,
-            maxFrameSize,
-            ref prediction);
+        prediction.FrameCount += PredictHeaderFrames(headerBlock.Length, maxFrameSize, ref prediction);
 
         // Body prediction
         if (request.Content is { } content)

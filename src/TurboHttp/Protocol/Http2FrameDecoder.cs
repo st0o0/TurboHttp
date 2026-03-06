@@ -48,8 +48,7 @@ public sealed class Http2FrameDecoder
 
     // ── Frame object creation — all 9 types ──────────────────────────────────
 
-    private static Http2Frame CreateFrame(
-        FrameType type, byte flags, int streamId, ReadOnlyMemory<byte> payload)
+    private static Http2Frame CreateFrame(FrameType type, byte flags, int streamId, ReadOnlyMemory<byte> payload)
     {
         return type switch
         {
@@ -85,10 +84,7 @@ public sealed class Http2FrameDecoder
 
             FrameType.PushPromise => ParsePushPromise(streamId, flags, payload),
 
-            _ => throw new Http2Exception(
-                $"Unknown frame type 0x{(byte)type:X2}",
-                Http2ErrorCode.ProtocolError,
-                Http2ErrorScope.Connection)
+            _ => throw new Http2Exception($"Unknown frame type 0x{(byte)type:X2}")
         };
     }
 
@@ -96,10 +92,8 @@ public sealed class Http2FrameDecoder
     {
         if (payload.Length != 8)
         {
-            throw new Http2Exception(
-                $"PING frame must be exactly 8 bytes, got {payload.Length}",
-                Http2ErrorCode.FrameSizeError,
-                Http2ErrorScope.Connection);
+            throw new Http2Exception($"PING frame must be exactly 8 bytes, got {payload.Length}",
+                Http2ErrorCode.FrameSizeError);
         }
 
         return new PingFrame(payload.ToArray(), (flags & (byte)PingFlags.Ack) != 0);
@@ -126,7 +120,7 @@ public sealed class Http2FrameDecoder
         var span = payload.Span;
         var lastStream = (int)(BinaryPrimitives.ReadUInt32BigEndian(span) & 0x7FFFFFFFu);
         var errorCode = (Http2ErrorCode)BinaryPrimitives.ReadUInt32BigEndian(span[4..]);
-        var debugData = span.Length > 8 ? payload.Slice(8).ToArray() : Array.Empty<byte>();
+        var debugData = span.Length > 8 ? payload[8..].ToArray() : [];
         return new GoAwayFrame(lastStream, errorCode, debugData);
     }
 
@@ -136,12 +130,11 @@ public sealed class Http2FrameDecoder
         var span = payload.Span;
         var promised = (int)(BinaryPrimitives.ReadUInt32BigEndian(span) & 0x7FFFFFFFu);
         var endHeaders = (flags & (byte)HeadersFlags.EndHeaders) != 0;
-        var headerBlock = payload.Slice(4).ToArray();
+        var headerBlock = payload[4..].ToArray();
         return new PushPromiseFrame(streamId, promised, headerBlock, endHeaders);
     }
 
-    private static ReadOnlyMemory<byte> Combine(
-        ReadOnlyMemory<byte> a, ReadOnlyMemory<byte> b)
+    private static ReadOnlyMemory<byte> Combine(ReadOnlyMemory<byte> a, ReadOnlyMemory<byte> b)
     {
         var result = new byte[a.Length + b.Length];
         a.Span.CopyTo(result);

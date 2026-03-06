@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Threading;
 
 namespace TurboHttp.Protocol;
 
@@ -16,7 +17,7 @@ public sealed class PerHostConnectionLimiter
 {
     private readonly int _maxConnectionsPerHost;
     private readonly Dictionary<string, int> _active = new(StringComparer.OrdinalIgnoreCase);
-    private readonly object _lock = new();
+    private readonly Lock _lock = new();
 
     /// <summary>
     /// Creates a new limiter with the specified per-host connection limit.

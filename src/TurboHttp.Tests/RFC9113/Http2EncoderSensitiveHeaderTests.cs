@@ -5,7 +5,7 @@ using TurboHttp.Protocol;
 namespace TurboHttp.Tests.RFC9113;
 
 /// <summary>
-/// Phase 31: Http2Encoder — Sensitive Header Handling (RFC 7541 §7.1.3).
+/// Phase 31: Http2RequestEncoder — Sensitive Header Handling (RFC 7541 §7.1.3).
 ///
 /// Verifies that security-sensitive headers (Authorization, Proxy-Authorization,
 /// Cookie, Set-Cookie) are encoded with the HPACK NeverIndexed representation
@@ -212,7 +212,7 @@ public sealed class Http2EncoderSensitiveHeaderTests
     public void Should_ReduceHpackSize_When_NonSensitiveHeaderEncodedTwice()
     {
         // Verify that IncrementalIndexing headers ARE cached (contrast with NeverIndexed)
-        var encoder = new Http2Encoder(useHuffman: false);
+        var encoder = new Http2RequestEncoder(useHuffman: false);
 
         var req1 = MakeGetRequest();
         req1.Headers.TryAddWithoutValidation("X-Custom-Header", "some-stable-value");
@@ -534,7 +534,7 @@ public sealed class Http2EncoderSensitiveHeaderTests
         // Low-level verification via a proper HPACK byte walker.
         // authorization is at static index 23, so the NeverIndexed encoding uses the index,
         // not a literal name. The walker handles this correctly.
-        var encoder = new Http2Encoder(useHuffman: false);
+        var encoder = new Http2RequestEncoder(useHuffman: false);
         var req = MakeGetRequest();
         req.Headers.TryAddWithoutValidation("Authorization", "Bearer raw-check");
         var block = ExtractHpackBlockFromEncoder(encoder, req);
@@ -546,7 +546,7 @@ public sealed class Http2EncoderSensitiveHeaderTests
     [Fact(DisplayName = "7541-7.1.3-s034: Cookie raw HPACK bytes use NeverIndexed encoding (walker verified)")]
     public void Should_HaveNeverIndexedEncoding_When_CookieEncodedRaw()
     {
-        var encoder = new Http2Encoder(useHuffman: false);
+        var encoder = new Http2RequestEncoder(useHuffman: false);
         var req = MakeGetRequest();
         req.Headers.TryAddWithoutValidation("Cookie", "session=walker-check");
         var block = ExtractHpackBlockFromEncoder(encoder, req);
@@ -558,7 +558,7 @@ public sealed class Http2EncoderSensitiveHeaderTests
     [Fact(DisplayName = "7541-7.1.3-s035: Non-sensitive header raw HPACK bytes use IncrementalIndexing (walker verified)")]
     public void Should_HaveIncrementalIndexingEncoding_When_NonSensitiveHeaderEncodedRaw()
     {
-        var encoder = new Http2Encoder(useHuffman: false);
+        var encoder = new Http2RequestEncoder(useHuffman: false);
         var req = MakeGetRequest();
         req.Headers.TryAddWithoutValidation("X-Correlation-Id", "corr-abc123");
         var block = ExtractHpackBlockFromEncoder(encoder, req);
@@ -577,20 +577,14 @@ public sealed class Http2EncoderSensitiveHeaderTests
 
     private static List<HpackHeader> EncodeAndDecodeHeaders(HttpRequestMessage request, bool useHuffman = false)
     {
-        var encoder = new Http2Encoder(useHuffman);
-        using var owner = MemoryPool<byte>.Shared.Rent(16384);
-        var buffer = owner.Memory;
-        var (_, written) = encoder.Encode(request, ref buffer);
-        var hpackBlock = ExtractHpackBlock(buffer.Span[..written]);
+        var encoder = new Http2RequestEncoder(useHuffman);
+        var hpackBlock = encoder.EncodeToHpackBlock(request);
         return new HpackDecoder().Decode(hpackBlock);
     }
 
-    private static byte[] ExtractHpackBlockFromEncoder(Http2Encoder encoder, HttpRequestMessage request)
+    private static byte[] ExtractHpackBlockFromEncoder(Http2RequestEncoder encoder, HttpRequestMessage request)
     {
-        using var owner = MemoryPool<byte>.Shared.Rent(16384);
-        var buffer = owner.Memory;
-        var (_, written) = encoder.Encode(request, ref buffer);
-        return ExtractHpackBlock(buffer.Span[..written]);
+        return encoder.EncodeToHpackBlock(request);
     }
 
     private static byte[] ExtractHpackBlock(ReadOnlySpan<byte> frameData)
