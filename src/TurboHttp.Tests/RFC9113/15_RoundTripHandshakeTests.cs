@@ -1,6 +1,7 @@
 using System.Net;
 using System.Text;
 using TurboHttp.Protocol;
+using TurboHttp.Tests;
 
 namespace TurboHttp.Tests.RFC9113;
 
@@ -77,11 +78,11 @@ public sealed class Http2RoundTripHandshakeTests
             (SettingsParameter.MaxConcurrentStreams, 128u),
         }).Serialize();
 
-        var decoder = new Http2Decoder();
-        decoder.TryDecode(serverSettings, out var result);
+        var session = new Http2ProtocolSession();
+        session.Process(serverSettings);
 
-        Assert.True(result.HasNewSettings);
-        Assert.Single(result.SettingsAcksToSend);
+        Assert.True(session.HasNewSettings);
+        Assert.Single(session.SettingsAcksToSend);
     }
 
     // ── RT-2-002 ───────────────────────────────────────────────────────────────
@@ -99,15 +100,15 @@ public sealed class Http2RoundTripHandshakeTests
 
         var hpack = new HpackEncoder(useHuffman: false);
         var responseFrame = BuildH2Response(streamId, 200, "Hello HTTP/2", hpack);
-        var decoder = new Http2Decoder();
-        var decoded = decoder.TryDecode(responseFrame, out var result);
+        var session = new Http2ProtocolSession();
+        var frames = session.Process(responseFrame);
 
-        Assert.True(decoded);
-        Assert.True(result.HasResponses);
-        Assert.Single(result.Responses);
-        Assert.Equal(1, result.Responses[0].StreamId);
-        Assert.Equal(HttpStatusCode.OK, result.Responses[0].Response.StatusCode);
-        Assert.Equal("Hello HTTP/2", await result.Responses[0].Response.Content.ReadAsStringAsync());
+        Assert.NotEmpty(frames);
+        Assert.NotEmpty(session.Responses);
+        Assert.Single(session.Responses);
+        Assert.Equal(1, session.Responses[0].StreamId);
+        Assert.Equal(HttpStatusCode.OK, session.Responses[0].Response.StatusCode);
+        Assert.Equal("Hello HTTP/2", await session.Responses[0].Response.Content.ReadAsStringAsync());
     }
 
     // ── RT-2-003 ───────────────────────────────────────────────────────────────
@@ -143,12 +144,12 @@ public sealed class Http2RoundTripHandshakeTests
         // Decode 201 response
         var hpack = new HpackEncoder(useHuffman: false);
         var responseFrame = BuildH2Response(streamId, 201, "", hpack);
-        var decoder = new Http2Decoder();
-        decoder.TryDecode(responseFrame, out var result);
+        var session = new Http2ProtocolSession();
+        session.Process(responseFrame);
 
-        Assert.True(result.HasResponses);
-        Assert.Equal(HttpStatusCode.Created, result.Responses[0].Response.StatusCode);
-        Assert.Equal(0, result.Responses[0].Response.Content.Headers.ContentLength);
+        Assert.NotEmpty(session.Responses);
+        Assert.Equal(HttpStatusCode.Created, session.Responses[0].Response.StatusCode);
+        Assert.Equal(0, session.Responses[0].Response.Content.Headers.ContentLength);
     }
 
     // ── RT-2-004 ───────────────────────────────────────────────────────────────
@@ -180,13 +181,13 @@ public sealed class Http2RoundTripHandshakeTests
         var stream3 = BuildH2Response(id3, 200, "response-3", hpack);
         var combined = CombineFrames(stream1, stream2, stream3);
 
-        var decoder = new Http2Decoder();
-        var decoded = decoder.TryDecode(combined, out var result);
+        var session = new Http2ProtocolSession();
+        var frames = session.Process(combined);
 
-        Assert.True(decoded);
-        Assert.Equal(3, result.Responses.Count);
+        Assert.NotEmpty(frames);
+        Assert.Equal(3, session.Responses.Count);
 
-        var byStream = result.Responses.ToDictionary(r => r.StreamId, r => r.Response);
+        var byStream = session.Responses.ToDictionary(r => r.StreamId, r => r.Response);
         Assert.True(byStream.ContainsKey(id1));
         Assert.True(byStream.ContainsKey(id2));
         Assert.True(byStream.ContainsKey(id3));
@@ -235,19 +236,19 @@ public sealed class Http2RoundTripHandshakeTests
             new DataFrame(5, "body-3"u8.ToArray(), endStream: true).Serialize());
         var combined = CombineFrames(frames1, frames2, frames3);
 
-        var decoder = new Http2Decoder();
-        decoder.TryDecode(combined, out var result);
+        var session = new Http2ProtocolSession();
+        session.Process(combined);
 
-        Assert.Equal(3, result.Responses.Count);
+        Assert.Equal(3, session.Responses.Count);
 
-        foreach (var (_, response) in result.Responses)
+        foreach (var (_, response) in session.Responses)
         {
             Assert.Equal(HttpStatusCode.OK, response.StatusCode);
             Assert.Equal("text/html", response.Content.Headers.ContentType!.MediaType);
         }
 
         var bodies = new HashSet<string>();
-        foreach (var (_, response) in result.Responses)
+        foreach (var (_, response) in session.Responses)
         {
             bodies.Add(await response.Content.ReadAsStringAsync());
         }
@@ -268,20 +269,20 @@ public sealed class Http2RoundTripHandshakeTests
             (SettingsParameter.InitialWindowSize, 131070u),
         }).Serialize();
 
-        var decoder = new Http2Decoder();
-        decoder.TryDecode(serverSettings, out var result);
+        var session = new Http2ProtocolSession();
+        session.Process(serverSettings);
 
-        Assert.True(result.HasNewSettings);
-        Assert.Single(result.ReceivedSettings);
+        Assert.True(session.HasNewSettings);
+        Assert.Single(session.ReceivedSettings);
 
-        var settings = result.ReceivedSettings[0];
+        var settings = session.ReceivedSettings[0];
         Assert.Contains(settings, s =>
             s.Item1 == SettingsParameter.MaxFrameSize && s.Item2 == 32768u);
         Assert.Contains(settings, s =>
             s.Item1 == SettingsParameter.InitialWindowSize && s.Item2 == 131070u);
 
         // Client must send a SETTINGS ACK back
-        Assert.Single(result.SettingsAcksToSend);
+        Assert.Single(session.SettingsAcksToSend);
 
         // Apply to encoder: encoder respects the new max frame size
         var encoder = new Http2RequestEncoder(useHuffman: false);
@@ -300,14 +301,15 @@ public sealed class Http2RoundTripHandshakeTests
         var payload = new byte[] { 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08 };
         var pingFrame = new PingFrame(payload, isAck: false).Serialize();
 
-        var decoder = new Http2Decoder();
-        decoder.TryDecode(pingFrame, out var result);
+        var session = new Http2ProtocolSession();
+        session.Process(pingFrame);
 
-        // Decoder queues a PING ACK for the client to send
-        Assert.Single(result.PingAcksToSend);
+        // Session records the PING payload so the caller can build the ACK
+        Assert.Single(session.PingRequests);
+        Assert.Equal(payload, session.PingRequests[0]);
 
-        // Verify the ACK payload matches the original PING payload
-        var ackFrame = result.PingAcksToSend[0];
+        // Verify the client-constructed PING ACK has the correct format
+        var ackFrame = new PingFrame(session.PingRequests[0], isAck: true).Serialize();
         Assert.Equal((byte)FrameType.Ping, ackFrame[3]);
         Assert.Equal((byte)PingFlags.Ack, ackFrame[4]);
         Assert.Equal(payload, ackFrame[9..17]);
@@ -320,12 +322,12 @@ public sealed class Http2RoundTripHandshakeTests
     {
         var goawayFrame = new GoAwayFrame(5, Http2ErrorCode.NoError).Serialize();
 
-        var decoder = new Http2Decoder();
-        decoder.TryDecode(goawayFrame, out var result);
+        var session = new Http2ProtocolSession();
+        session.Process(goawayFrame);
 
-        Assert.True(result.HasGoAway);
-        Assert.Equal(5, result.GoAway!.LastStreamId);
-        Assert.Equal(Http2ErrorCode.NoError, result.GoAway.ErrorCode);
+        Assert.True(session.IsGoingAway);
+        Assert.Equal(5, session.GoAwayFrame!.LastStreamId);
+        Assert.Equal(Http2ErrorCode.NoError, session.GoAwayFrame.ErrorCode);
     }
 
     // ── RT-2-009 ───────────────────────────────────────────────────────────────
@@ -349,15 +351,15 @@ public sealed class Http2RoundTripHandshakeTests
 
         var combined = CombineFrames(headers1, rst1, headers3, data3);
 
-        var decoder = new Http2Decoder();
-        decoder.TryDecode(combined, out var result);
+        var session = new Http2ProtocolSession();
+        session.Process(combined);
 
         // Stream 1 was RST'd
-        Assert.Contains(result.RstStreams, r => r.StreamId == 1 && r.Error == Http2ErrorCode.Cancel);
+        Assert.Contains(session.RstStreams, r => r.StreamId == 1 && r.Error == Http2ErrorCode.Cancel);
 
         // Stream 3 completed normally
-        Assert.True(result.HasResponses);
-        var stream3 = result.Responses.Single(r => r.StreamId == 3);
+        Assert.NotEmpty(session.Responses);
+        var stream3 = session.Responses.Single(r => r.StreamId == 3);
         Assert.Equal(HttpStatusCode.OK, stream3.Response.StatusCode);
         Assert.Equal("stream3-ok", await stream3.Response.Content.ReadAsStringAsync());
     }
@@ -391,10 +393,10 @@ public sealed class Http2RoundTripHandshakeTests
 
         var respHpack = new HpackEncoder(useHuffman: false);
         var responseFrame = BuildH2Response(streamId, 200, "", respHpack);
-        var decoder = new Http2Decoder();
-        decoder.TryDecode(responseFrame, out var result);
-        Assert.True(result.HasResponses);
-        Assert.Equal(HttpStatusCode.OK, result.Responses[0].Response.StatusCode);
+        var session = new Http2ProtocolSession();
+        session.Process(responseFrame);
+        Assert.NotEmpty(session.Responses);
+        Assert.Equal(HttpStatusCode.OK, session.Responses[0].Response.StatusCode);
     }
 
     // ── RT-2-011 ───────────────────────────────────────────────────────────────
@@ -423,10 +425,10 @@ public sealed class Http2RoundTripHandshakeTests
 
         var respHpack = new HpackEncoder(useHuffman: false);
         var responseFrame = BuildH2Response(streamId, 200, "ok", respHpack);
-        var decoder = new Http2Decoder();
-        decoder.TryDecode(responseFrame, out var result);
-        Assert.True(result.HasResponses);
-        Assert.Equal(HttpStatusCode.OK, result.Responses[0].Response.StatusCode);
+        var session = new Http2ProtocolSession();
+        session.Process(responseFrame);
+        Assert.NotEmpty(session.Responses);
+        Assert.Equal(HttpStatusCode.OK, session.Responses[0].Response.StatusCode);
     }
 
     // ── RT-2-012 ───────────────────────────────────────────────────────────────
@@ -480,13 +482,13 @@ public sealed class Http2RoundTripHandshakeTests
 
         var combined = CombineFrames(respHeadersFrame, respContinuationFrame, respDataFrame);
 
-        var decoder = new Http2Decoder();
-        var decoded = decoder.TryDecode(combined, out var result);
+        var session = new Http2ProtocolSession();
+        var frames = session.Process(combined);
 
-        Assert.True(decoded);
-        Assert.True(result.HasResponses);
-        Assert.Equal(HttpStatusCode.OK, result.Responses[0].Response.StatusCode);
-        Assert.Equal("fragmented", await result.Responses[0].Response.Content.ReadAsStringAsync());
+        Assert.NotEmpty(frames);
+        Assert.NotEmpty(session.Responses);
+        Assert.Equal(HttpStatusCode.OK, session.Responses[0].Response.StatusCode);
+        Assert.Equal("fragmented", await session.Responses[0].Response.Content.ReadAsStringAsync());
     }
 
     // ── RT-2-013 ───────────────────────────────────────────────────────────────
@@ -518,15 +520,15 @@ public sealed class Http2RoundTripHandshakeTests
 
         var combined = CombineFrames(pushPromiseFrame, pushedHeadersFrame, pushedDataFrame);
 
-        var decoder = new Http2Decoder();
-        decoder.TryDecode(combined, out var result);
+        var session = new Http2ProtocolSession();
+        session.Process(combined);
 
         // PUSH_PROMISE registered stream 2 as promised
-        Assert.Contains(2, result.PromisedStreamIds);
+        Assert.Contains(2, session.PromisedStreamIds);
 
         // Pushed response on stream 2 was decoded
-        Assert.True(result.HasResponses);
-        var pushed = result.Responses.Single(r => r.StreamId == 2);
+        Assert.NotEmpty(session.Responses);
+        var pushed = session.Responses.Single(r => r.StreamId == 2);
         Assert.Equal(HttpStatusCode.OK, pushed.Response.StatusCode);
         Assert.Equal("text/css", pushed.Response.Content.Headers.ContentType!.MediaType);
         Assert.Equal("body { color: red; }", await pushed.Response.Content.ReadAsStringAsync());
@@ -544,13 +546,14 @@ public sealed class Http2RoundTripHandshakeTests
         var connectionWindowUpdate = new WindowUpdateFrame(0, increment).Serialize();
         var combined = CombineFrames(streamWindowUpdate, connectionWindowUpdate);
 
-        var decoder = new Http2Decoder();
-        decoder.TryDecode(combined, out var result);
+        var session = new Http2ProtocolSession();
+        session.Process(combined);
 
-        // Both WINDOW_UPDATE frames were processed
-        Assert.Equal(2, result.WindowUpdates.Count);
-        Assert.Contains(result.WindowUpdates, u => u.StreamId == 1 && u.Increment == increment);
-        Assert.Contains(result.WindowUpdates, u => u.StreamId == 0 && u.Increment == increment);
+        // Stream-level WINDOW_UPDATE tracked in WindowUpdates
+        Assert.Single(session.WindowUpdates);
+        Assert.Contains(session.WindowUpdates, u => u.StreamId == 1 && u.Increment == increment);
+        // Connection-level WINDOW_UPDATE (stream 0) applied to ConnectionSendWindow
+        Assert.Equal(65535 + increment, session.ConnectionSendWindow);
 
         // Encoder applies the window update and can now send more data
         var encoder = new Http2RequestEncoder(useHuffman: false);
@@ -586,13 +589,13 @@ public sealed class Http2RoundTripHandshakeTests
         var headersFrame = new HeadersFrame(streamId, headerBlock,
             endStream: true, endHeaders: true).Serialize();
 
-        var decoder = new Http2Decoder();
-        decoder.TryDecode(headersFrame, out var result);
+        var session = new Http2ProtocolSession();
+        session.Process(headersFrame);
 
-        Assert.True(result.HasResponses);
-        Assert.Single(result.Responses);
-        Assert.Equal(streamId, result.Responses[0].StreamId);
-        Assert.Equal(HttpStatusCode.NotFound, result.Responses[0].Response.StatusCode);
+        Assert.NotEmpty(session.Responses);
+        Assert.Single(session.Responses);
+        Assert.Equal(streamId, session.Responses[0].StreamId);
+        Assert.Equal(HttpStatusCode.NotFound, session.Responses[0].Response.StatusCode);
     }
 
     // ── RT-2-016 ───────────────────────────────────────────────────────────────
@@ -600,9 +603,8 @@ public sealed class Http2RoundTripHandshakeTests
     [Fact(DisplayName = "RT-2-016: ValidateServerPreface returns false for incomplete frame (<9 bytes)")]
     public void Should_ReturnFalse_When_ServerPrefaceIncomplete()
     {
-        var decoder = new Http2Decoder();
         var incomplete = new byte[5]; // less than 9 bytes (frame header size)
-        var result = decoder.ValidateServerPreface(incomplete.AsMemory());
+        var result = Http2StageTestHelper.ValidateServerPreface(incomplete.AsMemory());
         Assert.False(result);
     }
 
@@ -611,12 +613,11 @@ public sealed class Http2RoundTripHandshakeTests
     [Fact(DisplayName = "RT-2-017: ValidateServerPreface throws on non-SETTINGS first frame")]
     public void Should_ThrowProtocolError_When_ServerPrefaceHasWrongFrameType()
     {
-        var decoder = new Http2Decoder();
         // Build a PING frame (type=0x06) on stream 0 with 8-byte payload
         var pingFrame = new PingFrame(new byte[8], isAck: false).Serialize();
 
         var ex = Assert.Throws<Http2Exception>(() =>
-            decoder.ValidateServerPreface(pingFrame.AsMemory()));
+            Http2StageTestHelper.ValidateServerPreface(pingFrame.AsMemory()));
 
         Assert.Equal(Http2ErrorCode.ProtocolError, ex.ErrorCode);
     }
@@ -636,10 +637,10 @@ public sealed class Http2RoundTripHandshakeTests
         }).Serialize();
 
         var combined = CombineFrames(settings1, settings2);
-        var decoder = new Http2Decoder();
-        decoder.TryDecode(combined, out var result);
+        var session = new Http2ProtocolSession();
+        session.Process(combined);
 
-        Assert.Equal(2, result.SettingsAcksToSend.Count);
+        Assert.Equal(2, session.SettingsAcksToSend.Count);
     }
 
     // ── RT-2-019 ───────────────────────────────────────────────────────────────
@@ -648,13 +649,13 @@ public sealed class Http2RoundTripHandshakeTests
     public void Should_ConsumeSettingsAck_When_SettingsAckFrameReceived()
     {
         var settingsAck = Http2FrameUtils.EncodeSettingsAck();
-        var decoder = new Http2Decoder();
-        var decoded = decoder.TryDecode(settingsAck.AsMemory(), out var result);
+        var session = new Http2ProtocolSession();
+        var frames = session.Process(settingsAck.AsMemory());
 
-        Assert.True(decoded);
-        Assert.False(result.HasNewSettings);
-        Assert.Empty(result.SettingsAcksToSend);
-        Assert.Empty(result.PingAcksToSend);
-        Assert.False(result.HasResponses);
+        Assert.NotEmpty(frames);
+        Assert.False(session.HasNewSettings);
+        Assert.Empty(session.SettingsAcksToSend);
+        Assert.Empty(session.PingRequests);
+        Assert.Empty(session.Responses);
     }
 }
