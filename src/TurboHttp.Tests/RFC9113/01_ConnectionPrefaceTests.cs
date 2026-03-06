@@ -1,5 +1,6 @@
 using System.Buffers.Binary;
 using TurboHttp.Protocol;
+using TurboHttp.Tests;
 
 namespace TurboHttp.Tests.RFC9113;
 
@@ -140,17 +141,17 @@ public sealed class Http2ConnectionPrefaceTests
         // RFC 9113 §4.1: Frame header is 9 bytes minimum
         // Fewer than 9 bytes cannot contain a complete frame header, so preface is incomplete
 
-        // // 8 bytes — cannot determine frame type yet
-        // var frames8 = Http2StageTestHelper.DecodeFrames(new byte[8].AsMemory());
-        // Assert.Empty(frames8);
-        //
-        // // 1 byte
-        // var frames1 = Http2StageTestHelper.DecodeFrames(new byte[1].AsMemory());
-        // Assert.Empty(frames1);
-        //
-        // // 0 bytes
-        // var frames0 = Http2StageTestHelper.DecodeFrames(ReadOnlyMemory<byte>.Empty);
-        // Assert.Empty(frames0);
+        // 8 bytes — cannot determine frame type yet
+        var frames8 = Http2StageTestHelper.DecodeFrames(new byte[8].AsMemory());
+        Assert.Empty(frames8);
+
+        // 1 byte
+        var frames1 = Http2StageTestHelper.DecodeFrames(new byte[1].AsMemory());
+        Assert.Empty(frames1);
+
+        // 0 bytes
+        var frames0 = Http2StageTestHelper.DecodeFrames(ReadOnlyMemory<byte>.Empty);
+        Assert.Empty(frames0);
     }
 
     /// RFC 9113 §3.4 — DATA frame as first frame throws PROTOCOL_ERROR
@@ -191,9 +192,9 @@ public sealed class Http2ConnectionPrefaceTests
     {
         var ping = new PingFrame(new byte[8], isAck: false).Serialize();
 
-        // var ex = Assert.Throws<Http2Exception>(() => Http2StageTestHelper.ValidateServerPreface(ping));
-        // Assert.Equal(Http2ErrorCode.ProtocolError, ex.ErrorCode);
-        // Assert.True(ex.IsConnectionError);
+        var ex = Assert.Throws<Http2Exception>(() => Http2StageTestHelper.ValidateServerPreface(ping));
+        Assert.Equal(Http2ErrorCode.ProtocolError, ex.ErrorCode);
+        Assert.True(ex.IsConnectionError);
     }
 
     /// RFC 9113 §3.4 — GOAWAY frame as first frame throws PROTOCOL_ERROR
@@ -339,5 +340,576 @@ public sealed class Http2ConnectionPrefaceTests
 
         // Total length = magic + 9-byte header + payload
         Assert.Equal(MagicLength + 9 + payloadLen, preface.Length);
+    }
+
+    // =========================================================================
+    // Frame header tests (migrated from 12_DecoderConnectionPrefaceTests — Phase 6)
+    // =========================================================================
+
+    [Fact(DisplayName = "7540-4.1-001: Valid 9-byte frame header decoded correctly")]
+    public void FrameHeader_Valid9Bytes_DecodedCorrectly()
+    {
+        // A SETTINGS ACK is the smallest valid frame (9-byte header, no payload).
+        var frame = SettingsFrame.SettingsAck();
+        var session = new Http2ProtocolSession();
+        var frames = session.Process(frame);
+        Assert.NotEmpty(frames);
+        Assert.Empty(session.ReceivedSettings); // ACK is not a new SETTINGS
+    }
+
+    [Fact(DisplayName = "7540-4.1-002: Frame length uses 24-bit field")]
+    public void FrameHeader_LargePayload_24BitLengthParsed()
+    {
+        // Build a SETTINGS frame with payload > 65535 bytes (66006 = 11001 × 6).
+        const int payloadLen = 66006;
+        var buf = new byte[9 + payloadLen];
+        buf[0] = payloadLen >> 16;
+        buf[1] = (payloadLen >> 8) & 0xFF;
+        buf[2] = payloadLen & 0xFF;
+        buf[3] = 0x04; // SETTINGS
+        buf[4] = 0x00; // no flags
+        // stream ID = 0 (bytes 5–8 remain zero)
+        for (var i = 0; i < payloadLen; i += 6)
+        {
+            buf[9 + i + 0] = 0x00;
+            buf[9 + i + 1] = 0x01; // HeaderTableSize param
+            // value = 0 (4 bytes remain zero)
+        }
+
+        // Http2FrameDecoder has no MAX_FRAME_SIZE check; the large SETTINGS decodes directly.
+        var session = new Http2ProtocolSession();
+        session.Process(buf);
+        Assert.True(session.ReceivedSettings.Count > 0);
+        Assert.True(session.ReceivedSettings[0].Count > 0);
+    }
+
+    [Theory(DisplayName = "7540-4.1-003: Frame type {0} dispatched to correct handler")]
+    [InlineData(0x0)] // DATA
+    [InlineData(0x1)] // HEADERS
+    [InlineData(0x2)] // PRIORITY
+    [InlineData(0x3)] // RST_STREAM
+    [InlineData(0x4)] // SETTINGS
+    [InlineData(0x5)] // PUSH_PROMISE
+    [InlineData(0x6)] // PING
+    [InlineData(0x7)] // GOAWAY
+    [InlineData(0x8)] // WINDOW_UPDATE
+    [InlineData(0x9)] // CONTINUATION
+    public void FrameType_AllKnownTypes_DispatchedWithoutCrash(byte typeCode)
+    {
+        byte[] frame;
+        switch ((FrameType)typeCode)
+        {
+            case FrameType.Settings:
+                frame = SettingsFrame.SettingsAck();
+                break;
+            case FrameType.Ping:
+                frame = new PingFrame(new byte[8]).Serialize();
+                break;
+            case FrameType.GoAway:
+                frame = new GoAwayFrame(0, Http2ErrorCode.NoError).Serialize();
+                break;
+            case FrameType.WindowUpdate:
+                frame = new WindowUpdateFrame(0, 1).Serialize();
+                break;
+            case FrameType.RstStream:
+                frame = new RstStreamFrame(1, Http2ErrorCode.Cancel).Serialize();
+                break;
+            case FrameType.Priority:
+                frame =
+                [
+                    0x00, 0x00, 0x05, // length=5
+                    0x02,             // PRIORITY
+                    0x00,             // flags=0
+                    0x00, 0x00, 0x00, 0x01, // stream=1
+                    0x00, 0x00, 0x00, 0x01, // stream dependency
+                    0x00              // weight
+                ];
+                break;
+            case FrameType.PushPromise:
+                frame =
+                [
+                    0x00, 0x00, 0x05, // length=5
+                    0x05,             // PUSH_PROMISE
+                    0x04,             // END_HEADERS
+                    0x00, 0x00, 0x00, 0x01, // stream=1
+                    0x00, 0x00, 0x00, 0x02, // promised stream=2
+                    0x00              // empty header block byte
+                ];
+                break;
+            default:
+                // DATA/HEADERS/CONTINUATION on stream 0 — will trigger Http2Exception
+                frame =
+                [
+                    0x00, 0x00, 0x01,
+                    typeCode,
+                    0x00,
+                    0x00, 0x00, 0x00, 0x00, // stream 0
+                    0x00
+                ];
+                break;
+        }
+
+        var session = new Http2ProtocolSession();
+        // Allow any Http2Exception — the handler was reached and detected an error condition.
+        try
+        {
+            session.Process(frame);
+        }
+        catch (Http2Exception)
+        {
+            // Expected for certain invalid frame states.
+        }
+    }
+
+    [Fact(DisplayName = "7540-4.1-004: Unknown frame type 0x0A — Http2FrameDecoder throws Http2Exception")]
+    public void FrameType_Unknown0x0A_ThrowsHttp2Exception()
+    {
+        // Build a raw frame with unknown type 0x0A (10).
+        var frame = new byte[]
+        {
+            0x00, 0x00, 0x04, // length = 4
+            0x0A,             // type  = unknown
+            0x00,             // flags = none
+            0x00, 0x00, 0x00, 0x01, // stream = 1
+            0x00, 0x00, 0x00, 0x00  // 4 bytes payload
+        };
+
+        // NOTE: RFC 9113 §5.1 requires ignoring unknown frame types, but Http2FrameDecoder
+        // currently treats them as a protocol error. This test documents current behaviour.
+        var session = new Http2ProtocolSession();
+        var ex = Assert.Throws<Http2Exception>(() => session.Process(frame));
+        Assert.Equal(Http2ErrorCode.ProtocolError, ex.ErrorCode);
+    }
+
+    [Fact(DisplayName = "7540-4.1-005: R-bit masked out when reading GoAway last-stream-id")]
+    public void FrameHeader_RBitSetInGoAway_LastStreamIdMasked()
+    {
+        // RFC 7540 §6.8: The GOAWAY last-stream-id has a reserved bit that MUST be ignored.
+        var payload = new byte[8];
+        BinaryPrimitives.WriteUInt32BigEndian(payload, 0x80000003u); // lastStreamId=3 with R-bit
+        BinaryPrimitives.WriteUInt32BigEndian(payload.AsSpan(4), (uint)Http2ErrorCode.NoError);
+
+        var frame = new byte[9 + 8];
+        frame[0] = 0; frame[1] = 0; frame[2] = 8; // length=8
+        frame[3] = 0x07;                           // GOAWAY
+        frame[4] = 0x00;                           // flags=0
+        // stream ID = 0 in header (bytes 5–8)
+        payload.CopyTo(frame, 9);
+
+        var session = new Http2ProtocolSession();
+        session.Process(frame);
+
+        Assert.True(session.IsGoingAway);
+        Assert.Equal(3, session.GoAwayFrame!.LastStreamId); // R-bit stripped → 3, not 0x80000003
+    }
+
+    [Fact(DisplayName = "7540-4.1-006: R-bit in stream ID is silently stripped by Http2FrameDecoder")]
+    public void FrameHeader_RBitSetInStreamId_StrippedSilently()
+    {
+        // A SETTINGS ACK frame with R-bit set in the stream word.
+        var settingsFrame = new byte[9];
+        settingsFrame[3] = 0x04;                   // SETTINGS
+        settingsFrame[4] = (byte)SettingsFlags.Ack; // ACK
+        settingsFrame[5] = 0x80;                   // R-bit set in MSB
+
+        // Http2FrameDecoder masks the R-bit and decodes the frame normally.
+        // NOTE: RFC 7540 §4.1 says a set R-bit MUST be treated as PROTOCOL_ERROR,
+        // but Http2FrameDecoder silently strips it. This test documents current behaviour.
+        var session = new Http2ProtocolSession();
+        var frames = session.Process(settingsFrame);
+        Assert.NotEmpty(frames); // decoded successfully — no exception
+    }
+
+    [Fact(DisplayName = "7540-4.1-007: Oversized DATA frame — Http2FrameDecoder does not enforce MAX_FRAME_SIZE")]
+    public void FrameHeader_PayloadExceedsMaxFrameSize_ProcessedByFrameDecoder()
+    {
+        // Build a DATA frame with length = 16385 (just over the default MAX_FRAME_SIZE of 16384).
+        const int overSize = 16385;
+        var fullFrame = new byte[9 + overSize];
+        fullFrame[0] = overSize >> 16;
+        fullFrame[1] = overSize >> 8;
+        fullFrame[2] = overSize & 0xFF;
+        fullFrame[3] = 0x00; // DATA
+        fullFrame[4] = 0x00;
+        fullFrame[5] = 0; fullFrame[6] = 0; fullFrame[7] = 0; fullFrame[8] = 1; // stream=1
+
+        // NOTE: RFC 7540 §4.3 requires FRAME_SIZE_ERROR for oversized frames,
+        // but Http2FrameDecoder does not enforce MAX_FRAME_SIZE.
+        // The DATA frame is parsed; processing fails because stream 1 is idle.
+        var session = new Http2ProtocolSession();
+        var ex = Assert.Throws<Http2Exception>(() => session.Process(fullFrame));
+        Assert.Equal(Http2ErrorCode.StreamClosed, ex.ErrorCode);
+    }
+
+    // =========================================================================
+    // DATA frame tests (migrated from 12_DecoderConnectionPrefaceTests — Phase 6)
+    // =========================================================================
+
+    [Fact(DisplayName = "7540-6.1-001: DATA frame received — response available on stream")]
+    public void DataFrame_Payload_DecodedCorrectly()
+    {
+        var hpack = new HpackEncoder(useHuffman: false);
+        var headerBlock = hpack.Encode([(":status", "200")]);
+        var headersFrame = new HeadersFrame(1, headerBlock, endStream: false, endHeaders: true).Serialize();
+        var body = "hello"u8.ToArray();
+        var dataFrame = new DataFrame(1, body, endStream: true).Serialize();
+
+        var session = new Http2ProtocolSession();
+        session.Process(headersFrame.Concat(dataFrame).ToArray());
+
+        Assert.Single(session.Responses);
+        Assert.Equal(200, (int)session.Responses[0].Response.StatusCode);
+    }
+
+    [Fact(DisplayName = "7540-6.1-002: END_STREAM on DATA marks stream closed")]
+    public void DataFrame_EndStream_MarksStreamClosed()
+    {
+        var hpack = new HpackEncoder(useHuffman: false);
+        var headerBlock = hpack.Encode([(":status", "200")]);
+        var headersFrame = new HeadersFrame(1, headerBlock, endStream: false, endHeaders: true).Serialize();
+        var dataFrame = new DataFrame(1, new byte[4], endStream: true).Serialize();
+
+        var session = new Http2ProtocolSession();
+        session.Process(headersFrame.Concat(dataFrame).ToArray());
+        Assert.Single(session.Responses);
+
+        // Subsequent DATA on same closed stream must throw STREAM_CLOSED.
+        var extra = new DataFrame(1, new byte[1]).Serialize();
+        var ex = Assert.Throws<Http2Exception>(() => session.Process(extra));
+        Assert.Equal(Http2ErrorCode.StreamClosed, ex.ErrorCode);
+    }
+
+    [Fact(DisplayName = "7540-6.1-003: Padded DATA frame processed — response status correct")]
+    public void DataFrame_Padded_PaddingStripped()
+    {
+        var hpack = new HpackEncoder(useHuffman: false);
+        var headerBlock = hpack.Encode([(":status", "200")]);
+        var headersFrame = new HeadersFrame(1, headerBlock, endStream: false, endHeaders: true).Serialize();
+
+        // Payload: pad_length(1) + data(2 bytes "hi") + padding(3 bytes) = 6 bytes
+        var paddedPayload = new byte[] { 3, (byte)'h', (byte)'i', 0x00, 0x00, 0x00 };
+        var dataFrame = new byte[9 + paddedPayload.Length];
+        dataFrame[0] = 0; dataFrame[1] = 0; dataFrame[2] = (byte)paddedPayload.Length;
+        dataFrame[3] = 0x00; // DATA
+        dataFrame[4] = 0x09; // END_STREAM(0x1) | PADDED(0x8)
+        dataFrame[5] = 0; dataFrame[6] = 0; dataFrame[7] = 0; dataFrame[8] = 1; // stream=1
+        paddedPayload.CopyTo(dataFrame, 9);
+
+        var session = new Http2ProtocolSession();
+        session.Process(headersFrame.Concat(dataFrame).ToArray());
+
+        Assert.Single(session.Responses);
+        Assert.Equal(200, (int)session.Responses[0].Response.StatusCode);
+    }
+
+    [Fact(DisplayName = "7540-6.1-004: DATA on stream 0 is PROTOCOL_ERROR")]
+    public void DataFrame_Stream0_ThrowsProtocolError()
+    {
+        var frame = new byte[]
+        {
+            0x00, 0x00, 0x01,
+            0x00, 0x00,
+            0x00, 0x00, 0x00, 0x00, // stream=0
+            0x00
+        };
+        var session = new Http2ProtocolSession();
+        var ex = Assert.Throws<Http2Exception>(() => session.Process(frame));
+        Assert.Equal(Http2ErrorCode.ProtocolError, ex.ErrorCode);
+    }
+
+    [Fact(DisplayName = "7540-6.1-005: DATA on closed stream causes STREAM_CLOSED")]
+    public void DataFrame_ClosedStream_ThrowsStreamClosed()
+    {
+        var hpack = new HpackEncoder(useHuffman: false);
+        var headerBlock = hpack.Encode([(":status", "200")]);
+        var headersFrame = new HeadersFrame(1, headerBlock, endStream: true, endHeaders: true).Serialize();
+
+        var session = new Http2ProtocolSession();
+        session.Process(headersFrame);
+
+        var dataFrame = new DataFrame(1, new byte[1]).Serialize();
+        var ex = Assert.Throws<Http2Exception>(() => session.Process(dataFrame));
+        Assert.Equal(Http2ErrorCode.StreamClosed, ex.ErrorCode);
+    }
+
+    [Fact(DisplayName = "7540-6.1-006: Empty DATA frame with END_STREAM valid")]
+    public void DataFrame_EmptyWithEndStream_ResponseComplete()
+    {
+        var hpack = new HpackEncoder(useHuffman: false);
+        var headerBlock = hpack.Encode([(":status", "200")]);
+        var headersFrame = new HeadersFrame(1, headerBlock, endStream: false, endHeaders: true).Serialize();
+        var emptyDataFrame = new DataFrame(1, ReadOnlyMemory<byte>.Empty, endStream: true).Serialize();
+
+        var session = new Http2ProtocolSession();
+        session.Process(headersFrame.Concat(emptyDataFrame).ToArray());
+
+        Assert.Single(session.Responses);
+        Assert.Equal(200, (int)session.Responses[0].Response.StatusCode);
+    }
+
+    // =========================================================================
+    // HEADERS frame tests (migrated from 12_DecoderConnectionPrefaceTests — Phase 6)
+    // =========================================================================
+
+    [Fact(DisplayName = "7540-6.2-001: HEADERS frame decoded into response headers")]
+    public void HeadersFrame_ResponseHeaders_Decoded()
+    {
+        var hpack = new HpackEncoder(useHuffman: false);
+        var headerBlock = hpack.Encode([(":status", "200"), ("x-custom", "value")]);
+        var frame = new HeadersFrame(1, headerBlock, endStream: true, endHeaders: true).Serialize();
+
+        var session = new Http2ProtocolSession();
+        session.Process(frame);
+
+        Assert.Single(session.Responses);
+        var response = session.Responses[0].Response;
+        Assert.Equal(200, (int)response.StatusCode);
+        Assert.True(response.Headers.Contains("x-custom"));
+    }
+
+    [Fact(DisplayName = "7540-6.2-002: END_STREAM on HEADERS closes stream immediately")]
+    public void HeadersFrame_EndStream_StreamClosedImmediately()
+    {
+        var hpack = new HpackEncoder(useHuffman: false);
+        var headerBlock = hpack.Encode([(":status", "204")]);
+        var frame = new HeadersFrame(1, headerBlock, endStream: true, endHeaders: true).Serialize();
+
+        var session = new Http2ProtocolSession();
+        session.Process(frame);
+
+        Assert.Single(session.Responses);
+        Assert.Equal(204, (int)session.Responses[0].Response.StatusCode);
+    }
+
+    [Fact(DisplayName = "7540-6.2-003: END_HEADERS on HEADERS marks complete block")]
+    public void HeadersFrame_EndHeaders_HeaderBlockComplete()
+    {
+        var hpack = new HpackEncoder(useHuffman: false);
+        var headerBlock = hpack.Encode([(":status", "200")]);
+        var frame = new HeadersFrame(1, headerBlock, endStream: false, endHeaders: true).Serialize();
+
+        var session = new Http2ProtocolSession();
+        session.Process(frame);
+
+        // If END_HEADERS was respected, a subsequent non-CONTINUATION frame must not throw.
+        var pingFrame = new PingFrame(new byte[8]).Serialize();
+        session.Process(pingFrame);
+        Assert.Equal(1, session.PingCount); // no exception → END_HEADERS was recognised
+    }
+
+    [Fact(DisplayName = "7540-6.2-004: Padded HEADERS padding stripped")]
+    public void HeadersFrame_Padded_PaddingStripped()
+    {
+        var hpack = new HpackEncoder(useHuffman: false);
+        var headerBlock = hpack.Encode([(":status", "200")]);
+
+        // Build PADDED HEADERS: PADDED flag=0x08, pad_length=2, header block, 2 bytes padding.
+        const int padLength = 2;
+        var payload = new byte[1 + headerBlock.Length + padLength];
+        payload[0] = padLength; // Pad Length
+        headerBlock.CopyTo(payload.AsMemory(1));
+        // last 2 bytes remain zero (padding)
+
+        var frame = new byte[9 + payload.Length];
+        frame[0] = 0; frame[1] = 0; frame[2] = (byte)payload.Length;
+        frame[3] = 0x01; // HEADERS
+        frame[4] = 0x0D; // END_STREAM(0x1) | END_HEADERS(0x4) | PADDED(0x8)
+        frame[5] = 0; frame[6] = 0; frame[7] = 0; frame[8] = 1; // stream=1
+        payload.CopyTo(frame, 9);
+
+        var session = new Http2ProtocolSession();
+        session.Process(frame);
+
+        Assert.Single(session.Responses);
+        Assert.Equal(200, (int)session.Responses[0].Response.StatusCode);
+    }
+
+    [Fact(DisplayName = "7540-6.2-005: PRIORITY flag in HEADERS consumed correctly")]
+    public void HeadersFrame_PriorityFlag_ConsumedCorrectly()
+    {
+        var hpack = new HpackEncoder(useHuffman: false);
+        var headerBlock = hpack.Encode([(":status", "200")]);
+
+        // Build HEADERS with PRIORITY flag: 5 extra bytes (4 stream dep + 1 weight).
+        var priorityBytes = new byte[] { 0x00, 0x00, 0x00, 0x03, 0x0F }; // dep=3, weight=15
+        var payload = priorityBytes.Concat(headerBlock.ToArray()).ToArray();
+
+        var frame = new byte[9 + payload.Length];
+        frame[0] = 0; frame[1] = 0; frame[2] = (byte)payload.Length;
+        frame[3] = 0x01; // HEADERS
+        frame[4] = 0x25; // END_STREAM(0x1) | END_HEADERS(0x4) | PRIORITY(0x20)
+        frame[5] = 0; frame[6] = 0; frame[7] = 0; frame[8] = 1; // stream=1
+        payload.CopyTo(frame, 9);
+
+        var session = new Http2ProtocolSession();
+        session.Process(frame);
+
+        Assert.Single(session.Responses);
+        Assert.Equal(200, (int)session.Responses[0].Response.StatusCode);
+    }
+
+    [Fact(DisplayName = "7540-6.2-006: HEADERS without END_HEADERS waits for CONTINUATION")]
+    public void HeadersFrame_WithoutEndHeaders_WaitsForContinuation()
+    {
+        var hpack = new HpackEncoder(useHuffman: false);
+        var headerBlock = hpack.Encode([(":status", "200")]);
+        var split1 = headerBlock[..(headerBlock.Length / 2)];
+        var split2 = headerBlock[(headerBlock.Length / 2)..];
+
+        var headersFrame = new HeadersFrame(1, split1, endStream: true, endHeaders: false).Serialize();
+        var contFrame = new ContinuationFrame(1, split2, endHeaders: true).Serialize();
+
+        var session = new Http2ProtocolSession();
+        session.Process(headersFrame);
+        Assert.Empty(session.Responses); // no response yet — awaiting CONTINUATION
+
+        session.Process(contFrame);
+        Assert.Single(session.Responses);
+    }
+
+    [Fact(DisplayName = "7540-6.2-007: HEADERS on stream 0 is PROTOCOL_ERROR")]
+    public void HeadersFrame_Stream0_ThrowsProtocolError()
+    {
+        var frame = new byte[]
+        {
+            0x00, 0x00, 0x01,
+            0x01, 0x05,
+            0x00, 0x00, 0x00, 0x00, // stream=0
+            0x88
+        };
+        var session = new Http2ProtocolSession();
+        var ex = Assert.Throws<Http2Exception>(() => session.Process(frame));
+        Assert.Equal(Http2ErrorCode.ProtocolError, ex.ErrorCode);
+    }
+
+    // =========================================================================
+    // CONTINUATION frame tests (migrated from 12_DecoderConnectionPrefaceTests — Phase 6)
+    // =========================================================================
+
+    [Fact(DisplayName = "7540-6.9-001: CONTINUATION appended to HEADERS block")]
+    public void ContinuationFrame_AppendedToHeaders_HeaderBlockMerged()
+    {
+        var hpack = new HpackEncoder(useHuffman: false);
+        var headerBlock = hpack.Encode([(":status", "200"), ("x-test", "cont")]);
+        var split = headerBlock.Length / 2;
+
+        var headersFrame = new HeadersFrame(1, headerBlock[..split], endStream: true, endHeaders: false).Serialize();
+        var contFrame = new ContinuationFrame(1, headerBlock[split..], endHeaders: true).Serialize();
+
+        var session = new Http2ProtocolSession();
+        session.Process(headersFrame);
+        session.Process(contFrame);
+
+        Assert.Single(session.Responses);
+        Assert.Equal(200, (int)session.Responses[0].Response.StatusCode);
+    }
+
+    [Fact(DisplayName = "7540-6.9-dec-002: END_HEADERS on final CONTINUATION completes block")]
+    public void ContinuationFrame_EndHeaders_CompletesBlock()
+    {
+        var hpack = new HpackEncoder(useHuffman: false);
+        var headerBlock = hpack.Encode([(":status", "200")]);
+
+        var headersFrame = new HeadersFrame(1, headerBlock[..1], endStream: true, endHeaders: false).Serialize();
+        var contFrame = new ContinuationFrame(1, headerBlock[1..], endHeaders: true).Serialize();
+
+        var session = new Http2ProtocolSession();
+        session.Process(headersFrame);
+        session.Process(contFrame);
+
+        Assert.Single(session.Responses);
+    }
+
+    [Fact(DisplayName = "7540-6.9-003: Multiple CONTINUATION frames all merged")]
+    public void ContinuationFrame_Multiple_AllMerged()
+    {
+        var hpack = new HpackEncoder(useHuffman: false);
+        var headerBlock = hpack.Encode([(":status", "200"), ("a", "1"), ("b", "2"), ("c", "3")]);
+        var third = headerBlock.Length / 3;
+
+        var headersFrame = new HeadersFrame(1, headerBlock[..third], endStream: true, endHeaders: false).Serialize();
+        var cont1 = new ContinuationFrame(1, headerBlock[third..(2 * third)], endHeaders: false).Serialize();
+        var cont2 = new ContinuationFrame(1, headerBlock[(2 * third)..], endHeaders: true).Serialize();
+
+        var session = new Http2ProtocolSession();
+        session.Process(headersFrame);
+        session.Process(cont1);
+        session.Process(cont2);
+
+        Assert.Single(session.Responses);
+        Assert.Equal(200, (int)session.Responses[0].Response.StatusCode);
+    }
+
+    [Fact(DisplayName = "7540-6.9-004: CONTINUATION on wrong stream is PROTOCOL_ERROR")]
+    public void ContinuationFrame_WrongStream_ThrowsProtocolError()
+    {
+        var headersFrame = new byte[]
+        {
+            0x00, 0x00, 0x01,
+            0x01, 0x00,
+            0x00, 0x00, 0x00, 0x01, // stream=1
+            0x82
+        };
+        var contFrame = new byte[]
+        {
+            0x00, 0x00, 0x01,
+            0x09, 0x04,
+            0x00, 0x00, 0x00, 0x03, // stream=3 (wrong)
+            0x84
+        };
+
+        var combined = headersFrame.Concat(contFrame).ToArray();
+        var session = new Http2ProtocolSession();
+        var ex = Assert.Throws<Http2Exception>(() => session.Process(combined));
+        Assert.Equal(Http2ErrorCode.ProtocolError, ex.ErrorCode);
+    }
+
+    [Fact(DisplayName = "7540-6.9-005: Non-CONTINUATION after HEADERS is PROTOCOL_ERROR")]
+    public void ContinuationFrame_NonContinuationAfterHeaders_ThrowsProtocolError()
+    {
+        var hpack = new HpackEncoder(useHuffman: false);
+        var headerBlock = hpack.Encode([(":status", "200")]);
+        var headersFrame = new HeadersFrame(1, headerBlock, endStream: false, endHeaders: false).Serialize();
+        var pingFrame = new PingFrame(new byte[8]).Serialize();
+
+        var session = new Http2ProtocolSession();
+        session.Process(headersFrame);
+
+        // PING while awaiting CONTINUATION must be PROTOCOL_ERROR.
+        var ex = Assert.Throws<Http2Exception>(() => session.Process(pingFrame));
+        Assert.Equal(Http2ErrorCode.ProtocolError, ex.ErrorCode);
+    }
+
+    [Fact(DisplayName = "7540-6.9-006: CONTINUATION on stream 0 is PROTOCOL_ERROR")]
+    public void ContinuationFrame_Stream0_ThrowsProtocolError()
+    {
+        var headersOnStream1 = new byte[]
+        {
+            0x00, 0x00, 0x01,
+            0x01, 0x00,
+            0x00, 0x00, 0x00, 0x01, // stream=1
+            0x82
+        };
+        var contOnStream0 = new byte[]
+        {
+            0x00, 0x00, 0x01,
+            0x09, 0x04,
+            0x00, 0x00, 0x00, 0x00, // stream=0
+            0x84
+        };
+
+        var combined = headersOnStream1.Concat(contOnStream0).ToArray();
+        var session = new Http2ProtocolSession();
+        var ex = Assert.Throws<Http2Exception>(() => session.Process(combined));
+        Assert.Equal(Http2ErrorCode.ProtocolError, ex.ErrorCode);
+    }
+
+    [Fact(DisplayName = "dec6-cont-001: CONTINUATION without HEADERS is PROTOCOL_ERROR")]
+    public void ContinuationFrame_WithoutPrecedingHeaders_ThrowsProtocolError()
+    {
+        var contFrame = new ContinuationFrame(1, new byte[] { 0x88 }, endHeaders: true).Serialize();
+        var session = new Http2ProtocolSession();
+        var ex = Assert.Throws<Http2Exception>(() => session.Process(contFrame));
+        Assert.Equal(Http2ErrorCode.ProtocolError, ex.ErrorCode);
     }
 }

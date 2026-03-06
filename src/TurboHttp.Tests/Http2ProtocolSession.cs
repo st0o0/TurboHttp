@@ -98,6 +98,13 @@ public sealed class Http2ProtocolSession
     private void HandleHeaders(HeadersFrame frame)
     {
         var streamId = frame.StreamId;
+
+        if (streamId == 0)
+        {
+            throw new Http2Exception("HEADERS on stream 0 is a connection error",
+                Http2ErrorCode.ProtocolError, Http2ErrorScope.Connection);
+        }
+
         var currentState = GetStreamState(streamId);
 
         if (currentState == Http2StreamLifecycleState.Idle)
@@ -185,12 +192,25 @@ public sealed class Http2ProtocolSession
     private void HandleData(DataFrame frame)
     {
         var streamId = frame.StreamId;
+
+        if (streamId == 0)
+        {
+            throw new Http2Exception("DATA on stream 0 is a connection error",
+                Http2ErrorCode.ProtocolError, Http2ErrorScope.Connection);
+        }
+
         var state = GetStreamState(streamId);
 
         if (state == Http2StreamLifecycleState.Idle)
         {
             throw new Http2Exception($"DATA on idle stream {streamId}",
                 Http2ErrorCode.StreamClosed, Http2ErrorScope.Connection);
+        }
+
+        if (state == Http2StreamLifecycleState.Closed)
+        {
+            throw new Http2Exception($"DATA on closed stream {streamId}",
+                Http2ErrorCode.StreamClosed, Http2ErrorScope.Stream, streamId);
         }
 
         _connectionReceiveWindow -= frame.Data.Length;

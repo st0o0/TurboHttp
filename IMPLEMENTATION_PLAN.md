@@ -567,7 +567,7 @@ CONTINUATION frame (7540-6.9-xxx, dec6-cont-001):
 ---
 
 ### Phase 6 — Migrate + consolidate `12_DecoderConnectionPrefaceTests.cs` (30 refs)
-- [ ] **Status**: pending
+- [x] **Status**: complete (2026-03-06, iter-02)
 
 **Prerequisite**: Phase 5 (unique tests identified).
 

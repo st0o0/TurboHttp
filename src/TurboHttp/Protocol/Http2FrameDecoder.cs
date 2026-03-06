@@ -57,11 +57,7 @@ public sealed class Http2FrameDecoder
                 payload.ToArray(),
                 (flags & (byte)DataFlags.EndStream) != 0),
 
-            FrameType.Headers => new HeadersFrame(
-                streamId,
-                payload.ToArray(),
-                (flags & (byte)HeadersFlags.EndStream) != 0,
-                (flags & (byte)HeadersFlags.EndHeaders) != 0),
+            FrameType.Headers => ParseHeadersFrame(flags, streamId, payload),
 
             FrameType.Continuation => new ContinuationFrame(
                 streamId,
@@ -86,6 +82,38 @@ public sealed class Http2FrameDecoder
 
             _ => throw new Http2Exception($"Unknown frame type 0x{(byte)type:X2}")
         };
+    }
+
+    private static HeadersFrame ParseHeadersFrame(byte flags, int streamId, ReadOnlyMemory<byte> payload)
+    {
+        var endStream = (flags & (byte)HeadersFlags.EndStream) != 0;
+        var endHeaders = (flags & (byte)HeadersFlags.EndHeaders) != 0;
+        var data = payload;
+
+        if ((flags & 0x08) != 0) // PADDED
+        {
+            if (data.IsEmpty)
+            {
+                throw new Http2Exception("HEADERS PADDED frame: payload is empty",
+                    Http2ErrorCode.ProtocolError);
+            }
+
+            var padLen = data.Span[0];
+            if (1 + padLen > data.Length)
+            {
+                throw new Http2Exception("HEADERS PADDED frame: pad_length exceeds payload size",
+                    Http2ErrorCode.ProtocolError);
+            }
+
+            data = data.Slice(1, data.Length - 1 - padLen);
+        }
+
+        if ((flags & 0x20) != 0) // PRIORITY — consume 4-byte stream dep + 1-byte weight
+        {
+            data = data.Length >= 5 ? data[5..] : ReadOnlyMemory<byte>.Empty;
+        }
+
+        return new HeadersFrame(streamId, data, endStream, endHeaders);
     }
 
     private static PingFrame CreatePing(byte flags, ReadOnlyMemory<byte> payload)
