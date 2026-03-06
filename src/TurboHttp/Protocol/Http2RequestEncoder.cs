@@ -30,15 +30,8 @@ public sealed class Http2RequestEncoder
     /// </summary>
     public (int StreamId, IReadOnlyList<Http2Frame> Frames) Encode(HttpRequestMessage request)
     {
-        if (request is null)
-        {
-            throw new ArgumentNullException(nameof(request));
-        }
-
-        if (request.RequestUri is null)
-        {
-            throw new ArgumentNullException(nameof(request));
-        }
+        ArgumentNullException.ThrowIfNull(request);
+        ArgumentNullException.ThrowIfNull(request.RequestUri);
 
         var streamId = _nextStreamId;
         _nextStreamId += 2;
@@ -75,10 +68,7 @@ public sealed class Http2RequestEncoder
     /// </summary>
     public (int StreamId, int BytesWritten) EncodeToBytes(HttpRequestMessage request)
     {
-        if (request is null)
-        {
-            throw new ArgumentNullException(nameof(request));
-        }
+        ArgumentNullException.ThrowIfNull(request);
 
         var (streamId, frames) = Encode(request);
         var totalSize = frames.Sum(f => f.SerializedSize);
@@ -91,13 +81,10 @@ public sealed class Http2RequestEncoder
     /// </summary>
     public (int StreamId, int BytesWritten) Encode(HttpRequestMessage request, ref Memory<byte> buffer)
     {
-        if (request is null)
-        {
-            throw new ArgumentNullException(nameof(request));
-        }
+        ArgumentNullException.ThrowIfNull(request);
 
         var (streamId, frames) = Encode(request);
-        int totalWritten = 0;
+        var totalWritten = 0;
 
         foreach (var frame in frames)
         {
@@ -122,15 +109,8 @@ public sealed class Http2RequestEncoder
     /// </summary>
     internal byte[] EncodeToHpackBlock(HttpRequestMessage request)
     {
-        if (request is null)
-        {
-            throw new ArgumentNullException(nameof(request));
-        }
-
-        if (request.RequestUri is null)
-        {
-            throw new ArgumentNullException(nameof(request.RequestUri));
-        }
+        ArgumentNullException.ThrowIfNull(request);
+        ArgumentNullException.ThrowIfNull(request.RequestUri);
 
         var headers = BuildHeaderList(request);
         ValidatePseudoHeaders(headers);
@@ -210,12 +190,11 @@ public sealed class Http2RequestEncoder
             }
         }
 
-        if (request.Content != null)
+        if (request.Content == null) return headers;
+
+        foreach (var h in request.Content.Headers)
         {
-            foreach (var h in request.Content.Headers)
-            {
-                headers.Add((h.Key.ToLowerInvariant(), string.Join(", ", h.Value)));
-            }
+            headers.Add((h.Key.ToLowerInvariant(), string.Join(", ", h.Value)));
         }
 
         return headers;
@@ -254,6 +233,7 @@ public sealed class Http2RequestEncoder
                         {
                             throw new Http2Exception("RFC 7540 §8.1.2.1: Duplicate :method pseudo-header");
                         }
+
                         hasMethod = true;
                         break;
                     case ":path":
@@ -261,6 +241,7 @@ public sealed class Http2RequestEncoder
                         {
                             throw new Http2Exception("RFC 7540 §8.1.2.1: Duplicate :path pseudo-header");
                         }
+
                         hasPath = true;
                         break;
                     case ":scheme":
@@ -268,6 +249,7 @@ public sealed class Http2RequestEncoder
                         {
                             throw new Http2Exception("RFC 7540 §8.1.2.1: Duplicate :scheme pseudo-header");
                         }
+
                         hasScheme = true;
                         break;
                     case ":authority":
@@ -275,6 +257,7 @@ public sealed class Http2RequestEncoder
                         {
                             throw new Http2Exception("RFC 7540 §8.1.2.1: Duplicate :authority pseudo-header");
                         }
+
                         hasAuthority = true;
                         break;
                     default:
@@ -303,21 +286,26 @@ public sealed class Http2RequestEncoder
         {
             missing.Append(missing.Length > 0 ? ", :method" : ":method");
         }
+
         if (!hasPath)
         {
             missing.Append(missing.Length > 0 ? ", :path" : ":path");
         }
+
         if (!hasScheme)
         {
             missing.Append(missing.Length > 0 ? ", :scheme" : ":scheme");
         }
+
         if (!hasAuthority)
         {
             missing.Append(missing.Length > 0 ? ", :authority" : ":authority");
         }
 
         if (missing.Length > 0)
+        {
             throw new Http2Exception($"RFC 7540 §8.1.2.1: Missing required pseudo-headers: {missing}");
+        }
     }
 
     // ── Flow Control Window Management ────────────────────────────────────────
