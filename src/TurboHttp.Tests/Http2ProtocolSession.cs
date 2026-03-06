@@ -34,6 +34,9 @@ public sealed class Http2ProtocolSession
     private int _continuationStreamId;
     private List<byte>? _continuationBuffer;
     private byte _continuationEndStreamFlags;
+    private int _settingsCount;
+    private bool _hasNewSettings;
+    private readonly List<byte[]> _settingsAcksToSend = new();
 
     public bool IsGoingAway => _goAwayFrame is not null;
     public GoAwayFrame? GoAwayFrame => _goAwayFrame;
@@ -51,6 +54,8 @@ public sealed class Http2ProtocolSession
     public IReadOnlyList<(int StreamId, Http2ErrorCode Error)> RstStreams => _rstStreams;
     public IReadOnlyList<(int StreamId, int Increment)> WindowUpdates => _windowUpdates;
     public IReadOnlyCollection<int> PromisedStreamIds => _promisedStreamIds;
+    public bool HasNewSettings => _hasNewSettings;
+    public IReadOnlyList<byte[]> SettingsAcksToSend => _settingsAcksToSend;
 
     public Http2StreamLifecycleState GetStreamState(int streamId) =>
         _streamStates.TryGetValue(streamId, out var s) ? s : Http2StreamLifecycleState.Idle;
@@ -67,12 +72,43 @@ public sealed class Http2ProtocolSession
 
     public IReadOnlyList<Http2Frame> Process(ReadOnlyMemory<byte> data)
     {
+        _hasNewSettings = false;
+        _settingsAcksToSend.Clear();
         var frames = _frameDecoder.Decode(data);
         foreach (var frame in frames)
         {
             Dispatch(frame);
         }
         return frames;
+    }
+
+    public void Reset()
+    {
+        _streamStates.Clear();
+        _closedStreamIds.Clear();
+        _responses.Clear();
+        _settings.Clear();
+        _pingRequests.Clear();
+        _rstStreams.Clear();
+        _windowUpdates.Clear();
+        _promisedStreamIds.Clear();
+        _pendingResponses.Clear();
+        _connectionReceiveWindow = 65535;
+        _connectionSendWindow = 65535;
+        _streamSendWindows.Clear();
+        _streamReceiveWindows.Clear();
+        _initialWindowSize = 65535;
+        _maxConcurrentStreams = int.MaxValue;
+        _goAwayFrame = null;
+        _pingCount = 0;
+        _activeStreamCount = 0;
+        _continuationStreamId = 0;
+        _continuationBuffer = null;
+        _continuationEndStreamFlags = 0;
+        _settingsCount = 0;
+        _hasNewSettings = false;
+        _settingsAcksToSend.Clear();
+        _frameDecoder.Reset();
     }
 
     private void Dispatch(Http2Frame frame)
@@ -126,7 +162,7 @@ public sealed class Http2ProtocolSession
             {
                 throw new Http2Exception(
                     $"MAX_CONCURRENT_STREAMS ({_maxConcurrentStreams}) exceeded",
-                    Http2ErrorCode.RefusedStream, Http2ErrorScope.Stream);
+                    Http2ErrorCode.RefusedStream, Http2ErrorScope.Stream, streamId);
             }
             _activeStreamCount++;
             _streamSendWindows[streamId] = _initialWindowSize;
@@ -260,24 +296,77 @@ public sealed class Http2ProtocolSession
             return;
         }
 
+        // Security: SETTINGS flood protection.
+        _settingsCount++;
+        if (_settingsCount > 100)
+        {
+            throw new Http2Exception(
+                $"RFC 7540 security: Excessive SETTINGS frames ({_settingsCount}) — possible SETTINGS flood attack.",
+                Http2ErrorCode.EnhanceYourCalm);
+        }
+
         var parameters = frame.Parameters;
         _settings.Add(parameters);
+        _hasNewSettings = true;
+        _settingsAcksToSend.Add(SettingsFrame.SettingsAck());
+        ApplySettingsParameters(parameters);
+    }
 
+    private void ApplySettingsParameters(IReadOnlyList<(SettingsParameter, uint)> parameters)
+    {
         foreach (var (param, value) in parameters)
         {
             switch (param)
             {
-                case SettingsParameter.MaxConcurrentStreams:
-                    _maxConcurrentStreams = (int)value;
-                    break;
-                case SettingsParameter.InitialWindowSize:
-                    _initialWindowSize = (int)value;
-                    foreach (var sid in _streamSendWindows.Keys.ToList())
+                case SettingsParameter.MaxFrameSize:
+                    if (value < 16384 || value > 16777215)
                     {
-                        _streamSendWindows[sid] = value;
+                        throw new Http2Exception(
+                            $"RFC 7540 §6.5.2: SETTINGS_MAX_FRAME_SIZE {value} is outside the valid range [16384, 16777215].");
                     }
                     break;
-                case SettingsParameter.MaxFrameSize:
+
+                case SettingsParameter.EnablePush:
+                    if (value > 1)
+                    {
+                        throw new Http2Exception(
+                            $"RFC 7540 §6.5.2: SETTINGS_ENABLE_PUSH value {value} is invalid; only 0 or 1 are permitted.");
+                    }
+                    break;
+
+                case SettingsParameter.InitialWindowSize:
+                    if (value > 0x7FFFFFFFu)
+                    {
+                        throw new Http2Exception(
+                            $"RFC 7540 §6.5.2: SETTINGS_INITIAL_WINDOW_SIZE value {value} exceeds maximum 2^31-1.",
+                            Http2ErrorCode.FlowControlError);
+                    }
+                    {
+                        var newInitial = (int)value;
+                        var delta = (long)newInitial - _initialWindowSize;
+                        foreach (var sid in _streamSendWindows.Keys.ToList())
+                        {
+                            var state = GetStreamState(sid);
+                            if (state == Http2StreamLifecycleState.Closed || state == Http2StreamLifecycleState.Idle)
+                            {
+                                continue;
+                            }
+                            var current = _streamSendWindows[sid];
+                            var updated = current + delta;
+                            if (updated > 0x7FFFFFFF)
+                            {
+                                throw new Http2Exception(
+                                    $"RFC 7540 §6.9.2: SETTINGS_INITIAL_WINDOW_SIZE update would overflow stream {sid} send window.",
+                                    Http2ErrorCode.FlowControlError);
+                            }
+                            _streamSendWindows[sid] = updated;
+                        }
+                        _initialWindowSize = newInitial;
+                    }
+                    break;
+
+                case SettingsParameter.MaxConcurrentStreams:
+                    _maxConcurrentStreams = (int)value;
                     break;
             }
         }

@@ -1,5 +1,6 @@
 using System.Buffers.Binary;
 using TurboHttp.Protocol;
+using TurboHttp.Tests;
 
 namespace TurboHttp.Tests.RFC9113;
 
@@ -78,8 +79,8 @@ public sealed class Http2SettingsSynchronizationTests
     public void Settings_MaxFrameSize_BelowMin_ThrowsProtocolError()
     {
         var frame = new SettingsFrame([(SettingsParameter.MaxFrameSize, 16383u)]).Serialize();
-        var decoder = new Http2Decoder();
-        var ex = Assert.Throws<Http2Exception>(() => decoder.TryDecode(frame, out _));
+        var session = new Http2ProtocolSession();
+        var ex = Assert.Throws<Http2Exception>(() => session.Process(frame));
         Assert.Equal(Http2ErrorCode.ProtocolError, ex.ErrorCode);
         Assert.True(ex.IsConnectionError);
     }
@@ -89,8 +90,8 @@ public sealed class Http2SettingsSynchronizationTests
     public void Settings_MaxFrameSize_AboveMax_ThrowsProtocolError()
     {
         var frame = new SettingsFrame([(SettingsParameter.MaxFrameSize, 16777216u)]).Serialize();
-        var decoder = new Http2Decoder();
-        var ex = Assert.Throws<Http2Exception>(() => decoder.TryDecode(frame, out _));
+        var session = new Http2ProtocolSession();
+        var ex = Assert.Throws<Http2Exception>(() => session.Process(frame));
         Assert.Equal(Http2ErrorCode.ProtocolError, ex.ErrorCode);
         Assert.True(ex.IsConnectionError);
     }
@@ -99,12 +100,12 @@ public sealed class Http2SettingsSynchronizationTests
     [Fact(DisplayName = "RFC7540-6.5.2-SS-008: After MaxFrameSize update, larger frames are accepted")]
     public void Settings_MaxFrameSize_Update_AllowsLargerFrames()
     {
-        var decoder = new Http2Decoder();
+        var session = new Http2ProtocolSession();
 
         // Raise to 32768
         const int newMax = 32768;
         var updateSettings = new SettingsFrame([(SettingsParameter.MaxFrameSize, newMax)]).Serialize();
-        decoder.TryDecode(updateSettings, out _);
+        session.Process(updateSettings);
 
         // Now build a SETTINGS frame with a payload size of 32742 bytes (5457 × 6 = 32742)
         const int payloadLen = 32742;
@@ -120,8 +121,8 @@ public sealed class Http2SettingsSynchronizationTests
             bigFrame[9 + i + 5] = 0x01; // value = 1
         }
 
-        decoder.TryDecode(bigFrame, out var result);
-        Assert.True(result.HasNewSettings);
+        session.Process(bigFrame);
+        Assert.True(session.HasNewSettings);
     }
 
     // =========================================================================
@@ -133,8 +134,8 @@ public sealed class Http2SettingsSynchronizationTests
     public void Settings_InitialWindowSize_Overflow_ThrowsFlowControlError()
     {
         var frame = new SettingsFrame([(SettingsParameter.InitialWindowSize, 0x80000000u)]).Serialize();
-        var decoder = new Http2Decoder();
-        var ex = Assert.Throws<Http2Exception>(() => decoder.TryDecode(frame, out _));
+        var session = new Http2ProtocolSession();
+        var ex = Assert.Throws<Http2Exception>(() => session.Process(frame));
         Assert.Equal(Http2ErrorCode.FlowControlError, ex.ErrorCode);
         Assert.True(ex.IsConnectionError);
     }
@@ -144,9 +145,9 @@ public sealed class Http2SettingsSynchronizationTests
     public void Settings_InitialWindowSize_MaxValid_Accepted()
     {
         var frame = new SettingsFrame([(SettingsParameter.InitialWindowSize, 0x7FFFFFFFu)]).Serialize();
-        var decoder = new Http2Decoder();
-        decoder.TryDecode(frame, out var result);
-        Assert.True(result.HasNewSettings);
+        var session = new Http2ProtocolSession();
+        session.Process(frame);
+        Assert.True(session.HasNewSettings);
     }
 
     // =========================================================================
@@ -158,9 +159,9 @@ public sealed class Http2SettingsSynchronizationTests
     public void Settings_EnablePush_Zero_Accepted()
     {
         var frame = new SettingsFrame([(SettingsParameter.EnablePush, 0u)]).Serialize();
-        var decoder = new Http2Decoder();
-        decoder.TryDecode(frame, out var result);
-        Assert.True(result.HasNewSettings);
+        var session = new Http2ProtocolSession();
+        session.Process(frame);
+        Assert.True(session.HasNewSettings);
     }
 
     /// RFC 7540 §6.5.2 — EnablePush=1 is accepted
@@ -168,9 +169,9 @@ public sealed class Http2SettingsSynchronizationTests
     public void Settings_EnablePush_One_Accepted()
     {
         var frame = new SettingsFrame([(SettingsParameter.EnablePush, 1u)]).Serialize();
-        var decoder = new Http2Decoder();
-        decoder.TryDecode(frame, out var result);
-        Assert.True(result.HasNewSettings);
+        var session = new Http2ProtocolSession();
+        session.Process(frame);
+        Assert.True(session.HasNewSettings);
     }
 
     /// RFC 7540 §6.5.2 — EnablePush=2 is PROTOCOL_ERROR
@@ -178,8 +179,8 @@ public sealed class Http2SettingsSynchronizationTests
     public void Settings_EnablePush_Two_ThrowsProtocolError()
     {
         var frame = new SettingsFrame([(SettingsParameter.EnablePush, 2u)]).Serialize();
-        var decoder = new Http2Decoder();
-        var ex = Assert.Throws<Http2Exception>(() => decoder.TryDecode(frame, out _));
+        var session = new Http2ProtocolSession();
+        var ex = Assert.Throws<Http2Exception>(() => session.Process(frame));
         Assert.Equal(Http2ErrorCode.ProtocolError, ex.ErrorCode);
         Assert.True(ex.IsConnectionError);
     }
@@ -192,30 +193,30 @@ public sealed class Http2SettingsSynchronizationTests
     [Fact(DisplayName = "RFC7540-6.5.2-SS-014: MaxConcurrentStreams=0 blocks all new streams")]
     public void Settings_MaxConcurrentStreams_Zero_BlocksAllStreams()
     {
-        var decoder = new Http2Decoder();
+        var session = new Http2ProtocolSession();
 
         var settings = new SettingsFrame([(SettingsParameter.MaxConcurrentStreams, 0u)]).Serialize();
-        decoder.TryDecode(settings, out _);
+        session.Process(settings);
 
         // Now try to open a stream via HEADERS
         var headers = BuildMinimalHeadersFrame(streamId: 1, endStream: true);
-        var ex = Assert.Throws<Http2Exception>(() => decoder.TryDecode(headers, out _));
+        var ex = Assert.Throws<Http2Exception>(() => session.Process(headers));
         Assert.Equal(Http2ErrorCode.RefusedStream, ex.ErrorCode);
         Assert.Equal(Http2ErrorScope.Stream, ex.Scope);
         Assert.Equal(1, ex.StreamId);
-        Assert.Equal(Http2StreamLifecycleState.Idle, decoder.GetStreamLifecycleState(1));
+        Assert.Equal(Http2StreamLifecycleState.Idle, session.GetStreamState(1));
     }
 
     /// RFC 7540 §6.5.2 — MaxConcurrentStreams=1 allows exactly one stream
     [Fact(DisplayName = "RFC7540-6.5.2-SS-015: MaxConcurrentStreams=1 allows exactly one stream")]
     public void Settings_MaxConcurrentStreams_One_AllowsOneStream()
     {
-        var decoder = new Http2Decoder();
+        var session = new Http2ProtocolSession();
 
         var settings = new SettingsFrame([(SettingsParameter.MaxConcurrentStreams, 1u)]).Serialize();
-        decoder.TryDecode(settings, out _);
+        session.Process(settings);
 
-        Assert.Equal(1, decoder.GetMaxConcurrentStreams());
+        Assert.Equal(1, session.MaxConcurrentStreams);
     }
 
     // =========================================================================
@@ -227,10 +228,10 @@ public sealed class Http2SettingsSynchronizationTests
     public void Settings_HeaderTableSize_Zero_Accepted()
     {
         var frame = new SettingsFrame([(SettingsParameter.HeaderTableSize, 0u)]).Serialize();
-        var decoder = new Http2Decoder();
+        var session = new Http2ProtocolSession();
         // Should not throw — size=0 is valid per RFC 7541 §4.2
-        decoder.TryDecode(frame, out var result);
-        Assert.True(result.HasNewSettings);
+        session.Process(frame);
+        Assert.True(session.HasNewSettings);
     }
 
     /// RFC 7541 §4.2 — HeaderTableSize=1024 accepted and applied
@@ -238,10 +239,10 @@ public sealed class Http2SettingsSynchronizationTests
     public void Settings_HeaderTableSize_1024_Accepted()
     {
         var frame = new SettingsFrame([(SettingsParameter.HeaderTableSize, 1024u)]).Serialize();
-        var decoder = new Http2Decoder();
-        decoder.TryDecode(frame, out var result);
-        Assert.True(result.HasNewSettings);
-        Assert.Contains(result.ReceivedSettings[0], p => p.Item1 == SettingsParameter.HeaderTableSize && p.Item2 == 1024u);
+        var session = new Http2ProtocolSession();
+        session.Process(frame);
+        Assert.True(session.HasNewSettings);
+        Assert.Contains(session.ReceivedSettings[0], p => p.Item1 == SettingsParameter.HeaderTableSize && p.Item2 == 1024u);
     }
 
     /// RFC 7541 §4.2 — HeaderTableSize=4096 (default) accepted and applied
@@ -249,9 +250,9 @@ public sealed class Http2SettingsSynchronizationTests
     public void Settings_HeaderTableSize_Default_Accepted()
     {
         var frame = new SettingsFrame([(SettingsParameter.HeaderTableSize, 4096u)]).Serialize();
-        var decoder = new Http2Decoder();
-        decoder.TryDecode(frame, out var result);
-        Assert.True(result.HasNewSettings);
+        var session = new Http2ProtocolSession();
+        session.Process(frame);
+        Assert.True(session.HasNewSettings);
     }
 
     // =========================================================================
@@ -263,10 +264,10 @@ public sealed class Http2SettingsSynchronizationTests
     public void HandleSettings_NonAck_ProducesSettingsAck()
     {
         var frame = new SettingsFrame([(SettingsParameter.MaxFrameSize, 16384u)]).Serialize();
-        var decoder = new Http2Decoder();
-        decoder.TryDecode(frame, out var result);
+        var session = new Http2ProtocolSession();
+        session.Process(frame);
 
-        Assert.Single(result.SettingsAcksToSend);
+        Assert.Single(session.SettingsAcksToSend);
     }
 
     /// RFC 7540 §6.5 — SETTINGS ACK frame produces no new ACK in return
@@ -274,17 +275,17 @@ public sealed class Http2SettingsSynchronizationTests
     public void HandleSettings_AckFrame_ProducesNoAck()
     {
         var ack = SettingsFrame.SettingsAck();
-        var decoder = new Http2Decoder();
-        decoder.TryDecode(ack, out var result);
+        var session = new Http2ProtocolSession();
+        session.Process(ack);
 
-        Assert.Empty(result.SettingsAcksToSend);
+        Assert.Empty(session.SettingsAcksToSend);
     }
 
     /// RFC 7540 §6.5 — Three SETTINGS frames produce three ACKs to send
     [Fact(DisplayName = "RFC7540-6.5-SS-021: Three SETTINGS frames produce three ACKs to send")]
     public void HandleSettings_ThreeSettings_ProducesThreeAcks()
     {
-        var decoder = new Http2Decoder();
+        var session = new Http2ProtocolSession();
 
         var combined = new List<byte>();
         for (var i = 0; i < 3; i++)
@@ -292,8 +293,8 @@ public sealed class Http2SettingsSynchronizationTests
             combined.AddRange(new SettingsFrame([(SettingsParameter.MaxFrameSize, 16384u)]).Serialize());
         }
 
-        decoder.TryDecode(combined.ToArray(), out var result);
-        Assert.Equal(3, result.SettingsAcksToSend.Count);
+        session.Process(combined.ToArray());
+        Assert.Equal(3, session.SettingsAcksToSend.Count);
     }
 
     /// RFC 7540 §6.5 — Empty SETTINGS frame (zero parameters) produces ACK
@@ -308,9 +309,9 @@ public sealed class Http2SettingsSynchronizationTests
             0x00,             // flags = 0 (no ACK)
             0x00, 0x00, 0x00, 0x00  // stream = 0
         };
-        var decoder = new Http2Decoder();
-        decoder.TryDecode(emptySettings, out var result);
-        Assert.Single(result.SettingsAcksToSend);
+        var session = new Http2ProtocolSession();
+        session.Process(emptySettings);
+        Assert.Single(session.SettingsAcksToSend);
     }
 
     /// RFC 7540 §6.5 — Encoded SETTINGS ACK is a valid 9-byte frame
@@ -339,17 +340,17 @@ public sealed class Http2SettingsSynchronizationTests
     [Fact(DisplayName = "RFC7540-security-SS-024: SETTINGS flood above 100 frames throws EnhanceYourCalm")]
     public void Settings_FloodProtection_ThrowsAfterLimit()
     {
-        var decoder = new Http2Decoder();
+        var session = new Http2ProtocolSession();
         var frame = new SettingsFrame([(SettingsParameter.MaxFrameSize, 16384u)]).Serialize();
 
         // Send 100 SETTINGS frames — all should be accepted
         for (var i = 0; i < 100; i++)
         {
-            decoder.TryDecode(frame, out _);
+            session.Process(frame);
         }
 
         // 101st should throw
-        var ex = Assert.Throws<Http2Exception>(() => decoder.TryDecode(frame, out _));
+        var ex = Assert.Throws<Http2Exception>(() => session.Process(frame));
         Assert.Equal(Http2ErrorCode.EnhanceYourCalm, ex.ErrorCode);
         Assert.True(ex.IsConnectionError);
     }
@@ -358,13 +359,13 @@ public sealed class Http2SettingsSynchronizationTests
     [Fact(DisplayName = "RFC7540-security-SS-025: SETTINGS ACK frames do not count toward flood limit")]
     public void Settings_AckFrames_DoNotCountTowardFloodLimit()
     {
-        var decoder = new Http2Decoder();
+        var session = new Http2ProtocolSession();
         var ack = SettingsFrame.SettingsAck();
 
         // 200 ACKs should not trigger flood protection
         for (var i = 0; i < 200; i++)
         {
-            decoder.TryDecode(ack, out _);
+            session.Process(ack);
         }
         // No exception thrown — pass
     }
@@ -373,22 +374,22 @@ public sealed class Http2SettingsSynchronizationTests
     [Fact(DisplayName = "RFC7540-security-SS-026: Reset clears SETTINGS flood counter")]
     public void Settings_FloodCounter_ClearedOnReset()
     {
-        var decoder = new Http2Decoder();
+        var session = new Http2ProtocolSession();
         var frame = new SettingsFrame([(SettingsParameter.MaxFrameSize, 16384u)]).Serialize();
 
         // Send 100 SETTINGS frames to hit the limit
         for (var i = 0; i < 100; i++)
         {
-            decoder.TryDecode(frame, out _);
+            session.Process(frame);
         }
 
         // Reset should clear the counter
-        decoder.Reset();
+        session.Reset();
 
         // Now 100 more should work fine
         for (var i = 0; i < 100; i++)
         {
-            decoder.TryDecode(frame, out _);
+            session.Process(frame);
         }
         // No exception — pass
     }
@@ -410,9 +411,9 @@ public sealed class Http2SettingsSynchronizationTests
             0xFF, 0xFF,       // unknown parameter = 0xFFFF
             0x00, 0x00, 0x00, 0x01  // value = 1
         };
-        var decoder = new Http2Decoder();
-        decoder.TryDecode(frame, out var result);
-        Assert.True(result.HasNewSettings);
+        var session = new Http2ProtocolSession();
+        session.Process(frame);
+        Assert.True(session.HasNewSettings);
         // Unknown param is decoded but doesn't break anything
     }
 
@@ -427,13 +428,13 @@ public sealed class Http2SettingsSynchronizationTests
             (SettingsParameter.HeaderTableSize, 2048u),
         };
         var frame = new SettingsFrame(settings).Serialize();
-        var decoder = new Http2Decoder();
-        decoder.TryDecode(frame, out var result);
+        var session = new Http2ProtocolSession();
+        session.Process(frame);
 
-        Assert.True(result.HasNewSettings);
-        var received = result.ReceivedSettings[0];
+        Assert.True(session.HasNewSettings);
+        var received = session.ReceivedSettings[0];
         Assert.Equal(3, received.Count);
-        Assert.Equal(50, decoder.GetMaxConcurrentStreams());
+        Assert.Equal(50, session.MaxConcurrentStreams);
     }
 
     // =========================================================================
@@ -471,11 +472,11 @@ public sealed class Http2SettingsSynchronizationTests
     [Fact(DisplayName = "RFC7540-6.9.2-SS-029: InitialWindowSize increase overflows open stream send window is FLOW_CONTROL_ERROR")]
     public void Settings_InitialWindowSize_IncreaseOverflowsOpenStreamWindow_ThrowsFlowControlError()
     {
-        var decoder = new Http2Decoder();
+        var session = new Http2ProtocolSession();
 
         // Open stream 1 with HEADERS (endStream=false — stream stays open in _streams).
         var headers = BuildMinimalHeadersFrame(streamId: 1, endStream: false);
-        decoder.TryDecode(headers.AsMemory(), out _);
+        session.Process(headers.AsMemory());
 
         // Push stream 1's send window to exactly 2^31-1 = 2147483647 (max valid):
         //   initial = 65535, increment = 2^31-1 - 65535 = 2147418112
@@ -483,12 +484,12 @@ public sealed class Http2SettingsSynchronizationTests
         const int maxWindow = 0x7FFFFFFF;
         var increment = maxWindow - initialWindow;
         var wu = new WindowUpdateFrame(1, increment).Serialize();
-        decoder.TryDecode(wu.AsMemory(), out _);
+        session.Process(wu.AsMemory());
 
         // Now send SETTINGS with InitialWindowSize = 65536 (delta = +1).
         // updated = 2^31-1 + 1 = 2147483648 > 2^31-1 — connection error FLOW_CONTROL_ERROR.
         var settings = new SettingsFrame([(SettingsParameter.InitialWindowSize, 65536u)]).Serialize();
-        var ex = Assert.Throws<Http2Exception>(() => decoder.TryDecode(settings.AsMemory(), out _));
+        var ex = Assert.Throws<Http2Exception>(() => session.Process(settings.AsMemory()));
         Assert.Equal(Http2ErrorCode.FlowControlError, ex.ErrorCode);
         Assert.True(ex.IsConnectionError);
     }
