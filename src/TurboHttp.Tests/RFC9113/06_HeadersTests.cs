@@ -35,10 +35,10 @@ public sealed class Http2DecoderHeadersValidationTests
     [Fact(DisplayName = "HV-001: Valid response with only :status is accepted")]
     public void Should_Accept_When_ValidMinimalResponse()
     {
-        var decoder = new Http2Decoder();
-        decoder.TryDecode(GoodResponse(), out var result);
-        Assert.Single(result.Responses);
-        Assert.Equal(200, (int)result.Responses[0].Response.StatusCode);
+        var session = new Http2ProtocolSession();
+        session.Process(GoodResponse());
+        Assert.Single(session.Responses);
+        Assert.Equal(200, (int)session.Responses[0].Response.StatusCode);
     }
 
     // ── HV-002: Valid response with :status + regular headers ─────────────────
@@ -47,10 +47,10 @@ public sealed class Http2DecoderHeadersValidationTests
     [Fact(DisplayName = "HV-002: Valid response with :status then regular headers is accepted")]
     public void Should_Accept_When_StatusFollowedByRegularHeaders()
     {
-        var decoder = new Http2Decoder();
+        var session = new Http2ProtocolSession();
         var frame = MakeHeadersFrame(1, [(":status", "200"), ("content-type", "text/plain")]);
-        decoder.TryDecode(frame, out var result);
-        Assert.Single(result.Responses);
+        session.Process(frame);
+        Assert.Single(session.Responses);
     }
 
     // ── HV-003: Missing :status pseudo-header ─────────────────────────────────
@@ -59,9 +59,9 @@ public sealed class Http2DecoderHeadersValidationTests
     [Fact(DisplayName = "HV-003: Missing :status pseudo-header is PROTOCOL_ERROR")]
     public void Should_Throw_When_StatusPseudoHeaderMissing()
     {
-        var decoder = new Http2Decoder();
+        var session = new Http2ProtocolSession();
         var frame = MakeHeadersFrame(1, [("content-type", "text/plain")]);
-        var ex = Assert.Throws<Http2Exception>(() => decoder.TryDecode(frame, out _));
+        var ex = Assert.Throws<Http2Exception>(() => session.Process(frame));
         Assert.Equal(Http2ErrorCode.ProtocolError, ex.ErrorCode);
         Assert.Contains(":status", ex.Message);
         Assert.True(ex.IsConnectionError);
@@ -73,7 +73,7 @@ public sealed class Http2DecoderHeadersValidationTests
     [Fact(DisplayName = "HV-004: Duplicate :status pseudo-header is PROTOCOL_ERROR")]
     public void Should_Throw_When_StatusPseudoHeaderDuplicated()
     {
-        var decoder = new Http2Decoder();
+        var session = new Http2ProtocolSession();
 
         // Build header block manually to bypass HpackEncoder single-pass restrictions.
         // Use literal encoding to produce duplicate :status entries.
@@ -102,7 +102,7 @@ public sealed class Http2DecoderHeadersValidationTests
         var blockArray = block.ToArray();
         var frame = new HeadersFrame(1, blockArray.AsMemory(), endStream: true, endHeaders: true).Serialize();
 
-        var ex = Assert.Throws<Http2Exception>(() => decoder.TryDecode(frame, out _));
+        var ex = Assert.Throws<Http2Exception>(() => session.Process(frame));
         Assert.Equal(Http2ErrorCode.ProtocolError, ex.ErrorCode);
         Assert.Contains(":status", ex.Message);
         Assert.Contains("Duplicate", ex.Message);
@@ -115,9 +115,9 @@ public sealed class Http2DecoderHeadersValidationTests
     [Fact(DisplayName = "HV-005: Request pseudo-header :method in response is PROTOCOL_ERROR")]
     public void Should_Throw_When_MethodPseudoHeaderInResponse()
     {
-        var decoder = new Http2Decoder();
+        var session = new Http2ProtocolSession();
         var frame = MakeHeadersFrame(1, [(":status", "200"), (":method", "GET")]);
-        var ex = Assert.Throws<Http2Exception>(() => decoder.TryDecode(frame, out _));
+        var ex = Assert.Throws<Http2Exception>(() => session.Process(frame));
         Assert.Equal(Http2ErrorCode.ProtocolError, ex.ErrorCode);
         Assert.Contains(":method", ex.Message);
         Assert.True(ex.IsConnectionError);
@@ -129,9 +129,9 @@ public sealed class Http2DecoderHeadersValidationTests
     [Fact(DisplayName = "HV-006: Request pseudo-header :path in response is PROTOCOL_ERROR")]
     public void Should_Throw_When_PathPseudoHeaderInResponse()
     {
-        var decoder = new Http2Decoder();
+        var session = new Http2ProtocolSession();
         var frame = MakeHeadersFrame(1, [(":status", "200"), (":path", "/")]);
-        var ex = Assert.Throws<Http2Exception>(() => decoder.TryDecode(frame, out _));
+        var ex = Assert.Throws<Http2Exception>(() => session.Process(frame));
         Assert.Equal(Http2ErrorCode.ProtocolError, ex.ErrorCode);
         Assert.Contains(":path", ex.Message);
         Assert.True(ex.IsConnectionError);
@@ -143,9 +143,9 @@ public sealed class Http2DecoderHeadersValidationTests
     [Fact(DisplayName = "HV-007: Request pseudo-header :scheme in response is PROTOCOL_ERROR")]
     public void Should_Throw_When_SchemePseudoHeaderInResponse()
     {
-        var decoder = new Http2Decoder();
+        var session = new Http2ProtocolSession();
         var frame = MakeHeadersFrame(1, [(":status", "200"), (":scheme", "https")]);
-        var ex = Assert.Throws<Http2Exception>(() => decoder.TryDecode(frame, out _));
+        var ex = Assert.Throws<Http2Exception>(() => session.Process(frame));
         Assert.Equal(Http2ErrorCode.ProtocolError, ex.ErrorCode);
         Assert.Contains(":scheme", ex.Message);
         Assert.True(ex.IsConnectionError);
@@ -157,9 +157,9 @@ public sealed class Http2DecoderHeadersValidationTests
     [Fact(DisplayName = "HV-008: Request pseudo-header :authority in response is PROTOCOL_ERROR")]
     public void Should_Throw_When_AuthorityPseudoHeaderInResponse()
     {
-        var decoder = new Http2Decoder();
+        var session = new Http2ProtocolSession();
         var frame = MakeHeadersFrame(1, [(":status", "200"), (":authority", "example.com")]);
-        var ex = Assert.Throws<Http2Exception>(() => decoder.TryDecode(frame, out _));
+        var ex = Assert.Throws<Http2Exception>(() => session.Process(frame));
         Assert.Equal(Http2ErrorCode.ProtocolError, ex.ErrorCode);
         Assert.Contains(":authority", ex.Message);
         Assert.True(ex.IsConnectionError);
@@ -171,7 +171,7 @@ public sealed class Http2DecoderHeadersValidationTests
     [Fact(DisplayName = "HV-009: Unknown pseudo-header is PROTOCOL_ERROR")]
     public void Should_Throw_When_UnknownPseudoHeaderInResponse()
     {
-        var decoder = new Http2Decoder();
+        var session = new Http2ProtocolSession();
 
         var nameBytes = System.Text.Encoding.Latin1.GetBytes(":status");
         var valBytes = System.Text.Encoding.Latin1.GetBytes("200");
@@ -194,7 +194,7 @@ public sealed class Http2DecoderHeadersValidationTests
         var blockArray = block.ToArray();
         var frame = new HeadersFrame(1, blockArray.AsMemory(), endStream: true, endHeaders: true).Serialize();
 
-        var ex = Assert.Throws<Http2Exception>(() => decoder.TryDecode(frame, out _));
+        var ex = Assert.Throws<Http2Exception>(() => session.Process(frame));
         Assert.Equal(Http2ErrorCode.ProtocolError, ex.ErrorCode);
         Assert.Contains(":custom", ex.Message);
         Assert.True(ex.IsConnectionError);
@@ -206,7 +206,7 @@ public sealed class Http2DecoderHeadersValidationTests
     [Fact(DisplayName = "HV-010: Pseudo-header :status after regular header is PROTOCOL_ERROR")]
     public void Should_Throw_When_PseudoHeaderAfterRegularHeader()
     {
-        var decoder = new Http2Decoder();
+        var session = new Http2ProtocolSession();
 
         // Encode: regular header first, then :status — violates ordering.
         var regularName = System.Text.Encoding.Latin1.GetBytes("content-type");
@@ -230,7 +230,7 @@ public sealed class Http2DecoderHeadersValidationTests
         var blockArray = block.ToArray();
         var frame = new HeadersFrame(1, blockArray.AsMemory(), endStream: true, endHeaders: true).Serialize();
 
-        var ex = Assert.Throws<Http2Exception>(() => decoder.TryDecode(frame, out _));
+        var ex = Assert.Throws<Http2Exception>(() => session.Process(frame));
         Assert.Equal(Http2ErrorCode.ProtocolError, ex.ErrorCode);
         Assert.Contains(":status", ex.Message);
         Assert.Contains("after regular header", ex.Message);
@@ -243,7 +243,7 @@ public sealed class Http2DecoderHeadersValidationTests
     [Fact(DisplayName = "HV-011: Uppercase header name is PROTOCOL_ERROR (RFC 9113 §8.2)")]
     public void Should_Throw_When_UppercaseHeaderName()
     {
-        var decoder = new Http2Decoder();
+        var session = new Http2ProtocolSession();
 
         var statusName = System.Text.Encoding.Latin1.GetBytes(":status");
         var statusVal = System.Text.Encoding.Latin1.GetBytes("200");
@@ -266,7 +266,7 @@ public sealed class Http2DecoderHeadersValidationTests
         var blockArray = block.ToArray();
         var frame = new HeadersFrame(1, blockArray.AsMemory(), endStream: true, endHeaders: true).Serialize();
 
-        var ex = Assert.Throws<Http2Exception>(() => decoder.TryDecode(frame, out _));
+        var ex = Assert.Throws<Http2Exception>(() => session.Process(frame));
         Assert.Equal(Http2ErrorCode.ProtocolError, ex.ErrorCode);
         Assert.Contains("uppercase", ex.Message.ToLower());
         Assert.True(ex.IsConnectionError);
@@ -278,7 +278,7 @@ public sealed class Http2DecoderHeadersValidationTests
     [Fact(DisplayName = "HV-012: Uppercase in pseudo-header name itself is PROTOCOL_ERROR")]
     public void Should_Throw_When_UppercaseInPseudoHeaderName()
     {
-        var decoder = new Http2Decoder();
+        var session = new Http2ProtocolSession();
 
         var badName = System.Text.Encoding.Latin1.GetBytes(":Status");
         var val = System.Text.Encoding.Latin1.GetBytes("200");
@@ -290,7 +290,7 @@ public sealed class Http2DecoderHeadersValidationTests
 
         var frame = new HeadersFrame(1, block.ToArray().AsMemory(), endStream: true, endHeaders: true).Serialize();
 
-        var ex = Assert.Throws<Http2Exception>(() => decoder.TryDecode(frame, out _));
+        var ex = Assert.Throws<Http2Exception>(() => session.Process(frame));
         Assert.Equal(Http2ErrorCode.ProtocolError, ex.ErrorCode);
         Assert.True(ex.IsConnectionError);
     }
@@ -301,9 +301,9 @@ public sealed class Http2DecoderHeadersValidationTests
     [Fact(DisplayName = "HV-013: 'connection' header is PROTOCOL_ERROR in HTTP/2")]
     public void Should_Throw_When_ConnectionHeaderPresent()
     {
-        var decoder = new Http2Decoder();
+        var session = new Http2ProtocolSession();
         var frame = MakeHeadersFrame(1, [(":status", "200"), ("connection", "keep-alive")]);
-        var ex = Assert.Throws<Http2Exception>(() => decoder.TryDecode(frame, out _));
+        var ex = Assert.Throws<Http2Exception>(() => session.Process(frame));
         Assert.Equal(Http2ErrorCode.ProtocolError, ex.ErrorCode);
         Assert.Contains("connection", ex.Message);
         Assert.True(ex.IsConnectionError);
@@ -315,9 +315,9 @@ public sealed class Http2DecoderHeadersValidationTests
     [Fact(DisplayName = "HV-014: 'keep-alive' header is PROTOCOL_ERROR in HTTP/2")]
     public void Should_Throw_When_KeepAliveHeaderPresent()
     {
-        var decoder = new Http2Decoder();
+        var session = new Http2ProtocolSession();
         var frame = MakeHeadersFrame(1, [(":status", "200"), ("keep-alive", "timeout=5")]);
-        var ex = Assert.Throws<Http2Exception>(() => decoder.TryDecode(frame, out _));
+        var ex = Assert.Throws<Http2Exception>(() => session.Process(frame));
         Assert.Equal(Http2ErrorCode.ProtocolError, ex.ErrorCode);
         Assert.Contains("keep-alive", ex.Message);
         Assert.True(ex.IsConnectionError);
@@ -329,9 +329,9 @@ public sealed class Http2DecoderHeadersValidationTests
     [Fact(DisplayName = "HV-015: 'proxy-connection' header is PROTOCOL_ERROR in HTTP/2")]
     public void Should_Throw_When_ProxyConnectionHeaderPresent()
     {
-        var decoder = new Http2Decoder();
+        var session = new Http2ProtocolSession();
         var frame = MakeHeadersFrame(1, [(":status", "200"), ("proxy-connection", "keep-alive")]);
-        var ex = Assert.Throws<Http2Exception>(() => decoder.TryDecode(frame, out _));
+        var ex = Assert.Throws<Http2Exception>(() => session.Process(frame));
         Assert.Equal(Http2ErrorCode.ProtocolError, ex.ErrorCode);
         Assert.Contains("proxy-connection", ex.Message);
         Assert.True(ex.IsConnectionError);
@@ -343,9 +343,9 @@ public sealed class Http2DecoderHeadersValidationTests
     [Fact(DisplayName = "HV-016: 'transfer-encoding' header is PROTOCOL_ERROR in HTTP/2")]
     public void Should_Throw_When_TransferEncodingHeaderPresent()
     {
-        var decoder = new Http2Decoder();
+        var session = new Http2ProtocolSession();
         var frame = MakeHeadersFrame(1, [(":status", "200"), ("transfer-encoding", "chunked")]);
-        var ex = Assert.Throws<Http2Exception>(() => decoder.TryDecode(frame, out _));
+        var ex = Assert.Throws<Http2Exception>(() => session.Process(frame));
         Assert.Equal(Http2ErrorCode.ProtocolError, ex.ErrorCode);
         Assert.Contains("transfer-encoding", ex.Message);
         Assert.True(ex.IsConnectionError);
@@ -357,9 +357,9 @@ public sealed class Http2DecoderHeadersValidationTests
     [Fact(DisplayName = "HV-017: 'upgrade' header is PROTOCOL_ERROR in HTTP/2")]
     public void Should_Throw_When_UpgradeHeaderPresent()
     {
-        var decoder = new Http2Decoder();
+        var session = new Http2ProtocolSession();
         var frame = MakeHeadersFrame(1, [(":status", "200"), ("upgrade", "h2c")]);
-        var ex = Assert.Throws<Http2Exception>(() => decoder.TryDecode(frame, out _));
+        var ex = Assert.Throws<Http2Exception>(() => session.Process(frame));
         Assert.Equal(Http2ErrorCode.ProtocolError, ex.ErrorCode);
         Assert.Contains("upgrade", ex.Message);
         Assert.True(ex.IsConnectionError);
@@ -371,7 +371,7 @@ public sealed class Http2DecoderHeadersValidationTests
     [Fact(DisplayName = "HV-018: Valid response with :status and multiple regular headers is accepted")]
     public void Should_Accept_When_MultipleRegularHeadersAfterStatus()
     {
-        var decoder = new Http2Decoder();
+        var session = new Http2ProtocolSession();
         var frame = MakeHeadersFrame(1,
         [
             (":status", "200"),
@@ -379,8 +379,8 @@ public sealed class Http2DecoderHeadersValidationTests
             ("content-length", "42"),
             ("x-request-id", "abc123"),
         ]);
-        decoder.TryDecode(frame, out var result);
-        Assert.Single(result.Responses);
+        session.Process(frame);
+        Assert.Single(session.Responses);
     }
 
     // ── HV-019: Valid 404 response ────────────────────────────────────────────
@@ -389,11 +389,11 @@ public sealed class Http2DecoderHeadersValidationTests
     [Fact(DisplayName = "HV-019: Valid 404 response is accepted")]
     public void Should_Accept_When_Status404()
     {
-        var decoder = new Http2Decoder();
+        var session = new Http2ProtocolSession();
         var frame = MakeHeadersFrame(1, [(":status", "404")]);
-        decoder.TryDecode(frame, out var result);
-        Assert.Single(result.Responses);
-        Assert.Equal(404, (int)result.Responses[0].Response.StatusCode);
+        session.Process(frame);
+        Assert.Single(session.Responses);
+        Assert.Equal(404, (int)session.Responses[0].Response.StatusCode);
     }
 
     // ── HV-020: Valid 301 redirect response ───────────────────────────────────
@@ -402,14 +402,14 @@ public sealed class Http2DecoderHeadersValidationTests
     [Fact(DisplayName = "HV-020: Valid 301 redirect response with location header is accepted")]
     public void Should_Accept_When_Status301WithLocationHeader()
     {
-        var decoder = new Http2Decoder();
+        var session = new Http2ProtocolSession();
         var frame = MakeHeadersFrame(1,
         [
             (":status", "301"),
             ("location", "https://example.com/new"),
         ]);
-        decoder.TryDecode(frame, out var result);
-        Assert.Single(result.Responses);
+        session.Process(frame);
+        Assert.Single(session.Responses);
     }
 
     // ── HV-021: Error message includes header name ────────────────────────────
@@ -418,7 +418,7 @@ public sealed class Http2DecoderHeadersValidationTests
     [Fact(DisplayName = "HV-021: PROTOCOL_ERROR message for uppercase includes the offending header name")]
     public void Should_IncludeHeaderName_In_UppercaseErrorMessage()
     {
-        var decoder = new Http2Decoder();
+        var session = new Http2ProtocolSession();
 
         var statusBytes = System.Text.Encoding.Latin1.GetBytes(":status");
         var statusVal = System.Text.Encoding.Latin1.GetBytes("200");
@@ -439,7 +439,7 @@ public sealed class Http2DecoderHeadersValidationTests
         Add(badName, badVal);
 
         var frame = new HeadersFrame(1, block.ToArray().AsMemory(), endStream: true, endHeaders: true).Serialize();
-        var ex = Assert.Throws<Http2Exception>(() => decoder.TryDecode(frame, out _));
+        var ex = Assert.Throws<Http2Exception>(() => session.Process(frame));
         Assert.Contains("X-Custom", ex.Message);
         Assert.True(ex.IsConnectionError);
     }
@@ -450,9 +450,9 @@ public sealed class Http2DecoderHeadersValidationTests
     [Fact(DisplayName = "HV-022: PROTOCOL_ERROR message for connection-specific includes the header name")]
     public void Should_IncludeHeaderName_In_ConnectionSpecificErrorMessage()
     {
-        var decoder = new Http2Decoder();
+        var session = new Http2ProtocolSession();
         var frame = MakeHeadersFrame(1, [(":status", "200"), ("transfer-encoding", "chunked")]);
-        var ex = Assert.Throws<Http2Exception>(() => decoder.TryDecode(frame, out _));
+        var ex = Assert.Throws<Http2Exception>(() => session.Process(frame));
         Assert.Contains("transfer-encoding", ex.Message);
         Assert.Contains("forbidden", ex.Message.ToLower());
         Assert.True(ex.IsConnectionError);
@@ -484,8 +484,8 @@ public sealed class Http2DecoderHeadersValidationTests
         headersFrame.CopyTo(combined, 0);
         contFrame.CopyTo(combined, headersFrame.Length);
 
-        var decoder = new Http2Decoder();
-        var ex = Assert.Throws<Http2Exception>(() => decoder.TryDecode(combined, out _));
+        var session = new Http2ProtocolSession();
+        var ex = Assert.Throws<Http2Exception>(() => session.Process(combined));
         Assert.Equal(Http2ErrorCode.ProtocolError, ex.ErrorCode);
         Assert.Contains("X-Bad", ex.Message);
         Assert.True(ex.IsConnectionError);
@@ -497,14 +497,14 @@ public sealed class Http2DecoderHeadersValidationTests
     [Fact(DisplayName = "HV-024: Each stream's HEADERS block is validated independently")]
     public void Should_Throw_On_SecondStream_When_SecondStreamHasMissingStatus()
     {
-        var decoder = new Http2Decoder();
+        var session = new Http2ProtocolSession();
 
         // Stream 1 is valid
-        decoder.TryDecode(GoodResponse(streamId: 1), out _);
+        session.Process(GoodResponse(streamId: 1));
 
         // Stream 3 is missing :status
         var badFrame = MakeHeadersFrame(3, [("content-type", "text/plain")]);
-        var ex = Assert.Throws<Http2Exception>(() => decoder.TryDecode(badFrame, out _));
+        var ex = Assert.Throws<Http2Exception>(() => session.Process(badFrame));
         Assert.Equal(Http2ErrorCode.ProtocolError, ex.ErrorCode);
         Assert.True(ex.IsConnectionError);
     }
@@ -517,7 +517,7 @@ public sealed class Http2DecoderHeadersValidationTests
     {
         // 1xx responses arrive as HEADERS with END_STREAM not set, so we send a DATA frame
         // to close the stream afterward.
-        var decoder = new Http2Decoder();
+        var session = new Http2ProtocolSession();
         var hpack = new HpackEncoder(useHuffman: false);
         var block = hpack.Encode([(":status", "100")]);
         var headersFrame = new HeadersFrame(1, block, endStream: false, endHeaders: true).Serialize();
@@ -525,10 +525,10 @@ public sealed class Http2DecoderHeadersValidationTests
         var combined = new byte[headersFrame.Length + dataFrame.Length];
         headersFrame.CopyTo(combined, 0);
         dataFrame.CopyTo(combined, headersFrame.Length);
-        decoder.TryDecode(combined, out var result);
+        session.Process(combined);
         // The 100 HEADERS doesn't produce a response in the usual flow (no END_STREAM).
         // A response is produced when the DATA arrives with END_STREAM.
-        Assert.Single(result.Responses);
+        Assert.Single(session.Responses);
     }
 
     // ── HV-026: All-lowercase valid custom header ─────────────────────────────
@@ -537,15 +537,15 @@ public sealed class Http2DecoderHeadersValidationTests
     [Fact(DisplayName = "HV-026: All-lowercase custom header name is accepted")]
     public void Should_Accept_When_AllLowercaseCustomHeader()
     {
-        var decoder = new Http2Decoder();
+        var session = new Http2ProtocolSession();
         var frame = MakeHeadersFrame(1,
         [
             (":status", "200"),
             ("x-custom-header", "value"),
             ("another-header", "42"),
         ]);
-        decoder.TryDecode(frame, out var result);
-        Assert.Single(result.Responses);
+        session.Process(frame);
+        Assert.Single(session.Responses);
     }
 
     // ── HV-027: Only uppercase in middle of name ──────────────────────────────
@@ -554,7 +554,7 @@ public sealed class Http2DecoderHeadersValidationTests
     [Fact(DisplayName = "HV-027: Header name with uppercase in the middle is PROTOCOL_ERROR")]
     public void Should_Throw_When_UppercaseInMiddleOfHeaderName()
     {
-        var decoder = new Http2Decoder();
+        var session = new Http2ProtocolSession();
 
         var statusBytes = System.Text.Encoding.Latin1.GetBytes(":status");
         var statusVal = System.Text.Encoding.Latin1.GetBytes("200");
@@ -575,7 +575,7 @@ public sealed class Http2DecoderHeadersValidationTests
         Add(mixedName, mixedVal);
 
         var frame = new HeadersFrame(1, block.ToArray().AsMemory(), endStream: true, endHeaders: true).Serialize();
-        var ex = Assert.Throws<Http2Exception>(() => decoder.TryDecode(frame, out _));
+        var ex = Assert.Throws<Http2Exception>(() => session.Process(frame));
         Assert.Equal(Http2ErrorCode.ProtocolError, ex.ErrorCode);
         Assert.True(ex.IsConnectionError);
     }
@@ -586,10 +586,10 @@ public sealed class Http2DecoderHeadersValidationTests
     [Fact(DisplayName = "HV-028: Empty header block with no :status is PROTOCOL_ERROR")]
     public void Should_Throw_When_HeaderBlockIsEmpty()
     {
-        var decoder = new Http2Decoder();
+        var session = new Http2ProtocolSession();
         // Empty header block → no :status
         var frame = new HeadersFrame(1, System.ReadOnlyMemory<byte>.Empty, endStream: true, endHeaders: true).Serialize();
-        var ex = Assert.Throws<Http2Exception>(() => decoder.TryDecode(frame, out _));
+        var ex = Assert.Throws<Http2Exception>(() => session.Process(frame));
         Assert.Equal(Http2ErrorCode.ProtocolError, ex.ErrorCode);
         Assert.Contains(":status", ex.Message);
         Assert.True(ex.IsConnectionError);

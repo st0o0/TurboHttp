@@ -689,7 +689,7 @@ CONTINUATION frame (7540-6.9-xxx, dec6-cont-001):
 ---
 
 ### Phase 12 — Migrate `06_HeadersTests.cs` (29 refs)
-- [ ] **Status**: pending
+- [x] **Status**: complete (2026-03-06, iter-03)
 
 **File**: `src/TurboHttp.Tests/RFC9113/06_HeadersTests.cs`
 
