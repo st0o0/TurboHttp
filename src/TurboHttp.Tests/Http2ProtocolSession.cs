@@ -264,6 +264,24 @@ public sealed class Http2ProtocolSession
                 Http2ErrorCode.StreamClosed, Http2ErrorScope.Stream, streamId);
         }
 
+        // RFC 7540 §6.9.1: Check flow-control windows before consuming data.
+        if (frame.Data.Length > 0)
+        {
+            if (frame.Data.Length > _connectionReceiveWindow)
+            {
+                throw new Http2Exception(
+                    $"DATA of {frame.Data.Length} bytes exceeds connection receive window of {_connectionReceiveWindow}",
+                    Http2ErrorCode.FlowControlError, Http2ErrorScope.Connection);
+            }
+
+            if (_streamReceiveWindows.TryGetValue(streamId, out var streamWin) && frame.Data.Length > streamWin)
+            {
+                throw new Http2Exception(
+                    $"DATA of {frame.Data.Length} bytes exceeds stream {streamId} receive window of {streamWin}",
+                    Http2ErrorCode.FlowControlError, Http2ErrorScope.Stream, streamId);
+            }
+        }
+
         // Accumulate body bytes for the pending response.
         if (_pendingResponses.TryGetValue(streamId, out var pending))
         {
@@ -386,15 +404,27 @@ public sealed class Http2ProtocolSession
         var streamId = frame.StreamId;
         if (streamId == 0)
         {
-            _connectionSendWindow += frame.Increment;
+            var newWindow = _connectionSendWindow + frame.Increment;
+            if (newWindow > 0x7FFFFFFF)
+            {
+                throw new Http2Exception(
+                    "WINDOW_UPDATE would overflow connection send window",
+                    Http2ErrorCode.FlowControlError, Http2ErrorScope.Connection);
+            }
+            _connectionSendWindow = newWindow;
         }
         else
         {
-            _windowUpdates.Add((streamId, frame.Increment));
-            if (_streamSendWindows.TryGetValue(streamId, out var w))
+            var current = _streamSendWindows.TryGetValue(streamId, out var w) ? w : _initialWindowSize;
+            var newWindow = current + frame.Increment;
+            if (newWindow > 0x7FFFFFFF)
             {
-                _streamSendWindows[streamId] = w + frame.Increment;
+                throw new Http2Exception(
+                    $"WINDOW_UPDATE would overflow stream {streamId} send window",
+                    Http2ErrorCode.FlowControlError, Http2ErrorScope.Stream, streamId);
             }
+            _windowUpdates.Add((streamId, frame.Increment));
+            _streamSendWindows[streamId] = newWindow;
         }
     }
 

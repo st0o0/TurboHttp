@@ -652,7 +652,7 @@ CONTINUATION frame (7540-6.9-xxx, dec6-cont-001):
 ---
 
 ### Phase 10 — Migrate `05_FlowControlTests.cs` (23 refs)
-- [ ] **Status**: pending
+- [x] **Status**: complete (2026-03-06, iter-01)
 
 **File**: `src/TurboHttp.Tests/RFC9113/05_FlowControlTests.cs`
 

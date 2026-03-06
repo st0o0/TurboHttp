@@ -68,9 +68,7 @@ public sealed class Http2FrameDecoder
 
             FrameType.Settings => ParseSettings(payload, flags),
 
-            FrameType.WindowUpdate => new WindowUpdateFrame(
-                streamId,
-                (int)(BinaryPrimitives.ReadUInt32BigEndian(payload.Span) & 0x7FFFFFFFu)),
+            FrameType.WindowUpdate => CreateWindowUpdateFrame(streamId, payload),
 
             FrameType.RstStream => new RstStreamFrame(
                 streamId,
@@ -160,6 +158,26 @@ public sealed class Http2FrameDecoder
         var endHeaders = (flags & (byte)HeadersFlags.EndHeaders) != 0;
         var headerBlock = payload[4..].ToArray();
         return new PushPromiseFrame(streamId, promised, headerBlock, endHeaders);
+    }
+
+    private static WindowUpdateFrame CreateWindowUpdateFrame(int streamId, ReadOnlyMemory<byte> payload)
+    {
+        if (payload.Length != 4)
+        {
+            throw new Http2Exception(
+                $"RFC 7540 §6.9: WINDOW_UPDATE payload must be exactly 4 bytes; got {payload.Length}.",
+                Http2ErrorCode.FrameSizeError);
+        }
+
+        var increment = (int)(BinaryPrimitives.ReadUInt32BigEndian(payload.Span) & 0x7FFFFFFFu);
+        if (increment == 0)
+        {
+            throw new Http2Exception(
+                "RFC 7540 §6.9: WINDOW_UPDATE increment of 0 is a PROTOCOL_ERROR.",
+                Http2ErrorCode.ProtocolError);
+        }
+
+        return new WindowUpdateFrame(streamId, increment);
     }
 
     private static ReadOnlyMemory<byte> Combine(ReadOnlyMemory<byte> a, ReadOnlyMemory<byte> b)
