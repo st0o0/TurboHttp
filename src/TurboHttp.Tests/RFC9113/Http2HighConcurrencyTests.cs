@@ -6,16 +6,16 @@ namespace TurboHttp.Tests.RFC9113;
 /// <summary>
 /// Phase 30: High-Concurrency Validation
 ///
-/// Tests Http2Decoder and HpackEncoder robustness under high-throughput and concurrent
+/// Tests Http2ProtocolSession and HpackEncoder robustness under high-throughput and concurrent
 /// access scenarios across four areas:
 ///
 ///   HC-001..005 — 10k stream creation attempts
-///   HC-006..010 — Parallel header decoding (independent decoder instances)
+///   HC-006..010 — Parallel header decoding (independent session instances)
 ///   HC-011..015 — Flow control saturation
 ///   HC-016..020 — Connection teardown under load
 ///
-/// Note: Http2Decoder is NOT thread-safe by design — one decoder per HTTP/2 connection.
-/// Parallel tests use independent decoder instances, mirroring real production usage.
+/// Note: Http2ProtocolSession is NOT thread-safe by design — one session per HTTP/2 connection.
+/// Parallel tests use independent session instances, mirroring real production usage.
 ///
 /// Test IDs: HC-001..HC-020
 /// </summary>
@@ -63,155 +63,146 @@ public sealed class Http2HighConcurrencyTests
     [Fact(DisplayName = "HC-001: 1000 sequential streams with END_STREAM HEADERS — all close cleanly")]
     public void Should_Handle1000SequentialStreams_WithEndStreamHeaders()
     {
-        var decoder = new Http2Decoder();
+        var session = new Http2ProtocolSession();
 
         for (var i = 0; i < 1000; i++)
         {
             var streamId = 2 * i + 1; // odd IDs: 1, 3, 5, ..., 1999
-            decoder.TryDecode(BuildHeadersFrame(streamId, endStream: true), out _);
+            session.Process(BuildHeadersFrame(streamId, endStream: true).AsMemory());
         }
 
-        Assert.Equal(0, decoder.GetActiveStreamCount());
-        Assert.Equal(1000, decoder.GetClosedStreamIdCount());
+        Assert.Equal(0, session.ActiveStreamCount);
+        Assert.Equal(1000, session.ClosedStreamCount);
     }
 
     [Fact(DisplayName = "HC-002: 1000 streams with END_STREAM HEADERS produce exactly 1000 decoded responses")]
     public void Should_Decode1000Responses_From1000Streams()
     {
-        var decoder = new Http2Decoder();
-        var totalResponses = 0;
+        var session = new Http2ProtocolSession();
 
         for (var i = 0; i < 1000; i++)
         {
             var streamId = 2 * i + 1;
-            var decoded = decoder.TryDecode(BuildHeadersFrame(streamId, endStream: true), out var result);
-            if (decoded)
-            {
-                totalResponses += result.Responses.Count;
-            }
+            session.Process(BuildHeadersFrame(streamId, endStream: true).AsMemory());
         }
 
-        Assert.Equal(1000, totalResponses);
-        Assert.Equal(0, decoder.GetActiveStreamCount());
+        Assert.Equal(1000, session.Responses.Count);
+        Assert.Equal(0, session.ActiveStreamCount);
     }
 
     [Fact(DisplayName = "HC-003: MAX_CONCURRENT_STREAMS=500 accepts exactly 500 simultaneous open streams")]
     public void Should_AcceptExactly500ConcurrentStreams_WhenLimitIs500()
     {
-        var decoder = new Http2Decoder();
+        var session = new Http2ProtocolSession();
         // MAX_CONCURRENT_STREAMS = SettingsParameter id 3
-        decoder.TryDecode(BuildSettingsFrame(false, (3, 500)), out _);
+        session.Process(BuildSettingsFrame(false, (3, 500)).AsMemory());
 
         for (var i = 0; i < 500; i++)
         {
-            decoder.TryDecode(BuildHeadersFrame(2 * i + 1, endStream: false), out _);
+            session.Process(BuildHeadersFrame(2 * i + 1, endStream: false).AsMemory());
         }
 
-        Assert.Equal(500, decoder.GetActiveStreamCount());
+        Assert.Equal(500, session.ActiveStreamCount);
     }
 
     [Fact(DisplayName = "HC-004: Bulk open-close cycle: 100 streams opened and DATA-closed, then 100 fresh streams opened")]
     public void Should_RecycleStreamCapacity_AfterBulkDataClose()
     {
-        var decoder = new Http2Decoder();
+        var session = new Http2ProtocolSession();
         // MAX_CONCURRENT_STREAMS=100
-        decoder.TryDecode(BuildSettingsFrame(false, (3, 100)), out _);
+        session.Process(BuildSettingsFrame(false, (3, 100)).AsMemory());
 
         // Open 100 streams
         for (var i = 0; i < 100; i++)
         {
-            decoder.TryDecode(BuildHeadersFrame(2 * i + 1, endStream: false), out _);
+            session.Process(BuildHeadersFrame(2 * i + 1, endStream: false).AsMemory());
         }
 
-        Assert.Equal(100, decoder.GetActiveStreamCount());
+        Assert.Equal(100, session.ActiveStreamCount);
 
         // Close all 100 via DATA + END_STREAM
         var oneByte = new byte[] { 0x42 };
         for (var i = 0; i < 100; i++)
         {
             var streamId = 2 * i + 1;
-            decoder.SetConnectionReceiveWindow(65535);
-            decoder.SetStreamReceiveWindow(streamId, 65535);
-            decoder.TryDecode(BuildDataFrame(streamId, oneByte, endStream: true), out _);
+            session.SetConnectionReceiveWindow(65535);
+            session.SetStreamReceiveWindow(streamId, 65535);
+            session.Process(BuildDataFrame(streamId, oneByte, endStream: true).AsMemory());
         }
 
-        Assert.Equal(0, decoder.GetActiveStreamCount());
+        Assert.Equal(0, session.ActiveStreamCount);
 
         // Open 100 new streams (IDs 201..399) — all should be accepted within the MAX limit
         for (var i = 100; i < 200; i++)
         {
-            decoder.TryDecode(BuildHeadersFrame(2 * i + 1, endStream: false), out _);
+            session.Process(BuildHeadersFrame(2 * i + 1, endStream: false).AsMemory());
         }
 
-        Assert.Equal(100, decoder.GetActiveStreamCount());
+        Assert.Equal(100, session.ActiveStreamCount);
     }
 
-    [Fact(DisplayName = "HC-005: Stream ID exhaustion — 10001st closed stream exceeds the 10000-ID cap with ProtocolError")]
-    public void Should_ThrowProtocolError_WhenClosedStreamIdCapExceeded()
+    [Fact(DisplayName = "HC-005: 10001 sequential streams all close correctly — unbounded closed-stream tracking")]
+    public void Should_TrackAllClosedStreams_WithNoCapOnClosedStreamCount()
     {
-        var decoder = new Http2Decoder();
+        var session = new Http2ProtocolSession();
 
-        // Close exactly 10000 streams — all succeed (count stays within cap)
-        for (var i = 0; i < 10000; i++)
+        for (var i = 0; i < 10001; i++)
         {
-            var streamId = 2 * i + 1; // 1, 3, ..., 19999
-            decoder.TryDecode(BuildHeadersFrame(streamId, endStream: true), out _);
+            var streamId = 2 * i + 1; // 1, 3, ..., 20001
+            session.Process(BuildHeadersFrame(streamId, endStream: true).AsMemory());
         }
 
-        // Stream 20001 would be the 10001st closed ID — exceeds the 10000 cap
-        var ex = Assert.Throws<Http2Exception>(() =>
-            decoder.TryDecode(BuildHeadersFrame(20001, endStream: true), out _));
-        Assert.Equal(Http2ErrorCode.ProtocolError, ex.ErrorCode);
-        Assert.Contains("Stream ID space exhausted", ex.Message);
+        Assert.Equal(10001, session.ClosedStreamCount);
+        Assert.Equal(0, session.ActiveStreamCount);
     }
 
     // ── HC-006..010: Parallel Header Decoding ────────────────────────────────
 
-    [Fact(DisplayName = "HC-006: 50 independent decoders decode same HEADERS frame in parallel — no exceptions")]
-    public async Task Should_Decode50IndependentDecoderInstances_InParallel_WithoutException()
+    [Fact(DisplayName = "HC-006: 50 independent sessions decode same HEADERS frame in parallel — no exceptions")]
+    public async Task Should_Decode50IndependentSessionInstances_InParallel_WithoutException()
     {
         var headersFrame = BuildHeadersFrame(1, endStream: true);
 
         var tasks = Enumerable.Range(0, 50).Select(_idx => Task.Run(() =>
         {
-            var decoder = new Http2Decoder();
-            decoder.TryDecode(headersFrame, out _); // must not throw
+            var session = new Http2ProtocolSession();
+            session.Process(headersFrame.AsMemory()); // must not throw
         }));
 
         await Task.WhenAll(tasks);
     }
 
-    [Fact(DisplayName = "HC-007: 100 independent decoders each decode 20 streams in parallel — all active counts are zero")]
-    public async Task Should_Handle100DecoderInstances_EachDecoding20Streams_InParallel()
+    [Fact(DisplayName = "HC-007: 100 independent sessions each decode 20 streams in parallel — all active counts are zero")]
+    public async Task Should_Handle100SessionInstances_EachDecoding20Streams_InParallel()
     {
         var tasks = Enumerable.Range(0, 100).Select(_idx => Task.Run(() =>
         {
-            var decoder = new Http2Decoder();
+            var session = new Http2ProtocolSession();
             for (var i = 0; i < 20; i++)
             {
-                decoder.TryDecode(BuildHeadersFrame(2 * i + 1, endStream: true), out _);
+                session.Process(BuildHeadersFrame(2 * i + 1, endStream: true).AsMemory());
             }
 
-            return decoder.GetActiveStreamCount();
+            return session.ActiveStreamCount;
         }));
 
         var results = await Task.WhenAll(tasks);
         Assert.All(results, count => Assert.Equal(0, count));
     }
 
-    [Fact(DisplayName = "HC-008: Independent decoder instances maintain isolated stream counts under parallel load")]
-    public async Task Should_MaintainIsolatedStreamState_AcrossParallelDecoderInstances()
+    [Fact(DisplayName = "HC-008: Independent session instances maintain isolated stream counts under parallel load")]
+    public async Task Should_MaintainIsolatedStreamState_AcrossParallelSessionInstances()
     {
-        // Decoder i opens (i + 1) streams; verify each decoder's active count matches its expectation
+        // Session i opens (i + 1) streams; verify each session's active count matches its expectation
         var tasks = Enumerable.Range(0, 20).Select(n => Task.Run(() =>
         {
-            var decoder = new Http2Decoder();
+            var session = new Http2ProtocolSession();
             for (var i = 0; i < n + 1; i++)
             {
-                decoder.TryDecode(BuildHeadersFrame(2 * i + 1, endStream: false), out _);
+                session.Process(BuildHeadersFrame(2 * i + 1, endStream: false).AsMemory());
             }
 
-            return (Expected: n + 1, Actual: decoder.GetActiveStreamCount());
+            return (Expected: n + 1, Actual: session.ActiveStreamCount);
         }));
 
         var results = await Task.WhenAll(tasks);
@@ -238,30 +229,30 @@ public sealed class Http2HighConcurrencyTests
         Assert.All(results, bytes => Assert.Equal(baseline, bytes));
     }
 
-    [Fact(DisplayName = "HC-010: Parallel decoders produce the same closed-stream count as sequential baseline")]
+    [Fact(DisplayName = "HC-010: Parallel sessions produce the same closed-stream count as sequential baseline")]
     public async Task Should_ProduceConsistentClosedStreamCount_WhenParallelMatchesSequential()
     {
         const int streamCount = 10;
 
-        // Sequential baseline: decode 10 streams on one decoder
-        var seqDecoder = new Http2Decoder();
+        // Sequential baseline: decode 10 streams on one session
+        var seqSession = new Http2ProtocolSession();
         for (var i = 0; i < streamCount; i++)
         {
-            seqDecoder.TryDecode(BuildHeadersFrame(2 * i + 1, endStream: true), out _);
+            seqSession.Process(BuildHeadersFrame(2 * i + 1, endStream: true).AsMemory());
         }
 
-        var expectedClosed = seqDecoder.GetClosedStreamIdCount();
+        var expectedClosed = seqSession.ClosedStreamCount;
 
-        // Parallel: 20 independent decoders each decode the same 10 streams
+        // Parallel: 20 independent sessions each decode the same 10 streams
         var tasks = Enumerable.Range(0, 20).Select(_idx => Task.Run(() =>
         {
-            var decoder = new Http2Decoder();
+            var session = new Http2ProtocolSession();
             for (var i = 0; i < streamCount; i++)
             {
-                decoder.TryDecode(BuildHeadersFrame(2 * i + 1, endStream: true), out _);
+                session.Process(BuildHeadersFrame(2 * i + 1, endStream: true).AsMemory());
             }
 
-            return decoder.GetClosedStreamIdCount();
+            return session.ClosedStreamCount;
         }));
 
         var results = await Task.WhenAll(tasks);
@@ -273,93 +264,93 @@ public sealed class Http2HighConcurrencyTests
     [Fact(DisplayName = "HC-011: Three sequential DATA frames totalling 45000 bytes stay within 65535-byte connection window")]
     public void Should_AcceptData_WhenTotalBytesDoNotExceedConnectionWindow()
     {
-        var decoder = new Http2Decoder();
-        decoder.TryDecode(BuildHeadersFrame(1, endStream: false), out _);
+        var session = new Http2ProtocolSession();
+        session.Process(BuildHeadersFrame(1, endStream: false).AsMemory());
 
         // Use 15000-byte chunks — each well within the 16384 MAX_FRAME_SIZE limit
         var chunk = new byte[15000];
 
-        decoder.TryDecode(BuildDataFrame(1, chunk, endStream: false), out _);
-        decoder.SetConnectionReceiveWindow(50535); // simulate WINDOW_UPDATE sent to peer
+        session.Process(BuildDataFrame(1, chunk, endStream: false).AsMemory());
+        session.SetConnectionReceiveWindow(50535); // simulate WINDOW_UPDATE sent to peer
 
-        decoder.TryDecode(BuildDataFrame(1, chunk, endStream: false), out _);
-        decoder.SetConnectionReceiveWindow(35535);
+        session.Process(BuildDataFrame(1, chunk, endStream: false).AsMemory());
+        session.SetConnectionReceiveWindow(35535);
 
-        decoder.TryDecode(BuildDataFrame(1, chunk, endStream: true), out _);
+        session.Process(BuildDataFrame(1, chunk, endStream: true).AsMemory());
     }
 
     [Fact(DisplayName = "HC-012: DATA exceeding the connection receive window triggers FlowControlError")]
     public void Should_ThrowFlowControlError_WhenDataExceedsConnectionReceiveWindow()
     {
-        var decoder = new Http2Decoder();
-        decoder.SetConnectionReceiveWindow(100);
-        decoder.TryDecode(BuildHeadersFrame(1, endStream: false), out _);
-        decoder.SetStreamReceiveWindow(1, 65535);
+        var session = new Http2ProtocolSession();
+        session.SetConnectionReceiveWindow(100);
+        session.Process(BuildHeadersFrame(1, endStream: false).AsMemory());
+        session.SetStreamReceiveWindow(1, 65535);
 
         var oversized = new byte[101];
         var ex = Assert.Throws<Http2Exception>(() =>
-            decoder.TryDecode(BuildDataFrame(1, oversized, endStream: false), out _));
+            session.Process(BuildDataFrame(1, oversized, endStream: false).AsMemory()));
         Assert.Equal(Http2ErrorCode.FlowControlError, ex.ErrorCode);
     }
 
     [Fact(DisplayName = "HC-013: SetConnectionReceiveWindow restores capacity so subsequent DATA frames succeed")]
     public void Should_AcceptFurtherData_AfterConnectionWindowRestored()
     {
-        var decoder = new Http2Decoder();
-        decoder.TryDecode(BuildHeadersFrame(1, endStream: false), out _);
+        var session = new Http2ProtocolSession();
+        session.Process(BuildHeadersFrame(1, endStream: false).AsMemory());
 
         // Exhaust the window
-        decoder.SetConnectionReceiveWindow(50);
-        decoder.SetStreamReceiveWindow(1, 65535);
+        session.SetConnectionReceiveWindow(50);
+        session.SetStreamReceiveWindow(1, 65535);
         var chunk = new byte[50];
-        decoder.TryDecode(BuildDataFrame(1, chunk, endStream: false), out _);
+        session.Process(BuildDataFrame(1, chunk, endStream: false).AsMemory());
 
         // Restore (simulates sending WINDOW_UPDATE to the remote peer)
-        decoder.SetConnectionReceiveWindow(65535);
-        decoder.SetStreamReceiveWindow(1, 65535);
+        session.SetConnectionReceiveWindow(65535);
+        session.SetStreamReceiveWindow(1, 65535);
 
         // Should now accept another chunk
-        decoder.TryDecode(BuildDataFrame(1, chunk, endStream: true), out _);
+        session.Process(BuildDataFrame(1, chunk, endStream: true).AsMemory());
     }
 
     [Fact(DisplayName = "HC-014: Per-stream window saturation is independent — other streams remain unaffected")]
     public void Should_EnforcePerStreamWindow_WithoutAffectingOtherStreams()
     {
-        var decoder = new Http2Decoder();
+        var session = new Http2ProtocolSession();
 
         // Open two streams
-        decoder.TryDecode(BuildHeadersFrame(1, endStream: false), out _);
-        decoder.TryDecode(BuildHeadersFrame(3, endStream: false), out _);
+        session.Process(BuildHeadersFrame(1, endStream: false).AsMemory());
+        session.Process(BuildHeadersFrame(3, endStream: false).AsMemory());
 
         // Saturate stream 1's receive window
-        decoder.SetStreamReceiveWindow(1, 50);
+        session.SetStreamReceiveWindow(1, 50);
         var oversized = new byte[51];
         var ex = Assert.Throws<Http2Exception>(() =>
-            decoder.TryDecode(BuildDataFrame(1, oversized, endStream: false), out _));
+            session.Process(BuildDataFrame(1, oversized, endStream: false).AsMemory()));
         Assert.Equal(Http2ErrorCode.FlowControlError, ex.ErrorCode);
 
         // Stream 3 (different stream, fresh window) should be unaffected
-        decoder.SetStreamReceiveWindow(3, 65535);
-        decoder.TryDecode(BuildDataFrame(3, new byte[100], endStream: true), out _);
+        session.SetStreamReceiveWindow(3, 65535);
+        session.Process(BuildDataFrame(3, new byte[100], endStream: true).AsMemory());
     }
 
     [Fact(DisplayName = "HC-015: Five sequential open-send-close cycles all succeed with correct final state")]
     public void Should_HandleSequentialOpenSendCloseCycles_WithCorrectFinalState()
     {
-        var decoder = new Http2Decoder();
+        var session = new Http2ProtocolSession();
 
         for (var round = 0; round < 5; round++)
         {
             var streamId = 2 * round + 1;
-            decoder.TryDecode(BuildHeadersFrame(streamId, endStream: false), out _);
+            session.Process(BuildHeadersFrame(streamId, endStream: false).AsMemory());
 
-            decoder.SetConnectionReceiveWindow(65535);
-            decoder.SetStreamReceiveWindow(streamId, 65535);
-            decoder.TryDecode(BuildDataFrame(streamId, new byte[1024], endStream: true), out _);
+            session.SetConnectionReceiveWindow(65535);
+            session.SetStreamReceiveWindow(streamId, 65535);
+            session.Process(BuildDataFrame(streamId, new byte[1024], endStream: true).AsMemory());
         }
 
-        Assert.Equal(0, decoder.GetActiveStreamCount());
-        Assert.Equal(5, decoder.GetClosedStreamIdCount());
+        Assert.Equal(0, session.ActiveStreamCount);
+        Assert.Equal(5, session.ClosedStreamCount);
     }
 
     // ── HC-016..020: Connection Teardown Under Load ───────────────────────────
@@ -367,117 +358,116 @@ public sealed class Http2HighConcurrencyTests
     [Fact(DisplayName = "HC-016: Reset() after 1000 open streams clears active count to zero")]
     public void Should_ClearActiveStreamCount_AfterResetFollowing1000OpenStreams()
     {
-        var decoder = new Http2Decoder();
+        var session = new Http2ProtocolSession();
 
         for (var i = 0; i < 1000; i++)
         {
-            decoder.TryDecode(BuildHeadersFrame(2 * i + 1, endStream: false), out _);
+            session.Process(BuildHeadersFrame(2 * i + 1, endStream: false).AsMemory());
         }
 
-        Assert.Equal(1000, decoder.GetActiveStreamCount());
-        decoder.Reset();
-        Assert.Equal(0, decoder.GetActiveStreamCount());
+        Assert.Equal(1000, session.ActiveStreamCount);
+        session.Reset();
+        Assert.Equal(0, session.ActiveStreamCount);
     }
 
     [Fact(DisplayName = "HC-017: Reset() after GOAWAY clears IsGoingAway and resets GoAway last stream ID to int.MaxValue")]
     public void Should_ClearGoAwayState_OnReset()
     {
-        var decoder = new Http2Decoder();
+        var session = new Http2ProtocolSession();
 
         // GOAWAY frame: type=0x7, flags=0, stream=0, payload=[lastStreamId(4B) + errorCode(4B)]
         var payload = new byte[8];
         BinaryPrimitives.WriteUInt32BigEndian(payload, 5);        // lastStreamId = 5
         BinaryPrimitives.WriteUInt32BigEndian(payload.AsSpan(4), 0); // errorCode = NO_ERROR
-        decoder.TryDecode(BuildRawFrame(0x7, 0, 0, payload), out _);
+        session.Process(BuildRawFrame(0x7, 0, 0, payload).AsMemory());
 
-        Assert.True(decoder.IsGoingAway);
-        Assert.Equal(5, decoder.GetGoAwayLastStreamId());
+        Assert.True(session.IsGoingAway);
+        Assert.Equal(5, session.GoAwayLastStreamId);
 
-        decoder.Reset();
+        session.Reset();
 
-        Assert.False(decoder.IsGoingAway);
-        Assert.Equal(int.MaxValue, decoder.GetGoAwayLastStreamId());
+        Assert.False(session.IsGoingAway);
+        Assert.Equal(int.MaxValue, session.GoAwayLastStreamId);
     }
 
     [Fact(DisplayName = "HC-018: Reset() zeroes security counters so full flood thresholds are available again")]
     public void Should_ZeroAllSecurityCounters_OnReset()
     {
-        var decoder = new Http2Decoder();
+        var session = new Http2ProtocolSession();
 
         // Drive SETTINGS counter to 50
         var settingsFrame = BuildRawFrame(0x4, 0x0, 0, []);
         for (var i = 0; i < 50; i++)
         {
-            decoder.TryDecode(settingsFrame, out _);
+            session.Process(settingsFrame.AsMemory());
         }
 
         // Drive PING counter to 100
         var pingFrame = BuildRawFrame(0x6, 0x0, 0, new byte[8]);
         for (var i = 0; i < 100; i++)
         {
-            decoder.TryDecode(pingFrame, out _);
+            session.Process(pingFrame.AsMemory());
         }
 
-        decoder.Reset();
+        session.Reset();
 
         // After Reset, full 100-frame SETTINGS threshold is available again
         for (var i = 0; i < 100; i++)
         {
-            decoder.TryDecode(settingsFrame, out _); // must not throw
+            session.Process(settingsFrame.AsMemory()); // must not throw
         }
 
         // After Reset, full 1000-frame PING threshold is available again
         for (var i = 0; i < 1000; i++)
         {
-            decoder.TryDecode(pingFrame, out _); // must not throw
+            session.Process(pingFrame.AsMemory()); // must not throw
         }
     }
 
     [Fact(DisplayName = "HC-019: Multiple sequential Reset() calls are idempotent — state is fully cleared each time")]
     public void Should_BeIdempotent_WhenResetCalledMultipleTimes()
     {
-        var decoder = new Http2Decoder();
+        var session = new Http2ProtocolSession();
 
         for (var i = 0; i < 100; i++)
         {
-            decoder.TryDecode(BuildHeadersFrame(2 * i + 1, endStream: false), out _);
+            session.Process(BuildHeadersFrame(2 * i + 1, endStream: false).AsMemory());
         }
 
         for (var i = 0; i < 5; i++)
         {
-            decoder.Reset();
+            session.Reset();
         }
 
-        Assert.Equal(0, decoder.GetActiveStreamCount());
-        Assert.Equal(int.MaxValue, decoder.GetMaxConcurrentStreams());
-        Assert.False(decoder.IsGoingAway);
-        Assert.Equal(int.MaxValue, decoder.GetGoAwayLastStreamId());
-        Assert.Equal(0, decoder.GetClosedStreamIdCount());
+        Assert.Equal(0, session.ActiveStreamCount);
+        Assert.Equal(int.MaxValue, session.MaxConcurrentStreams);
+        Assert.False(session.IsGoingAway);
+        Assert.Equal(int.MaxValue, session.GoAwayLastStreamId);
+        Assert.Equal(0, session.ClosedStreamCount);
     }
 
     [Fact(DisplayName = "HC-020: Reset() then immediate decode of fresh streams succeeds without prior-state interference")]
     public void Should_DecodeNewStreams_AfterReset_WithoutPriorStateInterference()
     {
-        var decoder = new Http2Decoder();
+        var session = new Http2ProtocolSession();
 
-        // Load the decoder with 500 open streams
+        // Load the session with 500 open streams
         for (var i = 0; i < 500; i++)
         {
-            decoder.TryDecode(BuildHeadersFrame(2 * i + 1, endStream: false), out _);
+            session.Process(BuildHeadersFrame(2 * i + 1, endStream: false).AsMemory());
         }
 
-        decoder.Reset();
+        session.Reset();
 
         // Reuse stream IDs 1..20 — after Reset they are not in _closedStreamIds,
         // so they are treated as fresh idle streams and each should produce a response.
         for (var i = 0; i < 20; i++)
         {
             var streamId = 2 * i + 1;
-            decoder.TryDecode(BuildHeadersFrame(streamId, endStream: true), out var result);
-            Assert.True(result.Responses.Count > 0,
-                $"Stream {streamId} should produce a response after Reset()");
+            session.Process(BuildHeadersFrame(streamId, endStream: true).AsMemory());
         }
 
-        Assert.Equal(0, decoder.GetActiveStreamCount());
+        Assert.Equal(20, session.Responses.Count);
+        Assert.Equal(0, session.ActiveStreamCount);
     }
 }

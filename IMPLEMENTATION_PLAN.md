@@ -884,7 +884,7 @@ by the decoder. Mix of frame inspection + response extraction.
 ---
 
 ### Phase 22 — Migrate `Http2HighConcurrencyTests.cs` (22 refs)
-- [ ] **Status**: pending
+- [x] **Status**: complete (2026-03-06, iter-03)
 
 **File**: `src/TurboHttp.Tests/RFC9113/Http2HighConcurrencyTests.cs`
 
