@@ -589,7 +589,7 @@ CONTINUATION frame (7540-6.9-xxx, dec6-cont-001):
 ---
 
 ### Phase 7 — Migrate `03_StreamStateMachineTests.cs` (25 refs)
-- [ ] **Status**: pending
+- [x] **Status**: complete (2026-03-06, iter-03)
 
 **File**: `src/TurboHttp.Tests/RFC9113/03_StreamStateMachineTests.cs`
 
