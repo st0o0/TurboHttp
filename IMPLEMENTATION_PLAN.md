@@ -490,7 +490,7 @@ implementation shown below. This is the only phase with significant new logic.
 ---
 
 ### Phase 4 — Migrate `02_FrameParsingTests.cs` (2 refs)
-- [ ] **Status**: pending
+- [x] **Status**: complete (2026-03-06, iter-05)
 
 **File**: `src/TurboHttp.Tests/RFC9113/02_FrameParsingTests.cs`
 

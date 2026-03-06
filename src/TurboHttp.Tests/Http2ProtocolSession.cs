@@ -74,6 +74,14 @@ public sealed class Http2ProtocolSession
 
     private void Dispatch(Http2Frame frame)
     {
+        // RFC 7540 §6.10: After HEADERS without END_HEADERS, only CONTINUATION is allowed.
+        if (_continuationBuffer != null && frame is not ContinuationFrame)
+        {
+            throw new Http2Exception(
+                $"Expected CONTINUATION frame but received {frame.GetType().Name}",
+                Http2ErrorCode.ProtocolError, Http2ErrorScope.Connection);
+        }
+
         switch (frame)
         {
             case HeadersFrame h:      HandleHeaders(h);       break;

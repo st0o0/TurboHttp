@@ -558,8 +558,8 @@ public sealed class Http2FrameParsingCoreTests
             0x00, 0x00, 0x00, 0x01, // stream = 1
             0x88 // HPACK :status 200
         };
-        var decoder = new Http2Decoder();
-        var ex = Assert.Throws<Http2Exception>(() => decoder.TryDecode(frame, out _));
+        var session = new Http2ProtocolSession();
+        var ex = Assert.Throws<Http2Exception>(() => session.Process(frame));
         Assert.Equal(Http2ErrorCode.ProtocolError, ex.ErrorCode);
         Assert.True(ex.IsConnectionError);
     }
@@ -582,8 +582,8 @@ public sealed class Http2FrameParsingCoreTests
         headersFrame.CopyTo(combined, 0);
         pingFrame.CopyTo(combined, headersFrame.Length);
 
-        var decoder = new Http2Decoder();
-        var ex = Assert.Throws<Http2Exception>(() => decoder.TryDecode(combined, out _));
+        var session = new Http2ProtocolSession();
+        var ex = Assert.Throws<Http2Exception>(() => session.Process(combined));
         Assert.Equal(Http2ErrorCode.ProtocolError, ex.ErrorCode);
         Assert.True(ex.IsConnectionError);
     }
