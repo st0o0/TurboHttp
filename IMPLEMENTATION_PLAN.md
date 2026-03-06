@@ -675,7 +675,7 @@ CONTINUATION frame (7540-6.9-xxx, dec6-cont-001):
 ---
 
 ### Phase 11 — Migrate `13_DecoderStreamFlowControlTests.cs` (6 refs)
-- [ ] **Status**: pending
+- [x] **Status**: complete (2026-03-06, iter-02)
 
 **File**: `src/TurboHttp.Tests/RFC9113/13_DecoderStreamFlowControlTests.cs`
 

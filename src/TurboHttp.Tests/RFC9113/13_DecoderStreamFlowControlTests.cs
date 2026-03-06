@@ -7,19 +7,19 @@ public sealed class Http2DecoderStreamFlowControlTests
     [Fact(DisplayName = "7540-5.2-dec-001: New stream initial window is 65535")]
     public void FlowControl_InitialConnectionReceiveWindow_Is65535()
     {
-        var decoder = new Http2Decoder();
-        Assert.Equal(65535, decoder.GetConnectionReceiveWindow());
+        var session = new Http2ProtocolSession();
+        Assert.Equal(65535, session.ConnectionReceiveWindow);
     }
 
     [Fact(DisplayName = "7540-5.2-dec-002: WINDOW_UPDATE decoded and window updated")]
     public void FlowControl_WindowUpdateDecoded_WindowUpdated()
     {
         var frame = new WindowUpdateFrame(0, 32768).Serialize();
-        var decoder = new Http2Decoder();
-        decoder.TryDecode(frame, out var result);
+        var session = new Http2ProtocolSession();
+        session.Process(frame);
 
-        // WINDOW_UPDATE from server updates our send window; it is reported in WindowUpdates.
-        Assert.Contains(result.WindowUpdates, u => u.StreamId == 0 && u.Increment == 32768);
+        // Connection-level WINDOW_UPDATE (stream 0) updates the connection send window.
+        Assert.Equal(65535 + 32768, session.ConnectionSendWindow);
     }
 
     [Fact(DisplayName = "7540-5.2-dec-003: Peer DATA beyond window causes FLOW_CONTROL_ERROR")]
@@ -29,15 +29,15 @@ public sealed class Http2DecoderStreamFlowControlTests
         var headerBlock = hpack.Encode([(":status", "200")]);
         var headersFrame = new HeadersFrame(1, headerBlock, endStream: false, endHeaders: true).Serialize();
 
-        var decoder = new Http2Decoder();
-        decoder.TryDecode(headersFrame, out _);
+        var session = new Http2ProtocolSession();
+        session.Process(headersFrame);
 
         // Reduce connection receive window to 4 bytes.
-        decoder.SetConnectionReceiveWindow(4);
+        session.SetConnectionReceiveWindow(4);
 
         // Send 10 bytes of data — exceeds the window.
         var dataFrame = new DataFrame(1, new byte[10], endStream: false).Serialize();
-        var ex = Assert.Throws<Http2Exception>(() => decoder.TryDecode(dataFrame, out _));
+        var ex = Assert.Throws<Http2Exception>(() => session.Process(dataFrame));
         Assert.Equal(Http2ErrorCode.FlowControlError, ex.ErrorCode);
     }
 
@@ -58,8 +58,8 @@ public sealed class Http2DecoderStreamFlowControlTests
         overflowFrame[11] = 0xFF;
         overflowFrame[12] = 0xFF;
 
-        var decoder = new Http2Decoder();
-        var ex = Assert.Throws<Http2Exception>(() => decoder.TryDecode(overflowFrame, out _));
+        var session = new Http2ProtocolSession();
+        var ex = Assert.Throws<Http2Exception>(() => session.Process(overflowFrame));
         Assert.Equal(Http2ErrorCode.FlowControlError, ex.ErrorCode);
     }
 
@@ -74,8 +74,8 @@ public sealed class Http2DecoderStreamFlowControlTests
         // stream = 0 (bytes 5–8 are zero)
         // increment = 0 (bytes 9–12 are zero)
 
-        var decoder = new Http2Decoder();
-        var ex = Assert.Throws<Http2Exception>(() => decoder.TryDecode(frame, out _));
+        var session = new Http2ProtocolSession();
+        var ex = Assert.Throws<Http2Exception>(() => session.Process(frame));
         Assert.Equal(Http2ErrorCode.ProtocolError, ex.ErrorCode);
     }
 }
