@@ -34,6 +34,7 @@ public sealed class Http2ProtocolSession
     private int _continuationStreamId;
     private List<byte>? _continuationBuffer;
     private byte _continuationEndStreamFlags;
+    private int _continuationCount;
     private int _settingsCount;
     private bool _hasNewSettings;
     private readonly List<byte[]> _settingsAcksToSend = new();
@@ -105,6 +106,7 @@ public sealed class Http2ProtocolSession
         _continuationStreamId = 0;
         _continuationBuffer = null;
         _continuationEndStreamFlags = 0;
+        _continuationCount = 0;
         _settingsCount = 0;
         _hasNewSettings = false;
         _settingsAcksToSend.Clear();
@@ -213,7 +215,20 @@ public sealed class Http2ProtocolSession
     {
         if (_continuationBuffer == null || frame.StreamId != _continuationStreamId)
         {
-            throw new Http2Exception("Unexpected CONTINUATION frame",
+            var actual = frame.StreamId;
+            var expected = _continuationStreamId;
+            throw new Http2Exception(
+                _continuationBuffer == null
+                    ? $"Unexpected CONTINUATION frame on stream {actual}; no pending header block"
+                    : $"Unexpected CONTINUATION frame on stream {actual}; expected stream {expected}",
+                Http2ErrorCode.ProtocolError, Http2ErrorScope.Connection);
+        }
+
+        _continuationCount++;
+        if (_continuationCount > 1000)
+        {
+            throw new Http2Exception(
+                "RFC 7540 security: Excessive CONTINUATION frames — possible CONTINUATION flood attack.",
                 Http2ErrorCode.ProtocolError, Http2ErrorScope.Connection);
         }
 
@@ -224,17 +239,26 @@ public sealed class Http2ProtocolSession
             var block = _continuationBuffer.ToArray().AsMemory();
             var headers = _hpack.Decode(block.Span);
             var response = BuildResponse(headers, _continuationStreamId);
-            if (response != null)
-            {
-                _responses.Add((_continuationStreamId, response));
-            }
 
             var endStream = _continuationEndStreamFlags != 0;
             if (endStream)
             {
+                if (response != null)
+                {
+                    _responses.Add((_continuationStreamId, response));
+                }
                 MarkClosed(_continuationStreamId);
             }
+            else
+            {
+                if (response != null)
+                {
+                    _pendingResponses[_continuationStreamId] = (response, new List<byte>());
+                }
+                _streamStates[_continuationStreamId] = Http2StreamLifecycleState.Open;
+            }
 
+            _continuationCount = 0;
             _continuationBuffer = null;
             _continuationStreamId = 0;
         }

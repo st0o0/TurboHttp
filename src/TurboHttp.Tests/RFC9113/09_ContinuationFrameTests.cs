@@ -56,12 +56,11 @@ public sealed class Http2ContinuationFrameTests
         var block = hpack.Encode([(":status", "200")]);
         var frame = new HeadersFrame(1, block, endStream: true, endHeaders: true).Serialize();
 
-        var decoder = new Http2Decoder();
-        var decoded = decoder.TryDecode(frame, out var result);
+        var session = new Http2ProtocolSession();
+        session.Process(frame);
 
-        Assert.True(decoded);
-        Assert.Single(result.Responses);
-        Assert.Equal(200, (int)result.Responses[0].Response.StatusCode);
+        Assert.Single(session.Responses);
+        Assert.Equal(200, (int)session.Responses[0].Response.StatusCode);
     }
 
     /// RFC 9113 §6.10 — HEADERS without END_HEADERS produces no response until CONTINUATION
@@ -71,10 +70,10 @@ public sealed class Http2ContinuationFrameTests
         var block = EncodeStatus200();
         var headersFrame = new HeadersFrame(1, block.AsMemory()[..1], endStream: true, endHeaders: false).Serialize();
 
-        var decoder = new Http2Decoder();
-        decoder.TryDecode(headersFrame, out var result);
+        var session = new Http2ProtocolSession();
+        session.Process(headersFrame);
 
-        Assert.False(result.HasResponses);
+        Assert.Empty(session.Responses);
     }
 
     /// RFC 9113 §6.10 — Single CONTINUATION with END_HEADERS completes header block
@@ -86,12 +85,12 @@ public sealed class Http2ContinuationFrameTests
         var headersFrame = new HeadersFrame(1, block.AsMemory()[..split], endStream: true, endHeaders: false).Serialize();
         var contFrame = new ContinuationFrame(1, block.AsMemory()[split..], endHeaders: true).Serialize();
 
-        var decoder = new Http2Decoder();
-        decoder.TryDecode(headersFrame, out _);
-        decoder.TryDecode(contFrame, out var result);
+        var session = new Http2ProtocolSession();
+        session.Process(headersFrame);
+        session.Process(contFrame);
 
-        Assert.Single(result.Responses);
-        Assert.Equal(200, (int)result.Responses[0].Response.StatusCode);
+        Assert.Single(session.Responses);
+        Assert.Equal(200, (int)session.Responses[0].Response.StatusCode);
     }
 
     /// RFC 9113 §6.10 — CONTINUATION without END_HEADERS produces no response
@@ -103,11 +102,11 @@ public sealed class Http2ContinuationFrameTests
         var headersFrame = new HeadersFrame(1, block.AsMemory()[..third], endStream: true, endHeaders: false).Serialize();
         var cont1 = new ContinuationFrame(1, block.AsMemory()[third..Math.Min(2 * third, block.Length)], endHeaders: false).Serialize();
 
-        var decoder = new Http2Decoder();
-        decoder.TryDecode(headersFrame, out _);
-        decoder.TryDecode(cont1, out var result);
+        var session = new Http2ProtocolSession();
+        session.Process(headersFrame);
+        session.Process(cont1);
 
-        Assert.False(result.HasResponses);
+        Assert.Empty(session.Responses);
     }
 
     /// RFC 9113 §6.10 — Three CONTINUATION frames with last having END_HEADERS produces response
@@ -122,14 +121,14 @@ public sealed class Http2ContinuationFrameTests
         var cont2 = new ContinuationFrame(1, block.AsMemory()[(2 * quarter)..(3 * quarter)], endHeaders: false).Serialize();
         var cont3 = new ContinuationFrame(1, block.AsMemory()[(3 * quarter)..], endHeaders: true).Serialize();
 
-        var decoder = new Http2Decoder();
-        decoder.TryDecode(headersFrame, out _);
-        decoder.TryDecode(cont1, out _);
-        decoder.TryDecode(cont2, out _);
-        decoder.TryDecode(cont3, out var result);
+        var session = new Http2ProtocolSession();
+        session.Process(headersFrame);
+        session.Process(cont1);
+        session.Process(cont2);
+        session.Process(cont3);
 
-        Assert.Single(result.Responses);
-        Assert.Equal(200, (int)result.Responses[0].Response.StatusCode);
+        Assert.Single(session.Responses);
+        Assert.Equal(200, (int)session.Responses[0].Response.StatusCode);
     }
 
     /// RFC 9113 §6.10 — Header values preserved across multiple CONTINUATION fragments
@@ -142,12 +141,12 @@ public sealed class Http2ContinuationFrameTests
         var headersFrame = new HeadersFrame(1, block.AsMemory()[..half], endStream: true, endHeaders: false).Serialize();
         var cont = new ContinuationFrame(1, block.AsMemory()[half..], endHeaders: true).Serialize();
 
-        var decoder = new Http2Decoder();
-        decoder.TryDecode(headersFrame, out _);
-        decoder.TryDecode(cont, out var result);
+        var session = new Http2ProtocolSession();
+        session.Process(headersFrame);
+        session.Process(cont);
 
-        Assert.Single(result.Responses);
-        var resp = result.Responses[0].Response;
+        Assert.Single(session.Responses);
+        var resp = session.Responses[0].Response;
         Assert.Equal(201, (int)resp.StatusCode);
         Assert.True(resp.Headers.Contains("x-custom"));
     }
@@ -170,10 +169,10 @@ public sealed class Http2ContinuationFrameTests
             0x61, 0x62, 0x63  // "abc"
         };
 
-        var decoder = new Http2Decoder();
-        decoder.TryDecode(headersFrame, out _);
+        var session = new Http2ProtocolSession();
+        session.Process(headersFrame);
 
-        var ex = Assert.Throws<Http2Exception>(() => decoder.TryDecode(dataFrame, out _));
+        var ex = Assert.Throws<Http2Exception>(() => session.Process(dataFrame));
         Assert.Equal(Http2ErrorCode.ProtocolError, ex.ErrorCode);
         Assert.True(ex.IsConnectionError);
     }
@@ -186,10 +185,10 @@ public sealed class Http2ContinuationFrameTests
         var headersFrame = new HeadersFrame(1, block.AsMemory()[..1], endStream: false, endHeaders: false).Serialize();
         var pingFrame = new PingFrame(new byte[8]).Serialize();
 
-        var decoder = new Http2Decoder();
-        decoder.TryDecode(headersFrame, out _);
+        var session = new Http2ProtocolSession();
+        session.Process(headersFrame);
 
-        var ex = Assert.Throws<Http2Exception>(() => decoder.TryDecode(pingFrame, out _));
+        var ex = Assert.Throws<Http2Exception>(() => session.Process(pingFrame));
         Assert.Equal(Http2ErrorCode.ProtocolError, ex.ErrorCode);
         Assert.True(ex.IsConnectionError);
     }
@@ -202,10 +201,10 @@ public sealed class Http2ContinuationFrameTests
         var headersFrame = new HeadersFrame(1, block.AsMemory()[..1], endStream: false, endHeaders: false).Serialize();
         var settingsFrame = new SettingsFrame([]).Serialize();
 
-        var decoder = new Http2Decoder();
-        decoder.TryDecode(headersFrame, out _);
+        var session = new Http2ProtocolSession();
+        session.Process(headersFrame);
 
-        var ex = Assert.Throws<Http2Exception>(() => decoder.TryDecode(settingsFrame, out _));
+        var ex = Assert.Throws<Http2Exception>(() => session.Process(settingsFrame));
         Assert.Equal(Http2ErrorCode.ProtocolError, ex.ErrorCode);
         Assert.True(ex.IsConnectionError);
     }
@@ -218,10 +217,10 @@ public sealed class Http2ContinuationFrameTests
         var headersFrame = new HeadersFrame(1, block.AsMemory()[..1], endStream: false, endHeaders: false).Serialize();
         var rstFrame = new RstStreamFrame(1, Http2ErrorCode.Cancel).Serialize();
 
-        var decoder = new Http2Decoder();
-        decoder.TryDecode(headersFrame, out _);
+        var session = new Http2ProtocolSession();
+        session.Process(headersFrame);
 
-        var ex = Assert.Throws<Http2Exception>(() => decoder.TryDecode(rstFrame, out _));
+        var ex = Assert.Throws<Http2Exception>(() => session.Process(rstFrame));
         Assert.Equal(Http2ErrorCode.ProtocolError, ex.ErrorCode);
         Assert.True(ex.IsConnectionError);
     }
@@ -234,10 +233,10 @@ public sealed class Http2ContinuationFrameTests
         var headersFrame = new HeadersFrame(1, block.AsMemory()[..1], endStream: false, endHeaders: false).Serialize();
         var windowUpdate = new WindowUpdateFrame(0, 65535).Serialize();
 
-        var decoder = new Http2Decoder();
-        decoder.TryDecode(headersFrame, out _);
+        var session = new Http2ProtocolSession();
+        session.Process(headersFrame);
 
-        var ex = Assert.Throws<Http2Exception>(() => decoder.TryDecode(windowUpdate, out _));
+        var ex = Assert.Throws<Http2Exception>(() => session.Process(windowUpdate));
         Assert.Equal(Http2ErrorCode.ProtocolError, ex.ErrorCode);
         Assert.True(ex.IsConnectionError);
     }
@@ -250,10 +249,10 @@ public sealed class Http2ContinuationFrameTests
         var headersFrame = new HeadersFrame(1, block.AsMemory()[..1], endStream: false, endHeaders: false).Serialize();
         var goAwayFrame = new GoAwayFrame(1, Http2ErrorCode.NoError).Serialize();
 
-        var decoder = new Http2Decoder();
-        decoder.TryDecode(headersFrame, out _);
+        var session = new Http2ProtocolSession();
+        session.Process(headersFrame);
 
-        var ex = Assert.Throws<Http2Exception>(() => decoder.TryDecode(goAwayFrame, out _));
+        var ex = Assert.Throws<Http2Exception>(() => session.Process(goAwayFrame));
         Assert.Equal(Http2ErrorCode.ProtocolError, ex.ErrorCode);
         Assert.True(ex.IsConnectionError);
     }
@@ -268,10 +267,10 @@ public sealed class Http2ContinuationFrameTests
         // New HEADERS on stream 3 while stream 1 awaits CONTINUATION.
         var headersFrame3 = new HeadersFrame(3, block, endStream: true, endHeaders: true).Serialize();
 
-        var decoder = new Http2Decoder();
-        decoder.TryDecode(headersFrame1, out _);
+        var session = new Http2ProtocolSession();
+        session.Process(headersFrame1);
 
-        var ex = Assert.Throws<Http2Exception>(() => decoder.TryDecode(headersFrame3, out _));
+        var ex = Assert.Throws<Http2Exception>(() => session.Process(headersFrame3));
         Assert.Equal(Http2ErrorCode.ProtocolError, ex.ErrorCode);
         Assert.True(ex.IsConnectionError);
     }
@@ -292,10 +291,10 @@ public sealed class Http2ContinuationFrameTests
             0x88
         };
 
-        var decoder = new Http2Decoder();
-        decoder.TryDecode(headersFrame, out _);
+        var session = new Http2ProtocolSession();
+        session.Process(headersFrame);
 
-        var ex = Assert.Throws<Http2Exception>(() => decoder.TryDecode(contOnStream0, out _));
+        var ex = Assert.Throws<Http2Exception>(() => session.Process(contOnStream0));
         Assert.Equal(Http2ErrorCode.ProtocolError, ex.ErrorCode);
         Assert.True(ex.IsConnectionError);
     }
@@ -308,10 +307,10 @@ public sealed class Http2ContinuationFrameTests
         var headersFrame = new HeadersFrame(1, block.AsMemory()[..1], endStream: false, endHeaders: false).Serialize();
         var contOnStream3 = new ContinuationFrame(3, block.AsMemory()[1..], endHeaders: true).Serialize();
 
-        var decoder = new Http2Decoder();
-        decoder.TryDecode(headersFrame, out _);
+        var session = new Http2ProtocolSession();
+        session.Process(headersFrame);
 
-        var ex = Assert.Throws<Http2Exception>(() => decoder.TryDecode(contOnStream3, out _));
+        var ex = Assert.Throws<Http2Exception>(() => session.Process(contOnStream3));
         Assert.Equal(Http2ErrorCode.ProtocolError, ex.ErrorCode);
         Assert.True(ex.IsConnectionError);
     }
@@ -323,8 +322,8 @@ public sealed class Http2ContinuationFrameTests
         var block = EncodeStatus200();
         var contFrame = new ContinuationFrame(1, block, endHeaders: true).Serialize();
 
-        var decoder = new Http2Decoder();
-        var ex = Assert.Throws<Http2Exception>(() => decoder.TryDecode(contFrame, out _));
+        var session = new Http2ProtocolSession();
+        var ex = Assert.Throws<Http2Exception>(() => session.Process(contFrame));
         Assert.Equal(Http2ErrorCode.ProtocolError, ex.ErrorCode);
         Assert.True(ex.IsConnectionError);
     }
@@ -339,18 +338,18 @@ public sealed class Http2ContinuationFrameTests
         // Stray CONTINUATION on stream 1 after block is complete.
         var contFrame = new ContinuationFrame(1, new byte[] { 0x88 }, endHeaders: true).Serialize();
 
-        var decoder = new Http2Decoder();
-        decoder.TryDecode(headersFrame, out _);
+        var session = new Http2ProtocolSession();
+        session.Process(headersFrame);
 
-        var ex = Assert.Throws<Http2Exception>(() => decoder.TryDecode(contFrame, out _));
+        var ex = Assert.Throws<Http2Exception>(() => session.Process(contFrame));
         Assert.Equal(Http2ErrorCode.ProtocolError, ex.ErrorCode);
         Assert.True(ex.IsConnectionError);
     }
 
     // ── Combined delivery ────────────────────────────────────────────────────
 
-    /// RFC 9113 §6.10 — HEADERS and CONTINUATION in same TryDecode call are processed
-    [Fact(DisplayName = "RFC9113-6.10-CF-018: HEADERS and CONTINUATION in same TryDecode call are processed")]
+    /// RFC 9113 §6.10 — HEADERS and CONTINUATION in same Process call are processed
+    [Fact(DisplayName = "RFC9113-6.10-CF-018: HEADERS and CONTINUATION in same Process call are processed")]
     public void Should_ProduceResponse_When_HeadersAndContinuationDeliveredTogether()
     {
         var block = EncodeStatus200();
@@ -360,15 +359,15 @@ public sealed class Http2ContinuationFrameTests
 
         var combined = ConcatFrames(headersFrame, contFrame);
 
-        var decoder = new Http2Decoder();
-        decoder.TryDecode(combined, out var result);
+        var session = new Http2ProtocolSession();
+        session.Process(combined);
 
-        Assert.Single(result.Responses);
-        Assert.Equal(200, (int)result.Responses[0].Response.StatusCode);
+        Assert.Single(session.Responses);
+        Assert.Equal(200, (int)session.Responses[0].Response.StatusCode);
     }
 
-    /// RFC 9113 §6.10 — HEADERS + three CONTINUATION frames in single TryDecode call
-    [Fact(DisplayName = "RFC9113-6.10-CF-019: HEADERS + three CONTINUATION frames in single TryDecode call")]
+    /// RFC 9113 §6.10 — HEADERS + three CONTINUATION frames in single Process call
+    [Fact(DisplayName = "RFC9113-6.10-CF-019: HEADERS + three CONTINUATION frames in single Process call")]
     public void Should_ProduceResponse_When_ThreeFramesDeliveredTogether()
     {
         var block = EncodeHeaders((":status", "404"), ("x-error", "not-found"));
@@ -381,11 +380,11 @@ public sealed class Http2ContinuationFrameTests
 
         var combined = ConcatFrames(h, c1, c2, c3);
 
-        var decoder = new Http2Decoder();
-        decoder.TryDecode(combined, out var result);
+        var session = new Http2ProtocolSession();
+        session.Process(combined);
 
-        Assert.Single(result.Responses);
-        Assert.Equal(404, (int)result.Responses[0].Response.StatusCode);
+        Assert.Single(session.Responses);
+        Assert.Equal(404, (int)session.Responses[0].Response.StatusCode);
     }
 
     /// RFC 9113 §6.10 — Fragmented CONTINUATION (partial frame bytes) buffered and completed
@@ -397,17 +396,17 @@ public sealed class Http2ContinuationFrameTests
         var headersFrame = new HeadersFrame(1, block.AsMemory()[..split], endStream: true, endHeaders: false).Serialize();
         var contFrame = new ContinuationFrame(1, block.AsMemory()[split..], endHeaders: true).Serialize();
 
-        var decoder = new Http2Decoder();
+        var session = new Http2ProtocolSession();
         // Deliver HEADERS fully.
-        decoder.TryDecode(headersFrame, out _);
+        session.Process(headersFrame);
         // Deliver CONTINUATION in two TCP fragments: first half of frame bytes, then rest.
         var halfCont = contFrame.Length / 2;
-        decoder.TryDecode(contFrame.AsMemory()[..halfCont], out var r1);
-        Assert.False(r1.HasResponses); // incomplete frame — buffered
-        decoder.TryDecode(contFrame.AsMemory()[halfCont..], out var r2);
+        session.Process(contFrame.AsMemory()[..halfCont]);
+        Assert.Empty(session.Responses); // incomplete frame — buffered
+        session.Process(contFrame.AsMemory()[halfCont..]);
 
-        Assert.Single(r2.Responses);
-        Assert.Equal(200, (int)r2.Responses[0].Response.StatusCode);
+        Assert.Single(session.Responses);
+        Assert.Equal(200, (int)session.Responses[0].Response.StatusCode);
     }
 
     /// RFC 9113 §6.10 — Reset clears pending CONTINUATION state
@@ -417,17 +416,17 @@ public sealed class Http2ContinuationFrameTests
         var block = EncodeStatus200();
         var headersFrame = new HeadersFrame(1, block.AsMemory()[..1], endStream: false, endHeaders: false).Serialize();
 
-        var decoder = new Http2Decoder();
-        decoder.TryDecode(headersFrame, out _);
+        var session = new Http2ProtocolSession();
+        session.Process(headersFrame);
 
         // After reset, a new stream should be accepted without PROTOCOL_ERROR.
-        decoder.Reset();
+        session.Reset();
 
         var block2 = EncodeStatus200();
         var freshFrame = new HeadersFrame(1, block2, endStream: true, endHeaders: true).Serialize();
-        decoder.TryDecode(freshFrame, out var result);
+        session.Process(freshFrame);
 
-        Assert.Single(result.Responses);
+        Assert.Single(session.Responses);
     }
 
     /// RFC 9113 §6.10 — Error message includes offending stream ID when CONTINUATION on wrong stream
@@ -438,10 +437,10 @@ public sealed class Http2ContinuationFrameTests
         var headersFrame = new HeadersFrame(1, block.AsMemory()[..1], endStream: false, endHeaders: false).Serialize();
         var contOnStream5 = new ContinuationFrame(5, block.AsMemory()[1..], endHeaders: true).Serialize();
 
-        var decoder = new Http2Decoder();
-        decoder.TryDecode(headersFrame, out _);
+        var session = new Http2ProtocolSession();
+        session.Process(headersFrame);
 
-        var ex = Assert.Throws<Http2Exception>(() => decoder.TryDecode(contOnStream5, out _));
+        var ex = Assert.Throws<Http2Exception>(() => session.Process(contOnStream5));
         Assert.Equal(Http2ErrorCode.ProtocolError, ex.ErrorCode);
         // Error message should mention stream IDs involved.
         Assert.Contains("5", ex.Message);
@@ -455,15 +454,15 @@ public sealed class Http2ContinuationFrameTests
         var block = EncodeStatus200();
         var headersFrame = new HeadersFrame(1, block.AsMemory()[..1], endStream: false, endHeaders: false).Serialize();
 
-        var decoder = new Http2Decoder();
-        decoder.TryDecode(headersFrame, out _);
+        var session = new Http2ProtocolSession();
+        session.Process(headersFrame);
 
         var ex = Assert.Throws<Http2Exception>(() =>
         {
             for (var i = 0; i < 1001; i++)
             {
                 var cont = new ContinuationFrame(1, new byte[] { 0x00 }, endHeaders: false).Serialize();
-                decoder.TryDecode(cont, out _);
+                session.Process(cont);
             }
         });
         Assert.Equal(Http2ErrorCode.ProtocolError, ex.ErrorCode);
@@ -480,12 +479,12 @@ public sealed class Http2ContinuationFrameTests
         var headersFrame = new HeadersFrame(1, block.AsMemory()[..split], endStream: true, endHeaders: false).Serialize();
         var contFrame = new ContinuationFrame(1, block.AsMemory()[split..], endHeaders: true).Serialize();
 
-        var decoder = new Http2Decoder();
-        decoder.TryDecode(headersFrame, out _);
-        decoder.TryDecode(contFrame, out var result);
+        var session = new Http2ProtocolSession();
+        session.Process(headersFrame);
+        session.Process(contFrame);
 
         // Response must be present — END_STREAM means no DATA frame will follow.
-        Assert.Single(result.Responses);
+        Assert.Single(session.Responses);
     }
 
     /// RFC 9113 §6.10 — Without END_STREAM on HEADERS, response awaits DATA frame
@@ -498,21 +497,21 @@ public sealed class Http2ContinuationFrameTests
         var headersFrame = new HeadersFrame(1, block.AsMemory()[..split], endStream: false, endHeaders: false).Serialize();
         var contFrame = new ContinuationFrame(1, block.AsMemory()[split..], endHeaders: true).Serialize();
 
-        var decoder = new Http2Decoder();
-        decoder.TryDecode(headersFrame, out _);
-        decoder.TryDecode(contFrame, out var result);
+        var session = new Http2ProtocolSession();
+        session.Process(headersFrame);
+        session.Process(contFrame);
 
         // No response yet — body will follow in DATA frame.
-        Assert.False(result.HasResponses);
+        Assert.Empty(session.Responses);
 
         // Deliver a DATA frame with END_STREAM.
-        decoder.SetStreamReceiveWindow(1, 65535);
+        session.SetStreamReceiveWindow(1, 65535);
         var dataPayload = new byte[] { 0x68, 0x69 }; // "hi"
         var dataFrame = BuildDataFrame(1, dataPayload, endStream: true);
-        decoder.TryDecode(dataFrame, out var finalResult);
+        session.Process(dataFrame);
 
-        Assert.Single(finalResult.Responses);
-        Assert.Equal(200, (int)finalResult.Responses[0].Response.StatusCode);
+        Assert.Single(session.Responses);
+        Assert.Equal(200, (int)session.Responses[0].Response.StatusCode);
     }
 
     // ── helper: manually craft a DATA frame ──────────────────────────────────

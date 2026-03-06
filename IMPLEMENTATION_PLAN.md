@@ -711,7 +711,7 @@ Uses `TryDecode` + `result.Responses` + stream lifecycle state.
 ---
 
 ### Phase 13 — Migrate `09_ContinuationFrameTests.cs` (25 refs)
-- [ ] **Status**: pending
+- [x] **Status**: complete (2026-03-06, iter-04)
 
 **File**: `src/TurboHttp.Tests/RFC9113/09_ContinuationFrameTests.cs`
 
