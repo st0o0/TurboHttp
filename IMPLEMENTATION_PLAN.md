@@ -233,7 +233,7 @@ public sealed class Http2ProtocolSession
 ---
 
 ### Phase 2 — Implement `Http2ProtocolSession` full logic
-- [ ] **Status**: pending
+- [x] **Status**: complete (2026-03-06, iter-03)
 
 **Prerequisite**: Phase 1 complete (skeleton compiles).
 

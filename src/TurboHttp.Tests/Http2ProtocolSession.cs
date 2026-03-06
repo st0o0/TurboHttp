@@ -62,18 +62,224 @@ public sealed class Http2ProtocolSession
     public void SetStreamReceiveWindow(int streamId, int value) =>
         _streamReceiveWindows[streamId] = value;
 
-    public IReadOnlyList<Http2Frame> Process(ReadOnlyMemory<byte> data) =>
-        throw new NotImplementedException();
+    public IReadOnlyList<Http2Frame> Process(ReadOnlyMemory<byte> data)
+    {
+        var frames = _frameDecoder.Decode(data);
+        foreach (var frame in frames)
+        {
+            Dispatch(frame);
+        }
+        return frames;
+    }
 
-    private void Dispatch(Http2Frame frame) => throw new NotImplementedException();
-    private void HandleHeaders(HeadersFrame frame) => throw new NotImplementedException();
-    private void HandleContinuation(ContinuationFrame frame) => throw new NotImplementedException();
-    private void HandleData(DataFrame frame) => throw new NotImplementedException();
-    private void HandleSettings(SettingsFrame frame) => throw new NotImplementedException();
-    private void HandlePing(PingFrame frame) => throw new NotImplementedException();
-    private void HandleWindowUpdate(WindowUpdateFrame frame) => throw new NotImplementedException();
-    private void HandleRst(RstStreamFrame frame) => throw new NotImplementedException();
-    private void MarkClosed(int streamId) => throw new NotImplementedException();
+    private void Dispatch(Http2Frame frame)
+    {
+        switch (frame)
+        {
+            case HeadersFrame h:      HandleHeaders(h);       break;
+            case DataFrame d:         HandleData(d);          break;
+            case SettingsFrame s:     HandleSettings(s);      break;
+            case PingFrame p:         HandlePing(p);          break;
+            case WindowUpdateFrame w: HandleWindowUpdate(w);  break;
+            case RstStreamFrame r:    HandleRst(r);           break;
+            case GoAwayFrame g:       _goAwayFrame = g;       break;
+            case ContinuationFrame c: HandleContinuation(c);  break;
+        }
+    }
+
+    private void HandleHeaders(HeadersFrame frame)
+    {
+        var streamId = frame.StreamId;
+        var currentState = GetStreamState(streamId);
+
+        if (currentState == Http2StreamLifecycleState.Idle)
+        {
+            if (_maxConcurrentStreams != int.MaxValue &&
+                _activeStreamCount >= _maxConcurrentStreams)
+            {
+                throw new Http2Exception(
+                    $"MAX_CONCURRENT_STREAMS ({_maxConcurrentStreams}) exceeded",
+                    Http2ErrorCode.RefusedStream, Http2ErrorScope.Stream);
+            }
+            _activeStreamCount++;
+            _streamSendWindows[streamId] = _initialWindowSize;
+            _streamReceiveWindows[streamId] = _initialWindowSize;
+        }
+        else if (currentState == Http2StreamLifecycleState.Closed)
+        {
+            throw new Http2Exception(
+                $"HEADERS on closed stream {streamId}",
+                Http2ErrorCode.StreamClosed, Http2ErrorScope.Stream);
+        }
+
+        if (frame.EndHeaders)
+        {
+            var headers = _hpack.Decode(frame.HeaderBlockFragment.Span);
+            var response = BuildResponse(headers, streamId);
+            if (response != null)
+            {
+                _responses.Add((streamId, response));
+            }
+
+            var newState = frame.EndStream
+                ? Http2StreamLifecycleState.Closed
+                : Http2StreamLifecycleState.Open;
+
+            if (newState == Http2StreamLifecycleState.Closed)
+            {
+                MarkClosed(streamId);
+            }
+            else
+            {
+                _streamStates[streamId] = newState;
+            }
+        }
+        else
+        {
+            _continuationStreamId = streamId;
+            _continuationBuffer = new List<byte>(frame.HeaderBlockFragment.ToArray());
+            _continuationEndStreamFlags = frame.EndStream ? (byte)1 : (byte)0;
+            _streamStates[streamId] = Http2StreamLifecycleState.Open;
+        }
+    }
+
+    private void HandleContinuation(ContinuationFrame frame)
+    {
+        if (_continuationBuffer == null || frame.StreamId != _continuationStreamId)
+        {
+            throw new Http2Exception("Unexpected CONTINUATION frame",
+                Http2ErrorCode.ProtocolError, Http2ErrorScope.Connection);
+        }
+
+        _continuationBuffer.AddRange(frame.HeaderBlockFragment.ToArray());
+
+        if (frame.EndHeaders)
+        {
+            var block = _continuationBuffer.ToArray().AsMemory();
+            var headers = _hpack.Decode(block.Span);
+            var response = BuildResponse(headers, _continuationStreamId);
+            if (response != null)
+            {
+                _responses.Add((_continuationStreamId, response));
+            }
+
+            var endStream = _continuationEndStreamFlags != 0;
+            if (endStream)
+            {
+                MarkClosed(_continuationStreamId);
+            }
+
+            _continuationBuffer = null;
+            _continuationStreamId = 0;
+        }
+    }
+
+    private void HandleData(DataFrame frame)
+    {
+        var streamId = frame.StreamId;
+        var state = GetStreamState(streamId);
+
+        if (state == Http2StreamLifecycleState.Idle)
+        {
+            throw new Http2Exception($"DATA on idle stream {streamId}",
+                Http2ErrorCode.StreamClosed, Http2ErrorScope.Connection);
+        }
+
+        _connectionReceiveWindow -= frame.Data.Length;
+        if (_streamReceiveWindows.TryGetValue(streamId, out var sw))
+        {
+            _streamReceiveWindows[streamId] = sw - frame.Data.Length;
+        }
+
+        if (frame.EndStream && state == Http2StreamLifecycleState.Open)
+        {
+            MarkClosed(streamId);
+        }
+    }
+
+    private void HandleSettings(SettingsFrame frame)
+    {
+        if (frame.IsAck)
+        {
+            return;
+        }
+
+        var parameters = frame.Parameters;
+        _settings.Add(parameters);
+
+        foreach (var (param, value) in parameters)
+        {
+            switch (param)
+            {
+                case SettingsParameter.MaxConcurrentStreams:
+                    _maxConcurrentStreams = (int)value;
+                    break;
+                case SettingsParameter.InitialWindowSize:
+                    _initialWindowSize = (int)value;
+                    foreach (var sid in _streamSendWindows.Keys.ToList())
+                    {
+                        _streamSendWindows[sid] = value;
+                    }
+                    break;
+                case SettingsParameter.MaxFrameSize:
+                    break;
+            }
+        }
+    }
+
+    private void HandlePing(PingFrame frame)
+    {
+        if (!frame.IsAck)
+        {
+            _pingCount++;
+            _pingRequests.Add(frame.Data);
+        }
+    }
+
+    private void HandleWindowUpdate(WindowUpdateFrame frame)
+    {
+        var streamId = frame.StreamId;
+        if (streamId == 0)
+        {
+            _connectionSendWindow += frame.Increment;
+        }
+        else
+        {
+            _windowUpdates.Add((streamId, frame.Increment));
+            if (_streamSendWindows.TryGetValue(streamId, out var w))
+            {
+                _streamSendWindows[streamId] = w + frame.Increment;
+            }
+        }
+    }
+
+    private void HandleRst(RstStreamFrame frame)
+    {
+        _rstStreams.Add((frame.StreamId, frame.ErrorCode));
+        MarkClosed(frame.StreamId);
+    }
+
+    private void MarkClosed(int streamId)
+    {
+        _streamStates[streamId] = Http2StreamLifecycleState.Closed;
+        _closedStreamIds.Add(streamId);
+        _activeStreamCount = Math.Max(0, _activeStreamCount - 1);
+    }
+
     private static HttpResponseMessage? BuildResponse(
-        IReadOnlyList<HpackHeader> headers, int streamId) => throw new NotImplementedException();
+        IReadOnlyList<HpackHeader> headers, int streamId)
+    {
+        var status = headers.FirstOrDefault(h => h.Name == ":status");
+        if (status == default)
+        {
+            return null;
+        }
+
+        var response = new HttpResponseMessage((HttpStatusCode)int.Parse(status.Value));
+        foreach (var h in headers.Where(h => !h.Name.StartsWith(':')))
+        {
+            response.Headers.TryAddWithoutValidation(h.Name, h.Value);
+        }
+        return response;
+    }
 }
