@@ -844,7 +844,7 @@ then decode the response bytes with `Http2Decoder`. Pattern:
 ---
 
 ### Phase 20 — Migrate `Http2SecurityTests.cs` (6 refs)
-- [ ] **Status**: pending
+- [x] **Status**: complete (2026-03-06, iter-01)
 
 **File**: `src/TurboHttp.Tests/RFC9113/Http2SecurityTests.cs`
 

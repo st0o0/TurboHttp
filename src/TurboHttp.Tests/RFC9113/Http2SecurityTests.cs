@@ -10,7 +10,7 @@ public sealed class Http2SecurityTests
     [Fact(DisplayName = "SEC-h2-003: Excessive CONTINUATION frames rejected")]
     public void Should_ThrowHttp2Exception_When_1000ContinuationFramesReceived()
     {
-        var decoder = new Http2Decoder();
+        var session = new Http2ProtocolSession();
 
         // HEADERS frame on stream 1, no END_HEADERS (flags=0x0).
         // Payload: one valid HPACK byte (0x88 = indexed :status: 200).
@@ -30,12 +30,12 @@ public sealed class Http2SecurityTests
         var chunk1 = new byte[headersFrame.Length + continuations999.Length];
         headersFrame.CopyTo(chunk1, 0);
         continuations999.CopyTo(chunk1, headersFrame.Length);
-        decoder.TryDecode(chunk1, out _);
+        session.Process(chunk1);
 
         // The 1000th CONTINUATION frame should trigger the protection.
         var continuation1000 = BuildRawFrame(frameType: 0x9, flags: 0x0, streamId: 1, []);
         var ex = Assert.Throws<Http2Exception>(() =>
-            decoder.TryDecode(continuation1000, out _));
+            session.Process(continuation1000));
 
         Assert.Equal(Http2ErrorCode.ProtocolError, ex.ErrorCode);
     }
@@ -45,7 +45,7 @@ public sealed class Http2SecurityTests
     [Fact(DisplayName = "SEC-h2-004: Rapid RST_STREAM cycling triggers protection (CVE-2023-44487)")]
     public void Should_ThrowHttp2Exception_When_101RstStreamFramesReceived()
     {
-        var decoder = new Http2Decoder();
+        var session = new Http2ProtocolSession();
 
         // Send 100 RST_STREAM frames on distinct stream IDs — should all be accepted.
         // RST_STREAM payload: 4 bytes error code (NO_ERROR = 0x0).
@@ -54,12 +54,12 @@ public sealed class Http2SecurityTests
         for (var i = 0; i < 100; i++) // 100 frames on stream IDs 1, 3, 5, ..., 199
         {
             var rst = BuildRawFrame(frameType: 0x3, flags: 0x0, streamId: 2 * i + 1, errorCode);
-            decoder.TryDecode(rst, out _);
+            session.Process(rst);
         }
 
         // The 101st RST_STREAM frame should trigger rapid-reset protection.
         var rst101 = BuildRawFrame(frameType: 0x3, flags: 0x0, streamId: 201, errorCode);
-        var ex = Assert.Throws<Http2Exception>(() => decoder.TryDecode(rst101, out _));
+        var ex = Assert.Throws<Http2Exception>(() => session.Process(rst101));
 
         Assert.Equal(Http2ErrorCode.ProtocolError, ex.ErrorCode);
     }
@@ -69,7 +69,7 @@ public sealed class Http2SecurityTests
     [Fact(DisplayName = "SEC-h2-005: Excessive zero-length DATA frames rejected")]
     public void Should_ThrowHttp2Exception_When_10001EmptyDataFramesReceived()
     {
-        var decoder = new Http2Decoder();
+        var session = new Http2ProtocolSession();
 
         // Build a buffer with 10001 empty DATA frames on stream 1.
         // Each frame: 9-byte header + 0-byte payload = 9 bytes.
@@ -82,7 +82,7 @@ public sealed class Http2SecurityTests
         }
 
         // Feed all frames — the 10001st empty DATA frame should throw.
-        var ex = Assert.Throws<Http2Exception>(() => decoder.TryDecode(allFrames, out _));
+        var ex = Assert.Throws<Http2Exception>(() => session.Process(allFrames));
         Assert.Equal(Http2ErrorCode.ProtocolError, ex.ErrorCode);
     }
 
@@ -91,7 +91,7 @@ public sealed class Http2SecurityTests
     [Fact(DisplayName = "SEC-h2-006: SETTINGS_ENABLE_PUSH value >1 causes PROTOCOL_ERROR")]
     public void Should_ThrowHttp2Exception_When_EnablePushExceedsOne()
     {
-        var decoder = new Http2Decoder();
+        var session = new Http2ProtocolSession();
 
         // SETTINGS frame: EnablePush = 2 (invalid — only 0 or 1 are valid).
         var settingsFrame = new SettingsFrame(new List<(SettingsParameter, uint)>
@@ -99,14 +99,14 @@ public sealed class Http2SecurityTests
             (SettingsParameter.EnablePush, 2u),
         }).Serialize();
 
-        var ex = Assert.Throws<Http2Exception>(() => decoder.TryDecode(settingsFrame, out _));
+        var ex = Assert.Throws<Http2Exception>(() => session.Process(settingsFrame));
         Assert.Equal(Http2ErrorCode.ProtocolError, ex.ErrorCode);
     }
 
     [Fact(DisplayName = "SEC-h2-007: SETTINGS_INITIAL_WINDOW_SIZE >2^31-1 causes FLOW_CONTROL_ERROR")]
     public void Should_ThrowHttp2Exception_When_InitialWindowSizeExceedsMax()
     {
-        var decoder = new Http2Decoder();
+        var session = new Http2ProtocolSession();
 
         // SETTINGS frame: InitialWindowSize = 2^31 = 0x80000000 (exceeds 2^31-1).
         var settingsFrame = new SettingsFrame(new List<(SettingsParameter, uint)>
@@ -114,14 +114,14 @@ public sealed class Http2SecurityTests
             (SettingsParameter.InitialWindowSize, 0x80000000u),
         }).Serialize();
 
-        var ex = Assert.Throws<Http2Exception>(() => decoder.TryDecode(settingsFrame, out _));
+        var ex = Assert.Throws<Http2Exception>(() => session.Process(settingsFrame));
         Assert.Equal(Http2ErrorCode.FlowControlError, ex.ErrorCode);
     }
 
     [Fact(DisplayName = "SEC-h2-008: Unknown SETTINGS ID silently ignored")]
     public void Should_NotThrow_When_UnknownSettingsIdReceived()
     {
-        var decoder = new Http2Decoder();
+        var session = new Http2ProtocolSession();
 
         // SETTINGS frame with an unknown parameter ID (0x00FF is not defined in RFC 7540).
         var unknownParam = (SettingsParameter)0x00FF;
@@ -131,8 +131,7 @@ public sealed class Http2SecurityTests
         }).Serialize();
 
         // Must not throw — unknown IDs are silently ignored per RFC 7540 §4.1.
-        var decoded = decoder.TryDecode(settingsFrame, out var result);
-        Assert.True(decoded);
+        Assert.NotEmpty(session.Process(settingsFrame));
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────
