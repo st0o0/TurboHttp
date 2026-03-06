@@ -6,7 +6,7 @@ namespace TurboHttp.Tests.RFC9113;
 /// <summary>
 /// Phase 27-28: Cross-Component Validation
 ///
-/// Ensures correct interaction between Http2Decoder sub-systems:
+/// Ensures correct interaction between Http2ProtocolSession sub-systems:
 ///
 ///   CC-001..005 — HPACK failure → connection error (RFC 9113 §4.3)
 ///       A decompression failure MUST be treated as a connection error of type
@@ -107,8 +107,8 @@ public sealed class Http2CrossComponentValidationTests
         var corruptHpack = new byte[] { 0x80 };
         var headersFrame = BuildHeadersFrame(1, corruptHpack);
 
-        var decoder = new Http2Decoder();
-        var ex = Assert.Throws<Http2Exception>(() => decoder.TryDecode(headersFrame, out _));
+        var session = new Http2ProtocolSession();
+        var ex = Assert.Throws<Http2Exception>(() => session.Process(headersFrame));
 
         Assert.Equal(Http2ErrorCode.CompressionError, ex.ErrorCode);
         Assert.Equal(Http2ErrorScope.Connection, ex.Scope);
@@ -123,8 +123,8 @@ public sealed class Http2CrossComponentValidationTests
         var corruptHpack = new byte[] { 0xFF, 0x3F }; // index = 127 (out of range)
         var headersFrame = BuildHeadersFrame(1, corruptHpack);
 
-        var decoder = new Http2Decoder();
-        var ex = Assert.Throws<Http2Exception>(() => decoder.TryDecode(headersFrame, out _));
+        var session = new Http2ProtocolSession();
+        var ex = Assert.Throws<Http2Exception>(() => session.Process(headersFrame));
 
         Assert.Equal(Http2ErrorCode.CompressionError, ex.ErrorCode);
         Assert.Equal(Http2ErrorScope.Connection, ex.Scope);
@@ -136,8 +136,8 @@ public sealed class Http2CrossComponentValidationTests
         var corruptHpack = new byte[] { 0x80 }; // index 0 is reserved → HpackException
         var headersFrame = BuildHeadersFrame(3, corruptHpack);
 
-        var decoder = new Http2Decoder();
-        var ex = Assert.Throws<Http2Exception>(() => decoder.TryDecode(headersFrame, out _));
+        var session = new Http2ProtocolSession();
+        var ex = Assert.Throws<Http2Exception>(() => session.Process(headersFrame));
 
         // Must NOT be a stream error — RFC 9113 §4.3 mandates connection scope
         Assert.NotEqual(Http2ErrorScope.Stream, ex.Scope);
@@ -153,8 +153,8 @@ public sealed class Http2CrossComponentValidationTests
         var corruptHpack = new byte[] { 0x00, 0x00 }; // literal, new name, empty string
         var headersFrame = BuildHeadersFrame(1, corruptHpack);
 
-        var decoder = new Http2Decoder();
-        var ex = Assert.Throws<Http2Exception>(() => decoder.TryDecode(headersFrame, out _));
+        var session = new Http2ProtocolSession();
+        var ex = Assert.Throws<Http2Exception>(() => session.Process(headersFrame));
 
         Assert.Equal(Http2ErrorCode.CompressionError, ex.ErrorCode);
         Assert.Equal(Http2ErrorScope.Connection, ex.Scope);
@@ -164,15 +164,15 @@ public sealed class Http2CrossComponentValidationTests
     public void HpackFailureOnAnyStream_IsConnectionError()
     {
         // Open stream 1 successfully first
-        var decoder = new Http2Decoder();
+        var session = new Http2ProtocolSession();
         var goodHeaders = BuildHeadersFrame(1, ValidStatusHeaderBlock(), endHeaders: true);
-        decoder.TryDecode(goodHeaders, out _);
+        session.Process(goodHeaders);
 
         // Now trigger HPACK failure on stream 5
         var corruptHpack = new byte[] { 0x80 };
         var badHeadersFrame = BuildHeadersFrame(5, corruptHpack);
 
-        var ex = Assert.Throws<Http2Exception>(() => decoder.TryDecode(badHeadersFrame, out _));
+        var ex = Assert.Throws<Http2Exception>(() => session.Process(badHeadersFrame));
 
         // The HPACK error is connection-level even though stream 1 is fine
         Assert.Equal(Http2ErrorCode.CompressionError, ex.ErrorCode);
@@ -184,104 +184,104 @@ public sealed class Http2CrossComponentValidationTests
     [Fact(DisplayName = "CC-006: Connection window tracked independently from HPACK state")]
     public void ConnectionWindow_TrackedIndependentlyFromHpack()
     {
-        var decoder = new Http2Decoder();
+        var session = new Http2ProtocolSession();
 
         // Open stream 1
         var headers = BuildHeadersFrame(1, ValidStatusHeaderBlock());
-        decoder.TryDecode(headers, out _);
+        session.Process(headers);
 
-        var initialWindow = decoder.GetConnectionReceiveWindow();
+        var initialWindow = session.ConnectionReceiveWindow;
         Assert.Equal(65535, initialWindow);
 
         // Send 100 bytes of DATA — window should decrease
         var data = BuildDataFrame(1, new byte[100]);
-        decoder.TryDecode(data, out _);
+        session.Process(data);
 
-        Assert.Equal(65535 - 100, decoder.GetConnectionReceiveWindow());
+        Assert.Equal(65535 - 100, session.ConnectionReceiveWindow);
     }
 
     [Fact(DisplayName = "CC-007: Stream windows are independent across multiple streams")]
     public void StreamWindows_AreIndependent_AcrossStreams()
     {
-        var decoder = new Http2Decoder();
+        var session = new Http2ProtocolSession();
 
         // Open streams 1 and 3
         var headers1 = BuildHeadersFrame(1, ValidStatusHeaderBlock());
         var headers3 = BuildHeadersFrame(3, ValidStatusHeaderBlock());
-        decoder.TryDecode(headers1, out _);
-        decoder.TryDecode(headers3, out _);
+        session.Process(headers1);
+        session.Process(headers3);
 
         // Reduce stream 1 window to 0
-        decoder.SetStreamReceiveWindow(1, 0);
+        session.SetStreamReceiveWindow(1, 0);
 
         // Stream 3 window should still be 65535
-        Assert.Equal(65535, decoder.GetStreamReceiveWindow(3));
+        Assert.Equal(65535, session.GetStreamReceiveWindow(3));
 
         // Sending DATA on stream 3 should succeed (stream 3's window is intact)
         var data3 = BuildDataFrame(3, new byte[50]);
-        decoder.TryDecode(data3, out _); // should not throw
-        Assert.Equal(65535 - 50, decoder.GetStreamReceiveWindow(3));
+        session.Process(data3); // should not throw
+        Assert.Equal(65535 - 50, session.GetStreamReceiveWindow(3));
     }
 
     [Fact(DisplayName = "CC-008: Flow control error on stream 1 does not corrupt stream 3 window")]
     public void FlowControlErrorOnStream1_DoesNotCorruptStream3()
     {
-        var decoder = new Http2Decoder();
+        var session = new Http2ProtocolSession();
 
         // Open both streams
         var headers1 = BuildHeadersFrame(1, ValidStatusHeaderBlock());
         var headers3 = BuildHeadersFrame(3, ValidStatusHeaderBlock());
-        decoder.TryDecode(headers1, out _);
-        decoder.TryDecode(headers3, out _);
+        session.Process(headers1);
+        session.Process(headers3);
 
         // Force stream 1 to have a window of 0 → will throw on DATA
-        decoder.SetStreamReceiveWindow(1, 0);
+        session.SetStreamReceiveWindow(1, 0);
 
         // DATA on stream 1 will fail with stream FLOW_CONTROL_ERROR
         var data1 = BuildDataFrame(1, new byte[10]);
-        Assert.Throws<Http2Exception>(() => decoder.TryDecode(data1, out _));
+        Assert.Throws<Http2Exception>(() => session.Process(data1));
 
         // Stream 3's receive window should be unchanged (65535)
-        Assert.Equal(65535, decoder.GetStreamReceiveWindow(3));
+        Assert.Equal(65535, session.GetStreamReceiveWindow(3));
     }
 
     [Fact(DisplayName = "CC-009: WINDOW_UPDATE on stream 1 does not affect stream 3 send window")]
     public void WindowUpdateOnStream1_DoesNotAffectStream3()
     {
-        var decoder = new Http2Decoder();
+        var session = new Http2ProtocolSession();
 
         // Open stream 1 (stream 3 is idle, send window defaults to initial)
         var headers1 = BuildHeadersFrame(1, ValidStatusHeaderBlock());
-        decoder.TryDecode(headers1, out _);
+        session.Process(headers1);
 
-        var initialStream3Window = decoder.GetStreamSendWindow(3);
+        var initialStream3Window = session.GetStreamSendWindow(3);
 
         // WINDOW_UPDATE on stream 1 (increments stream 1's send window)
         var wu1 = BuildWindowUpdateFrame(1, 1000);
-        decoder.TryDecode(wu1, out _);
+        session.Process(wu1);
 
         // Stream 3 send window should be unchanged
-        Assert.Equal(initialStream3Window, decoder.GetStreamSendWindow(3));
-        Assert.Equal(65535 + 1000, decoder.GetStreamSendWindow(1));
+        Assert.Equal(initialStream3Window, session.GetStreamSendWindow(3));
+        Assert.Equal(65535 + 1000, session.GetStreamSendWindow(1));
     }
 
     [Fact(DisplayName = "CC-010: Connection WINDOW_UPDATE increases only the connection send window")]
     public void ConnectionWindowUpdate_IncreasesOnlyConnectionSendWindow()
     {
-        var decoder = new Http2Decoder();
+        var session = new Http2ProtocolSession();
 
         var headers1 = BuildHeadersFrame(1, ValidStatusHeaderBlock());
-        decoder.TryDecode(headers1, out _);
+        session.Process(headers1);
 
-        var initialStream1 = decoder.GetStreamSendWindow(1);
-        var initialConn = decoder.GetConnectionSendWindow();
+        var initialStream1 = session.GetStreamSendWindow(1);
+        var initialConn = session.ConnectionSendWindow;
 
         // WINDOW_UPDATE on stream 0 (connection level)
         var wu = BuildWindowUpdateFrame(0, 5000);
-        decoder.TryDecode(wu, out _);
+        session.Process(wu);
 
-        Assert.Equal(initialConn + 5000, decoder.GetConnectionSendWindow());
-        Assert.Equal(initialStream1, decoder.GetStreamSendWindow(1)); // stream unchanged
+        Assert.Equal(initialConn + 5000, session.ConnectionSendWindow);
+        Assert.Equal(initialStream1, session.GetStreamSendWindow(1)); // stream unchanged
     }
 
     // ── CC-011..014: Stream cleanup on RST_STREAM ──────────────────────────────
@@ -289,54 +289,54 @@ public sealed class Http2CrossComponentValidationTests
     [Fact(DisplayName = "CC-011: RST_STREAM decrements active stream count")]
     public void RstStream_DecrementsActiveStreamCount()
     {
-        var decoder = new Http2Decoder();
+        var session = new Http2ProtocolSession();
 
         // Open 2 streams
         var headers1 = BuildHeadersFrame(1, ValidStatusHeaderBlock());
         var headers3 = BuildHeadersFrame(3, ValidStatusHeaderBlock());
-        decoder.TryDecode(headers1, out _);
-        decoder.TryDecode(headers3, out _);
+        session.Process(headers1);
+        session.Process(headers3);
 
-        Assert.Equal(2, decoder.GetActiveStreamCount());
+        Assert.Equal(2, session.ActiveStreamCount);
 
         // RST_STREAM on stream 1
         var rst = BuildRstStreamFrame(1, Http2ErrorCode.Cancel);
-        decoder.TryDecode(rst, out _);
+        session.Process(rst);
 
-        Assert.Equal(1, decoder.GetActiveStreamCount());
+        Assert.Equal(1, session.ActiveStreamCount);
     }
 
     [Fact(DisplayName = "CC-012: RST_STREAM marks stream lifecycle as Closed")]
     public void RstStream_MarksStreamLifecycleAsClosed()
     {
-        var decoder = new Http2Decoder();
+        var session = new Http2ProtocolSession();
 
         var headers1 = BuildHeadersFrame(1, ValidStatusHeaderBlock());
-        decoder.TryDecode(headers1, out _);
+        session.Process(headers1);
 
-        Assert.Equal(Http2StreamLifecycleState.Open, decoder.GetStreamLifecycleState(1));
+        Assert.Equal(Http2StreamLifecycleState.Open, session.GetStreamState(1));
 
         var rst = BuildRstStreamFrame(1, Http2ErrorCode.Cancel);
-        decoder.TryDecode(rst, out _);
+        session.Process(rst);
 
-        Assert.Equal(Http2StreamLifecycleState.Closed, decoder.GetStreamLifecycleState(1));
+        Assert.Equal(Http2StreamLifecycleState.Closed, session.GetStreamState(1));
     }
 
     [Fact(DisplayName = "CC-013: After RST_STREAM, subsequent DATA on that stream is stream STREAM_CLOSED error")]
     public void AfterRstStream_DataOnResetStream_IsStreamClosedError()
     {
-        var decoder = new Http2Decoder();
+        var session = new Http2ProtocolSession();
 
         // Open stream 1, then reset it
         var headers1 = BuildHeadersFrame(1, ValidStatusHeaderBlock());
-        decoder.TryDecode(headers1, out _);
+        session.Process(headers1);
 
         var rst = BuildRstStreamFrame(1, Http2ErrorCode.Cancel);
-        decoder.TryDecode(rst, out _);
+        session.Process(rst);
 
         // DATA on reset stream → STREAM_CLOSED
         var data = BuildDataFrame(1, new byte[10]);
-        var ex = Assert.Throws<Http2Exception>(() => decoder.TryDecode(data, out _));
+        var ex = Assert.Throws<Http2Exception>(() => session.Process(data));
 
         Assert.Equal(Http2ErrorCode.StreamClosed, ex.ErrorCode);
         Assert.Equal(Http2ErrorScope.Stream, ex.Scope);
@@ -346,17 +346,17 @@ public sealed class Http2CrossComponentValidationTests
     [Fact(DisplayName = "CC-014: RST_STREAM result carries the error code from the frame payload")]
     public void RstStream_Result_CarriesErrorCode()
     {
-        var decoder = new Http2Decoder();
+        var session = new Http2ProtocolSession();
 
         var headers1 = BuildHeadersFrame(1, ValidStatusHeaderBlock());
-        decoder.TryDecode(headers1, out _);
+        session.Process(headers1);
 
         var rst = BuildRstStreamFrame(1, Http2ErrorCode.InternalError);
-        decoder.TryDecode(rst, out var result);
+        session.Process(rst);
 
-        Assert.Single(result.RstStreams);
-        Assert.Equal(1, result.RstStreams[0].StreamId);
-        Assert.Equal(Http2ErrorCode.InternalError, result.RstStreams[0].Error);
+        Assert.Single(session.RstStreams);
+        Assert.Equal(1, session.RstStreams[0].StreamId);
+        Assert.Equal(Http2ErrorCode.InternalError, session.RstStreams[0].Error);
     }
 
     // ── CC-015..018: GOAWAY stops new stream creation ──────────────────────────
@@ -364,64 +364,64 @@ public sealed class Http2CrossComponentValidationTests
     [Fact(DisplayName = "CC-015: After receiving GOAWAY, IsGoingAway = true")]
     public void AfterGoAway_IsGoingAway_IsTrue()
     {
-        var decoder = new Http2Decoder();
-        Assert.False(decoder.IsGoingAway);
+        var session = new Http2ProtocolSession();
+        Assert.False(session.IsGoingAway);
 
         var goAway = BuildGoAwayFrame(0, Http2ErrorCode.NoError);
-        decoder.TryDecode(goAway, out _);
+        session.Process(goAway);
 
-        Assert.True(decoder.IsGoingAway);
+        Assert.True(session.IsGoingAway);
     }
 
     [Fact(DisplayName = "CC-016: New HEADERS after GOAWAY is rejected with PROTOCOL_ERROR")]
     public void NewHeadersAfterGoAway_IsRejected()
     {
-        var decoder = new Http2Decoder();
+        var session = new Http2ProtocolSession();
 
         var goAway = BuildGoAwayFrame(0, Http2ErrorCode.NoError);
-        decoder.TryDecode(goAway, out _);
+        session.Process(goAway);
 
         // Stream 1 was not open before GOAWAY, so it is new → rejected
         var headers = BuildHeadersFrame(1, ValidStatusHeaderBlock());
-        var ex = Assert.Throws<Http2Exception>(() => decoder.TryDecode(headers, out _));
+        var ex = Assert.Throws<Http2Exception>(() => session.Process(headers));
 
         Assert.Equal(Http2ErrorCode.ProtocolError, ex.ErrorCode);
         Assert.Equal(Http2ErrorScope.Connection, ex.Scope);
     }
 
-    [Fact(DisplayName = "CC-017: GOAWAY sets GetGoAwayLastStreamId correctly")]
+    [Fact(DisplayName = "CC-017: GOAWAY sets GoAwayLastStreamId correctly")]
     public void GoAway_SetsLastStreamId()
     {
-        var decoder = new Http2Decoder();
+        var session = new Http2ProtocolSession();
 
         // Open stream 1 first (lastStreamId = 1 in GOAWAY)
         var headers1 = BuildHeadersFrame(1, ValidStatusHeaderBlock());
-        decoder.TryDecode(headers1, out _);
+        session.Process(headers1);
 
         var goAway = BuildGoAwayFrame(1, Http2ErrorCode.NoError);
-        decoder.TryDecode(goAway, out _);
+        session.Process(goAway);
 
-        Assert.Equal(1, decoder.GetGoAwayLastStreamId());
+        Assert.Equal(1, session.GoAwayLastStreamId);
     }
 
     [Fact(DisplayName = "CC-018: GOAWAY cleans up streams with ID > lastStreamId")]
     public void GoAway_CleansUpStreamsAboveLastStreamId()
     {
-        var decoder = new Http2Decoder();
+        var session = new Http2ProtocolSession();
 
         // Open streams 1, 3, 5
-        decoder.TryDecode(BuildHeadersFrame(1, ValidStatusHeaderBlock()), out _);
-        decoder.TryDecode(BuildHeadersFrame(3, ValidStatusHeaderBlock()), out _);
-        decoder.TryDecode(BuildHeadersFrame(5, ValidStatusHeaderBlock()), out _);
+        session.Process(BuildHeadersFrame(1, ValidStatusHeaderBlock()));
+        session.Process(BuildHeadersFrame(3, ValidStatusHeaderBlock()));
+        session.Process(BuildHeadersFrame(5, ValidStatusHeaderBlock()));
 
-        Assert.Equal(3, decoder.GetActiveStreamCount());
+        Assert.Equal(3, session.ActiveStreamCount);
 
         // GOAWAY with lastStreamId = 1 → streams 3 and 5 should be cleaned up
         var goAway = BuildGoAwayFrame(1, Http2ErrorCode.NoError);
-        decoder.TryDecode(goAway, out _);
+        session.Process(goAway);
 
         // Only stream 1 (≤ lastStreamId) should remain active
-        Assert.Equal(1, decoder.GetActiveStreamCount());
+        Assert.Equal(1, session.ActiveStreamCount);
     }
 
     // ── CC-019..020: No header injection via HPACK compression ────────────────
@@ -435,8 +435,8 @@ public sealed class Http2CrossComponentValidationTests
         var corruptHpack = new byte[] { 0x80 }; // indexed, index=0 (reserved)
         var headersFrame = BuildHeadersFrame(1, corruptHpack);
 
-        var decoder = new Http2Decoder();
-        var ex = Assert.Throws<Http2Exception>(() => decoder.TryDecode(headersFrame, out _));
+        var session = new Http2ProtocolSession();
+        var ex = Assert.Throws<Http2Exception>(() => session.Process(headersFrame));
 
         Assert.Equal(Http2ErrorCode.CompressionError, ex.ErrorCode);
         // Verify: no response was produced (the exception precedes response building)
@@ -469,9 +469,9 @@ public sealed class Http2CrossComponentValidationTests
         combined.AddRange(hpack);
 
         var headersFrame = BuildHeadersFrame(1, combined.ToArray());
-        var decoder = new Http2Decoder();
+        var session = new Http2ProtocolSession();
 
-        var ex = Assert.Throws<Http2Exception>(() => decoder.TryDecode(headersFrame, out _));
+        var ex = Assert.Throws<Http2Exception>(() => session.Process(headersFrame));
 
         Assert.Equal(Http2ErrorCode.ProtocolError, ex.ErrorCode);
         Assert.Equal(Http2ErrorScope.Connection, ex.Scope);

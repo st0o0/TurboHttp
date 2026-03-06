@@ -188,7 +188,19 @@ public sealed class Http2ProtocolSession
 
         if (frame.EndHeaders)
         {
-            var headers = _hpack.Decode(frame.HeaderBlockFragment.Span);
+            IReadOnlyList<HpackHeader> headers;
+            try
+            {
+                headers = _hpack.Decode(frame.HeaderBlockFragment.Span);
+            }
+            catch (HpackException ex)
+            {
+                throw new Http2Exception(
+                    $"RFC 9113 §4.3: HPACK decompression failure — {ex.Message}",
+                    Http2ErrorCode.CompressionError, Http2ErrorScope.Connection);
+            }
+
+            ValidateHeaderNames(headers);
             var response = BuildResponse(headers, streamId);
 
             if (frame.EndStream)
@@ -245,7 +257,19 @@ public sealed class Http2ProtocolSession
         if (frame.EndHeaders)
         {
             var block = _continuationBuffer.ToArray().AsMemory();
-            var headers = _hpack.Decode(block.Span);
+            IReadOnlyList<HpackHeader> headers;
+            try
+            {
+                headers = _hpack.Decode(block.Span);
+            }
+            catch (HpackException ex)
+            {
+                throw new Http2Exception(
+                    $"RFC 9113 §4.3: HPACK decompression failure — {ex.Message}",
+                    Http2ErrorCode.CompressionError, Http2ErrorScope.Connection);
+            }
+
+            ValidateHeaderNames(headers);
             var response = BuildResponse(headers, _continuationStreamId);
 
             var endStream = _continuationEndStreamFlags != 0;
@@ -505,6 +529,27 @@ public sealed class Http2ProtocolSession
         _streamStates[streamId] = Http2StreamLifecycleState.Closed;
         _closedStreamIds.Add(streamId);
         _activeStreamCount = Math.Max(0, _activeStreamCount - 1);
+    }
+
+    private static void ValidateHeaderNames(IReadOnlyList<HpackHeader> headers)
+    {
+        foreach (var h in headers)
+        {
+            if (h.Name.StartsWith(':'))
+            {
+                continue;
+            }
+
+            foreach (var c in h.Name)
+            {
+                if (char.IsUpper(c))
+                {
+                    throw new Http2Exception(
+                        $"RFC 9113 §8.2: Header field name '{h.Name}' contains uppercase characters; all names must be lowercase.",
+                        Http2ErrorCode.ProtocolError, Http2ErrorScope.Connection);
+                }
+            }
+        }
     }
 
     private static HttpResponseMessage? BuildResponse(

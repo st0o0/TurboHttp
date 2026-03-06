@@ -862,7 +862,7 @@ stream ID exhaustion, malformed frame injection.
 ---
 
 ### Phase 21 — Migrate `Http2CrossComponentValidationTests.cs` (21 refs)
-- [ ] **Status**: pending
+- [x] **Status**: complete (2026-03-06, iter-02)
 
 **File**: `src/TurboHttp.Tests/RFC9113/Http2CrossComponentValidationTests.cs`
 
