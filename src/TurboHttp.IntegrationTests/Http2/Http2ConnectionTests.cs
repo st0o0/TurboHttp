@@ -211,7 +211,7 @@ public sealed class Http2ConnectionTests
     public async Task Should_Have24ByteConnectionPreface_When_PrefaceMagicInspected()
     {
         // Verify the static preface starts with the standard magic string.
-        var preface = Http2Encoder.BuildConnectionPreface();
+        var preface = Http2FrameUtils.BuildConnectionPreface();
         var magic = "PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n"u8.ToArray();
         Assert.True(preface.Length > magic.Length, "Preface should include magic + SETTINGS frame.");
         for (var i = 0; i < magic.Length; i++)

@@ -49,7 +49,7 @@ public sealed class Http2PushPromiseTests
         var hpackEncoder = new HpackEncoder(useHuffman: false);
         var headerBlock = hpackEncoder.Encode([(":status", "200")]);
         var headersFrame = new byte[9 + headerBlock.Length];
-        Http2FrameWriter.WriteHeadersFrame(headersFrame, streamId: 4, headerBlock.Span, endStream: true, endHeaders: true);
+        Http2FrameTestWriter.WriteHeadersFrame(headersFrame, streamId: 4, headerBlock.Span, endStream: true, endHeaders: true);
 
         var decoded = decoder.TryDecode(headersFrame.AsMemory(), out var result2);
         Assert.True(decoded);
@@ -92,13 +92,13 @@ public sealed class Http2PushPromiseTests
         var hpackEncoder = new HpackEncoder(useHuffman: false);
         var headerBlock = hpackEncoder.Encode([(":status", "200")]);
         var headersFrame = new byte[9 + headerBlock.Length];
-        Http2FrameWriter.WriteHeadersFrame(headersFrame, streamId: 2, headerBlock.Span, endStream: false, endHeaders: true);
+        Http2FrameTestWriter.WriteHeadersFrame(headersFrame, streamId: 2, headerBlock.Span, endStream: false, endHeaders: true);
         decoder.TryDecode(headersFrame.AsMemory(), out _);
 
         // Step 3: DATA on stream 2 with END_STREAM
         var dataPayload = "pushed-content"u8.ToArray();
         var dataFrame = new byte[9 + dataPayload.Length];
-        Http2FrameWriter.WriteDataFrame(dataFrame, streamId: 2, dataPayload, endStream: true);
+        Http2FrameTestWriter.WriteDataFrame(dataFrame, streamId: 2, dataPayload, endStream: true);
         var decoded = decoder.TryDecode(dataFrame.AsMemory(), out var result);
 
         Assert.True(decoded);
@@ -121,7 +121,7 @@ public sealed class Http2PushPromiseTests
         decoder.TryDecode(pushPromise.AsMemory(), out _);
 
         // Client refuses push by sending RST_STREAM(2, CANCEL)
-        var rst = Http2Encoder.EncodeRstStream(2, Http2ErrorCode.Cancel);
+        var rst = Http2FrameUtils.EncodeRstStream(2, Http2ErrorCode.Cancel);
         decoder.TryDecode(rst.AsMemory(), out var result);
 
         Assert.Single(result.RstStreams);
@@ -133,7 +133,7 @@ public sealed class Http2PushPromiseTests
     public void Should_IncludeEnablePushZero_When_ClientPrefaceBuilt()
     {
         // The encoder's connection preface always includes SETTINGS_ENABLE_PUSH=0.
-        var preface = Http2Encoder.BuildConnectionPreface();
+        var preface = Http2FrameUtils.BuildConnectionPreface();
 
         // Skip the 24-byte magic string and find the SETTINGS frame payload.
         var settingsPayload = preface.AsSpan(24 + 9); // skip magic + frame header
@@ -219,7 +219,7 @@ public sealed class Http2PushPromiseTests
         var hpackEncoder = new HpackEncoder(useHuffman: false);
         var headerBlock = hpackEncoder.Encode([(":status", "200")]);
         var headersFrame = new byte[9 + headerBlock.Length];
-        Http2FrameWriter.WriteHeadersFrame(headersFrame, streamId: 2, headerBlock.Span, endStream: true, endHeaders: true);
+        Http2FrameTestWriter.WriteHeadersFrame(headersFrame, streamId: 2, headerBlock.Span, endStream: true, endHeaders: true);
 
         var decoded = decoder.TryDecode(headersFrame.AsMemory(), out var result);
 
@@ -245,7 +245,7 @@ public sealed class Http2PushPromiseTests
         var frame = new byte[9 + payloadLength];
 
         // Frame header: length, type=PUSH_PROMISE(0x5), flags=END_HEADERS(0x4), parentStreamId
-        Http2FrameWriter.WriteFrameHeader(frame, payloadLength, FrameType.PushPromise, 0x4, parentStreamId);
+        Http2FrameTestWriter.WriteFrameHeader(frame, payloadLength, FrameType.PushPromise, 0x4, parentStreamId);
 
         // Promised stream ID (R-bit must be 0)
         BinaryPrimitives.WriteUInt32BigEndian(frame.AsSpan(9), (uint)promisedStreamId & 0x7FFFFFFFu);

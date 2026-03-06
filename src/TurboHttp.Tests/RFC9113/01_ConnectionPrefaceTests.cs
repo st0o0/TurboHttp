@@ -23,14 +23,14 @@ public sealed class Http2ConnectionPrefaceTests
     private const int FrameHeaderLength = 9;
 
     // =========================================================================
-    // Client preface — Http2Encoder.BuildConnectionPreface()
+    // Client preface — Http2FrameUtils.BuildConnectionPreface()
     // =========================================================================
 
     /// RFC 9113 §3.4 — Client preface starts with exact magic octets
     [Fact(DisplayName = "RFC9113-3.4-CP-001: Client preface starts with exact magic octets")]
     public void ClientPreface_MagicOctets_MatchRfc9113Spec()
     {
-        var preface = Http2Encoder.BuildConnectionPreface();
+        var preface = Http2FrameUtils.BuildConnectionPreface();
 
         Assert.True(preface.Length >= MagicLength, "Preface too short to contain magic");
         Assert.Equal(Magic, preface[..MagicLength]);
@@ -49,7 +49,7 @@ public sealed class Http2ConnectionPrefaceTests
     [Fact(DisplayName = "RFC9113-3.4-CP-003: SETTINGS frame follows magic immediately at byte 24")]
     public void ClientPreface_SettingsFrame_ImmediatelyFollowsMagic()
     {
-        var preface = Http2Encoder.BuildConnectionPreface();
+        var preface = Http2FrameUtils.BuildConnectionPreface();
 
         Assert.True(preface.Length >= MagicLength + FrameHeaderLength,
             "Preface too short to contain frame header after magic");
@@ -63,7 +63,7 @@ public sealed class Http2ConnectionPrefaceTests
     [Fact(DisplayName = "RFC9113-3.4-CP-004: SETTINGS frame in client preface uses stream ID 0")]
     public void ClientPreface_SettingsFrame_StreamIdIsZero()
     {
-        var preface = Http2Encoder.BuildConnectionPreface();
+        var preface = Http2FrameUtils.BuildConnectionPreface();
 
         Assert.True(preface.Length >= MagicLength + FrameHeaderLength);
         // Stream ID occupies bytes [magic+5 .. magic+8] (31-bit big-endian, R bit masked)
@@ -76,7 +76,7 @@ public sealed class Http2ConnectionPrefaceTests
     [Fact(DisplayName = "RFC9113-3.4-CP-005: Client preface total length is magic + SETTINGS frame")]
     public void ClientPreface_Length_IsMagicPlusSettingsFrame()
     {
-        var preface = Http2Encoder.BuildConnectionPreface();
+        var preface = Http2FrameUtils.BuildConnectionPreface();
 
         // Minimum: 24-byte magic + 9-byte frame header = 33 bytes
         Assert.True(preface.Length >= 33, $"Expected >= 33 bytes, got {preface.Length}");
@@ -86,7 +86,7 @@ public sealed class Http2ConnectionPrefaceTests
     [Fact(DisplayName = "RFC9113-3.4-CP-006: SETTINGS frame payload length is a multiple of 6")]
     public void ClientPreface_SettingsPayload_LengthIsMultipleOf6()
     {
-        var preface = Http2Encoder.BuildConnectionPreface();
+        var preface = Http2FrameUtils.BuildConnectionPreface();
 
         // Payload length is in the first 3 bytes of the frame header (24-bit big-endian)
         var payloadLen = (preface[MagicLength] << 16)
@@ -101,7 +101,7 @@ public sealed class Http2ConnectionPrefaceTests
     [Fact(DisplayName = "RFC9113-3.4-CP-007: SETTINGS frame flags are 0 (not ACK)")]
     public void ClientPreface_SettingsFrame_FlagsAreZero()
     {
-        var preface = Http2Encoder.BuildConnectionPreface();
+        var preface = Http2FrameUtils.BuildConnectionPreface();
 
         var flags = preface[MagicLength + 4]; // flags byte
         Assert.Equal(0, flags & (byte)SettingsFlags.Ack);
@@ -112,7 +112,7 @@ public sealed class Http2ConnectionPrefaceTests
     public void ClientPreface_Magic_SpellsCorrectAsciiString()
     {
         // Verify readable portion: "PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n"
-        var preface = Http2Encoder.BuildConnectionPreface();
+        var preface = Http2FrameUtils.BuildConnectionPreface();
         var text = System.Text.Encoding.ASCII.GetString(preface[..MagicLength]);
         Assert.Equal("PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n", text);
     }
@@ -330,7 +330,7 @@ public sealed class Http2ConnectionPrefaceTests
     [Fact(DisplayName = "RFC9113-3.4-RT-002: Client preface SETTINGS payload entries are each 6 bytes")]
     public void ClientPreface_SettingsEntries_AreEach6Bytes()
     {
-        var preface = Http2Encoder.BuildConnectionPreface();
+        var preface = Http2FrameUtils.BuildConnectionPreface();
 
         var payloadLen = (preface[MagicLength] << 16)
                        | (preface[MagicLength + 1] << 8)

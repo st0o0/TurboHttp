@@ -448,7 +448,7 @@ public sealed class Http2EncoderSensitiveHeaderTests
     }
 
     // =========================================================================
-    // Category 6: Http2Encoder Full Frame Integration Tests (5 tests)
+    // Category 6: Http2RequestEncoder Full Frame Integration Tests (5 tests)
     // =========================================================================
 
     [Fact(DisplayName = "7541-7.1.3-s028: Full HTTP/2 GET frame with Authorization: decoded NeverIndex=true")]

@@ -53,7 +53,7 @@ public sealed class Phase60ValidationGateTests
     [InlineData("PATCH")]
     public void Should_EmitMethodPseudoHeader_When_AnyStandardMethodHttp2(string method)
     {
-        var encoder = new Http2Encoder();
+        var encoder = new Http2RequestEncoder();
         var request = new HttpRequestMessage(new HttpMethod(method), "http://example.com/");
         if (method is "POST" or "PUT" or "PATCH")
         {

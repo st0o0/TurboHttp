@@ -25,7 +25,7 @@ public sealed class Http2SettingsSynchronizationTests
     [Fact(DisplayName = "RFC7540-3.5-SS-001: BuildConnectionPreface produces magic + SETTINGS frame")]
     public void Preface_IncludesSettingsFrame()
     {
-        var preface = Http2Encoder.BuildConnectionPreface();
+        var preface = Http2FrameUtils.BuildConnectionPreface();
 
         // 24-byte magic
         const string magic = "PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n";
@@ -40,7 +40,7 @@ public sealed class Http2SettingsSynchronizationTests
     [Fact(DisplayName = "RFC7540-3.5-SS-002: Connection preface SETTINGS is on stream 0")]
     public void Preface_SettingsIsOnStreamZero()
     {
-        var preface = Http2Encoder.BuildConnectionPreface();
+        var preface = Http2FrameUtils.BuildConnectionPreface();
         var streamId = (int)(BinaryPrimitives.ReadUInt32BigEndian(preface.AsSpan(24 + 5)) & 0x7FFFFFFFu);
         Assert.Equal(0, streamId);
     }
@@ -49,7 +49,7 @@ public sealed class Http2SettingsSynchronizationTests
     [Fact(DisplayName = "RFC7540-3.5-SS-003: Connection preface SETTINGS contains HeaderTableSize=4096")]
     public void Preface_SettingsContainsHeaderTableSize4096()
     {
-        var preface = Http2Encoder.BuildConnectionPreface();
+        var preface = Http2FrameUtils.BuildConnectionPreface();
         Assert.True(ContainsSetting(preface, 24, SettingsParameter.HeaderTableSize, 4096));
     }
 
@@ -57,7 +57,7 @@ public sealed class Http2SettingsSynchronizationTests
     [Fact(DisplayName = "RFC7540-3.5-SS-004: Connection preface SETTINGS contains EnablePush=0")]
     public void Preface_SettingsContainsEnablePush0()
     {
-        var preface = Http2Encoder.BuildConnectionPreface();
+        var preface = Http2FrameUtils.BuildConnectionPreface();
         Assert.True(ContainsSetting(preface, 24, SettingsParameter.EnablePush, 0));
     }
 
@@ -65,7 +65,7 @@ public sealed class Http2SettingsSynchronizationTests
     [Fact(DisplayName = "RFC7540-3.5-SS-005: Connection preface SETTINGS contains MaxFrameSize=16384")]
     public void Preface_SettingsContainsMaxFrameSize16384()
     {
-        var preface = Http2Encoder.BuildConnectionPreface();
+        var preface = Http2FrameUtils.BuildConnectionPreface();
         Assert.True(ContainsSetting(preface, 24, SettingsParameter.MaxFrameSize, 16384));
     }
 
@@ -317,7 +317,7 @@ public sealed class Http2SettingsSynchronizationTests
     [Fact(DisplayName = "RFC7540-6.5-SS-023: Encoded SETTINGS ACK is a valid 9-byte frame")]
     public void EncodeSettingsAck_ProducesValidAckFrame()
     {
-        var ack = Http2Encoder.EncodeSettingsAck();
+        var ack = Http2FrameUtils.EncodeSettingsAck();
 
         Assert.Equal(9, ack.Length);
         // Length = 0

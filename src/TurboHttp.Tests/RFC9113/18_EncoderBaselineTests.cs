@@ -10,7 +10,7 @@ public sealed class Http2EncoderBaselineTests
     [Fact]
     public void BuildConnectionPreface_StartsWithMagic()
     {
-        var preface = Http2Encoder.BuildConnectionPreface();
+        var preface = Http2FrameUtils.BuildConnectionPreface();
         var magic = "PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n"u8.ToArray();
 
         Assert.True(preface.Length > magic.Length);
@@ -20,26 +20,19 @@ public sealed class Http2EncoderBaselineTests
     [Fact]
     public void BuildConnectionPreface_ContainsSettingsFrame()
     {
-        var preface = Http2Encoder.BuildConnectionPreface();
+        var preface = Http2FrameUtils.BuildConnectionPreface();
         Assert.Equal((byte)FrameType.Settings, preface[27]);
     }
 
     [Fact]
     public void EncodeRequest_IncrementsStreamId()
     {
-        var encoder = new Http2Encoder(useHuffman: false);
+        var encoder = new Http2RequestEncoder(useHuffman: false);
         var req = CreateGetRequest("example.com", "/");
 
-        using var owner = MemoryPool<byte>.Shared.Rent(4096);
-
-        var buf1 = owner.Memory;
-        var (id1, _) = encoder.Encode(req, ref buf1);
-
-        var buf2 = owner.Memory;
-        var (id2, _) = encoder.Encode(req, ref buf2);
-
-        var buf3 = owner.Memory;
-        var (id3, _) = encoder.Encode(req, ref buf3);
+        var (id1, _) = encoder.Encode(req);
+        var (id2, _) = encoder.Encode(req);
+        var (id3, _) = encoder.Encode(req);
 
         Assert.Equal(1, id1);
         Assert.Equal(3, id2);
@@ -198,7 +191,7 @@ public sealed class Http2EncoderBaselineTests
     [Fact]
     public void EncodeSettingsAck_ProducesAckFrame()
     {
-        var ack = Http2Encoder.EncodeSettingsAck();
+        var ack = Http2FrameUtils.EncodeSettingsAck();
 
         Assert.Equal((byte)FrameType.Settings, ack[3]);
         Assert.Equal((byte)SettingsFlags.Ack, ack[4]);
@@ -207,7 +200,7 @@ public sealed class Http2EncoderBaselineTests
     [Fact]
     public void EncodeSettings_ProducesSettingsFrame()
     {
-        var frame = Http2Encoder.EncodeSettings(
+        var frame = Http2FrameUtils.EncodeSettings(
         [
             (SettingsParameter.MaxFrameSize, 32768u),
         ]);
@@ -220,7 +213,7 @@ public sealed class Http2EncoderBaselineTests
     public void EncodePing_ProducesPingFrame()
     {
         byte[] data = [1, 2, 3, 4, 5, 6, 7, 8];
-        var frame = Http2Encoder.EncodePing(data);
+        var frame = Http2FrameUtils.EncodePing(data);
 
         Assert.Equal((byte)FrameType.Ping, frame[3]);
         Assert.Equal(0, frame[4]);
@@ -230,7 +223,7 @@ public sealed class Http2EncoderBaselineTests
     public void EncodePingAck_ProducesPingAckFrame()
     {
         byte[] data = [1, 2, 3, 4, 5, 6, 7, 8];
-        var frame = Http2Encoder.EncodePingAck(data);
+        var frame = Http2FrameUtils.EncodePingAck(data);
 
         Assert.Equal((byte)FrameType.Ping, frame[3]);
         Assert.Equal((byte)PingFlags.Ack, frame[4]);
@@ -239,7 +232,7 @@ public sealed class Http2EncoderBaselineTests
     [Fact]
     public void EncodeWindowUpdate_ProducesWindowUpdateFrame()
     {
-        var frame = Http2Encoder.EncodeWindowUpdate(streamId: 1, increment: 65535);
+        var frame = Http2FrameUtils.EncodeWindowUpdate(streamId: 1, increment: 65535);
 
         Assert.Equal((byte)FrameType.WindowUpdate, frame[3]);
         var increment = BinaryPrimitives.ReadUInt32BigEndian(frame.AsSpan(9)) & 0x7FFFFFFF;
@@ -249,7 +242,7 @@ public sealed class Http2EncoderBaselineTests
     [Fact]
     public void EncodeRstStream_ProducesRstStreamFrame()
     {
-        var frame = Http2Encoder.EncodeRstStream(streamId: 3, Http2ErrorCode.Cancel);
+        var frame = Http2FrameUtils.EncodeRstStream(streamId: 3, Http2ErrorCode.Cancel);
 
         Assert.Equal((byte)FrameType.RstStream, frame[3]);
         var errorCode = BinaryPrimitives.ReadUInt32BigEndian(frame.AsSpan(9));
@@ -259,7 +252,7 @@ public sealed class Http2EncoderBaselineTests
     [Fact]
     public void EncodeGoAway_WithDebugMessage_ProducesGoAwayFrame()
     {
-        var frame = Http2Encoder.EncodeGoAway(5, Http2ErrorCode.NoError, "shutdown");
+        var frame = Http2FrameUtils.EncodeGoAway(5, Http2ErrorCode.NoError, "shutdown");
 
         Assert.Equal((byte)FrameType.GoAway, frame[3]);
         var debug = Encoding.UTF8.GetString(frame[17..]);
@@ -269,7 +262,7 @@ public sealed class Http2EncoderBaselineTests
     [Fact]
     public void EncodeGoAway_WithoutDebugMessage_ProducesGoAwayFrame()
     {
-        var frame = Http2Encoder.EncodeGoAway(0, Http2ErrorCode.NoError);
+        var frame = Http2FrameUtils.EncodeGoAway(0, Http2ErrorCode.NoError);
 
         Assert.Equal((byte)FrameType.GoAway, frame[3]);
         Assert.Equal(9 + 8, frame.Length);
@@ -278,7 +271,7 @@ public sealed class Http2EncoderBaselineTests
     [Fact]
     public void ApplyServerSettings_MaxFrameSize_UpdatesEncoder()
     {
-        var encoder = new Http2Encoder(useHuffman: false);
+        var encoder = new Http2RequestEncoder(useHuffman: false);
         encoder.ApplyServerSettings([(SettingsParameter.MaxFrameSize, 32768u)]);
 
         var request = CreateGetRequest("example.com", "/");
@@ -291,20 +284,18 @@ public sealed class Http2EncoderBaselineTests
     [Fact]
     public void ApplyServerSettings_OtherParameter_IsIgnored()
     {
-        var encoder = new Http2Encoder(useHuffman: false);
+        var encoder = new Http2RequestEncoder(useHuffman: false);
         encoder.ApplyServerSettings([(SettingsParameter.InitialWindowSize, 65535u)]);
 
         var request = CreateGetRequest("example.com", "/");
-        using var owner = MemoryPool<byte>.Shared.Rent(4096);
-        var buffer = owner.Memory;
-        var (_, written) = encoder.Encode(request, ref buffer);
-        Assert.True(written > 0);
+        var (_, frames) = encoder.Encode(request);
+        Assert.NotEmpty(frames);
     }
 
     [Fact]
     public void EncodeRequest_LargeHeaders_ProducesContinuationFrames()
     {
-        var encoder = new Http2Encoder(useHuffman: false);
+        var encoder = new Http2RequestEncoder(useHuffman: false);
         encoder.ApplyServerSettings([(SettingsParameter.MaxFrameSize, 64u)]);
 
         var request = new HttpRequestMessage(HttpMethod.Get, "https://example.com/")
@@ -316,11 +307,21 @@ public sealed class Http2EncoderBaselineTests
             }
         };
 
-        using var owner = MemoryPool<byte>.Shared.Rent(8192);
-        var buffer = owner.Memory;
-        var (_, bytesWritten) = encoder.Encode(request, ref buffer);
-        var data = buffer.Span[..bytesWritten];
+        var (_, frames) = encoder.Encode(request);
 
+        // Serialize frames to check structure
+        var totalSize = frames.Sum(f => f.SerializedSize);
+        var buffer = new byte[totalSize];
+        var offset = 0;
+
+        foreach (var frame in frames)
+        {
+            var frameBytes = frame.Serialize();
+            frameBytes.CopyTo(buffer, offset);
+            offset += frameBytes.Length;
+        }
+
+        var data = (ReadOnlySpan<byte>)buffer;
         Assert.Equal((byte)FrameType.Headers, data[3]);
         var firstFlags = (HeadersFlags)data[4];
         Assert.False(firstFlags.HasFlag(HeadersFlags.EndHeaders));
@@ -348,11 +349,22 @@ public sealed class Http2EncoderBaselineTests
 
     private static (int StreamId, byte[] Data) Encode(HttpRequestMessage request, bool useHuffman = false)
     {
-        var encoder = new Http2Encoder(useHuffman);
-        using var owner = MemoryPool<byte>.Shared.Rent(4096);
-        var buffer = owner.Memory;
-        var (streamId, written) = encoder.Encode(request, ref buffer);
-        return (streamId, buffer.Span[..written].ToArray());
+        var encoder = new Http2RequestEncoder(useHuffman);
+        var (streamId, frames) = encoder.Encode(request);
+
+        // Serialize all frames to bytes
+        var totalSize = frames.Sum(f => f.SerializedSize);
+        var buffer = new byte[totalSize];
+        var offset = 0;
+
+        foreach (var frame in frames)
+        {
+            var frameBytes = frame.Serialize();
+            frameBytes.CopyTo(buffer, offset);
+            offset += frameBytes.Length;
+        }
+
+        return (streamId, buffer);
     }
 
     private static byte[] ExtractFirstHeaderBlock(ReadOnlySpan<byte> data)

@@ -145,7 +145,7 @@ public sealed class HpackEncoder
 
     /// <summary>
     /// Encodes a list of header tuples and returns the encoded bytes.
-    /// Backward-compatible overload for Http2Encoder and Http2SizePredictor.
+    /// Backward-compatible overload for Http2RequestEncoder and Http2SizePredictor.
     /// </summary>
     /// <param name="headers">Headers as (name, value) tuples.</param>
     /// <returns>HPACK-encoded header block.</returns>

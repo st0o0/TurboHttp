@@ -62,7 +62,7 @@ public sealed class Http2RoundTripMethodTests
     [Fact(DisplayName = "RT-2-020: DELETE request encodes correctly with no body")]
     public void Should_EncodeDeleteWithNoBody_When_DeleteRequestEncoded()
     {
-        var encoder = new Http2Encoder(useHuffman: false);
+        var encoder = new Http2RequestEncoder(useHuffman: false);
         var encoderBuf = new byte[4096];
         var buf = encoderBuf.AsMemory();
         var request = new HttpRequestMessage(HttpMethod.Delete, "https://api.example.com/items/42");
@@ -83,7 +83,7 @@ public sealed class Http2RoundTripMethodTests
     [Fact(DisplayName = "RT-2-021: PUT request encodes with body (HEADERS + DATA)")]
     public void Should_EncodePutWithBody_When_PutRequestEncoded()
     {
-        var encoder = new Http2Encoder(useHuffman: false);
+        var encoder = new Http2RequestEncoder(useHuffman: false);
         var encoderBuf = new byte[8192];
         var buf = encoderBuf.AsMemory();
         var request = new HttpRequestMessage(HttpMethod.Put, "https://api.example.com/items/42")
@@ -111,7 +111,7 @@ public sealed class Http2RoundTripMethodTests
     [Fact(DisplayName = "RT-2-022: PATCH request encodes with body (HEADERS + DATA)")]
     public void Should_EncodePatchWithBody_When_PatchRequestEncoded()
     {
-        var encoder = new Http2Encoder(useHuffman: false);
+        var encoder = new Http2RequestEncoder(useHuffman: false);
         var encoderBuf = new byte[8192];
         var buf = encoderBuf.AsMemory();
         var request = new HttpRequestMessage(HttpMethod.Patch, "https://api.example.com/items/42")
@@ -130,7 +130,7 @@ public sealed class Http2RoundTripMethodTests
     [Fact(DisplayName = "RT-2-023: Three CONTINUATION frames required for tiny max frame size")]
     public async Task Should_UseThreeContinuationFrames_When_MaxFrameSizeVerySmall()
     {
-        var encoder = new Http2Encoder(useHuffman: false);
+        var encoder = new Http2RequestEncoder(useHuffman: false);
         // Force very small frames so the HEADERS block must be split into multiple CONTINUATION frames
         encoder.ApplyServerSettings([(SettingsParameter.MaxFrameSize, 5u)]);
 
@@ -242,7 +242,7 @@ public sealed class Http2RoundTripMethodTests
     [Fact(DisplayName = "RT-2-027: Mixed sensitive and non-sensitive headers round-trip correctly")]
     public async Task Should_HandleMixedHeaders_When_SensitiveAndNonSensitiveCombined()
     {
-        var encoder = new Http2Encoder(useHuffman: false);
+        var encoder = new Http2RequestEncoder(useHuffman: false);
         var buf = new byte[8192].AsMemory();
         var request = new HttpRequestMessage(HttpMethod.Get, "https://api.example.com/data");
         request.Headers.TryAddWithoutValidation("Authorization", "Bearer token123");
@@ -281,7 +281,7 @@ public sealed class Http2RoundTripMethodTests
     [Fact(DisplayName = "RT-2-029: Five concurrent streams all complete successfully")]
     public async Task Should_ReturnFiveResponses_When_FiveConcurrentStreams()
     {
-        var encoder = new Http2Encoder(useHuffman: false);
+        var encoder = new Http2RequestEncoder(useHuffman: false);
         var hpack = new HpackEncoder(useHuffman: false);
         var decoder = new Http2Decoder();
 
@@ -469,7 +469,7 @@ public sealed class Http2RoundTripMethodTests
     [Fact(DisplayName = "RT-2-036: HTTP/2 round-trip with Huffman encoding enabled")]
     public async Task Should_DecodeResponse_When_HuffmanEncodingEnabled()
     {
-        var encoder = new Http2Encoder(useHuffman: true);
+        var encoder = new Http2RequestEncoder(useHuffman: true);
         var buf = new byte[4096].AsMemory();
         var request = new HttpRequestMessage(HttpMethod.Get, "https://example.com/huffman");
         var (streamId, written) = encoder.Encode(request, ref buf);

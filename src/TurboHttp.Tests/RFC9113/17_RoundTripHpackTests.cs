@@ -225,7 +225,7 @@ public sealed class Http2RoundTripHpackTests
     [Fact(DisplayName = "RT-2-046: Stream IDs increment as odd numbers: 1, 3, 5, 7, 9")]
     public void Should_IncrementStreamIdsAsOddNumbers_When_MultipleRequestsEncoded()
     {
-        var encoder = new Http2Encoder(useHuffman: false);
+        var encoder = new Http2RequestEncoder(useHuffman: false);
         var ids = new int[5];
 
         for (var i = 0; i < 5; i++)
@@ -271,7 +271,7 @@ public sealed class Http2RoundTripHpackTests
     public void Should_DecodeGoAwayDebugMessage_When_GoAwayHasDebugData()
     {
         var debugMsg = "Server shutting down for maintenance";
-        var goAwayFrame = Http2Encoder.EncodeGoAway(7, Http2ErrorCode.NoError, debugMsg);
+        var goAwayFrame = Http2FrameUtils.EncodeGoAway(7, Http2ErrorCode.NoError, debugMsg);
 
         var decoder = new Http2Decoder();
         decoder.TryDecode(goAwayFrame.AsMemory(), out var result);
@@ -286,8 +286,8 @@ public sealed class Http2RoundTripHpackTests
     [Fact(DisplayName = "RT-2-049: Two independent encoders maintain separate stream ID sequences")]
     public void Should_HaveIndependentStreamIds_When_TwoEncodersCreated()
     {
-        var enc1 = new Http2Encoder(useHuffman: false);
-        var enc2 = new Http2Encoder(useHuffman: false);
+        var enc1 = new Http2RequestEncoder(useHuffman: false);
+        var enc2 = new Http2RequestEncoder(useHuffman: false);
 
         var buf1 = new byte[4096].AsMemory();
         var (id1a, _) = enc1.Encode(new HttpRequestMessage(HttpMethod.Get, "https://a.com/"), ref buf1);
@@ -393,7 +393,7 @@ public sealed class Http2RoundTripHpackTests
     [Fact(DisplayName = "RT-2-054: Encoder strips Connection-specific headers (TE, Keep-Alive, etc.)")]
     public void Should_StripConnectionHeaders_When_RequestHasForbiddenHeaders()
     {
-        var encoder = new Http2Encoder(useHuffman: false);
+        var encoder = new Http2RequestEncoder(useHuffman: false);
         var encoderBuf = new byte[4096];
         var buf = encoderBuf.AsMemory();
         var request = new HttpRequestMessage(HttpMethod.Get, "https://example.com/");

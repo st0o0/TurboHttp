@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Net.Http;
 
 namespace TurboHttp.Protocol;
@@ -14,7 +15,7 @@ public sealed class Http2RequestEncoder
     private readonly HpackEncoder _hpack;
     private int _maxFrameSize;
     private int _nextStreamId = 1;
-    private long _connectionSendWindow = 65535; // Initial window size per RFC 7540
+    private long _connectionSendWindow = 65535; // Tracks connection-level flow control (for RFC 7540 compliance)
     private readonly Dictionary<int, long> _streamSendWindows = new();
 
     public Http2RequestEncoder(bool useHuffman = false, int maxFrameSize = 16384)
@@ -69,15 +70,67 @@ public sealed class Http2RequestEncoder
     }
 
     /// <summary>
+    /// TEST ONLY: Encodes a request and returns serialized bytes with total size.
+    /// Used by integration tests that need to compare frame sizes for compression verification.
+    /// </summary>
+    public (int StreamId, int BytesWritten) EncodeToBytes(HttpRequestMessage request)
+    {
+        if (request is null)
+        {
+            throw new ArgumentNullException(nameof(request));
+        }
+
+        var (streamId, frames) = Encode(request);
+        var totalSize = frames.Sum(f => f.SerializedSize);
+        return (streamId, totalSize);
+    }
+
+    /// <summary>
+    /// TEST ONLY: Encodes a request into a buffer and returns stream ID and bytes written.
+    /// Span-based API for compatibility with test code that needs buffer control.
+    /// </summary>
+    public (int StreamId, int BytesWritten) Encode(HttpRequestMessage request, ref Memory<byte> buffer)
+    {
+        if (request is null)
+        {
+            throw new ArgumentNullException(nameof(request));
+        }
+
+        var (streamId, frames) = Encode(request);
+        int totalWritten = 0;
+
+        foreach (var frame in frames)
+        {
+            var frameSize = frame.SerializedSize;
+            if (buffer.Length < frameSize)
+            {
+                throw new InvalidOperationException($"Buffer too small: need {frameSize} bytes, have {buffer.Length}");
+            }
+
+            var span = buffer.Span;
+            frame.WriteTo(ref span);
+            totalWritten += frameSize;
+            buffer = buffer[frameSize..];
+        }
+
+        return (streamId, totalWritten);
+    }
+
+    /// <summary>
     /// TEST ONLY: Encodes a request and extracts the raw HPACK header block.
     /// Used by RFC compliance tests to verify header encoding details.
     /// </summary>
     internal byte[] EncodeToHpackBlock(HttpRequestMessage request)
     {
         if (request is null)
+        {
             throw new ArgumentNullException(nameof(request));
+        }
+
         if (request.RequestUri is null)
+        {
             throw new ArgumentNullException(nameof(request.RequestUri));
+        }
 
         var headers = BuildHeaderList(request);
         ValidatePseudoHeaders(headers);
@@ -89,22 +142,20 @@ public sealed class Http2RequestEncoder
     {
         if (headerBlock.Length <= _maxFrameSize)
         {
-            frames.Add(new HeadersFrame(streamId, headerBlock,
-                endStream: !hasBody, endHeaders: true));
+            frames.Add(new HeadersFrame(streamId, headerBlock, endStream: !hasBody, endHeaders: true));
             return;
         }
 
         // Fragmented header block — first chunk goes in HEADERS frame
-        frames.Add(new HeadersFrame(streamId, headerBlock[.._maxFrameSize],
-            endStream: false, endHeaders: false));
+        frames.Add(new HeadersFrame(streamId, headerBlock.AsMemory()[.._maxFrameSize], endStream: false,
+            endHeaders: false));
 
         var pos = _maxFrameSize;
         while (pos < headerBlock.Length)
         {
             var chunkSize = Math.Min(headerBlock.Length - pos, _maxFrameSize);
             var isLast = pos + chunkSize >= headerBlock.Length;
-            frames.Add(new ContinuationFrame(streamId,
-                headerBlock[pos..(pos + chunkSize)],
+            frames.Add(new ContinuationFrame(streamId, headerBlock.AsMemory()[pos..(pos + chunkSize)],
                 endHeaders: isLast));
             pos += chunkSize;
         }
@@ -134,7 +185,7 @@ public sealed class Http2RequestEncoder
         }
     }
 
-    // ── Header building (mirrors Http2Encoder pseudo-header logic) ─────────────
+    // ── Header building (mirrors Http2RequestEncoder pseudo-header logic) ─────────────
 
     private static List<(string, string)> BuildHeaderList(HttpRequestMessage request)
     {
@@ -145,9 +196,9 @@ public sealed class Http2RequestEncoder
 
         var headers = new List<(string, string)>
         {
-            (":method",    request.Method.Method),
-            (":path",      pathAndQuery),
-            (":scheme",    uri.Scheme),
+            (":method", request.Method.Method),
+            (":path", pathAndQuery),
+            (":scheme", uri.Scheme),
             (":authority", uri.Authority),
         };
 
@@ -200,32 +251,44 @@ public sealed class Http2RequestEncoder
                 {
                     case ":method":
                         if (hasMethod)
+                        {
                             throw new Http2Exception("RFC 7540 §8.1.2.1: Duplicate :method pseudo-header");
+                        }
                         hasMethod = true;
                         break;
                     case ":path":
                         if (hasPath)
+                        {
                             throw new Http2Exception("RFC 7540 §8.1.2.1: Duplicate :path pseudo-header");
+                        }
                         hasPath = true;
                         break;
                     case ":scheme":
                         if (hasScheme)
+                        {
                             throw new Http2Exception("RFC 7540 §8.1.2.1: Duplicate :scheme pseudo-header");
+                        }
                         hasScheme = true;
                         break;
                     case ":authority":
                         if (hasAuthority)
+                        {
                             throw new Http2Exception("RFC 7540 §8.1.2.1: Duplicate :authority pseudo-header");
+                        }
                         hasAuthority = true;
                         break;
                     default:
+                    {
                         throw new Http2Exception($"RFC 7540 §8.1.2.1: Unknown request pseudo-header '{name}'");
+                    }
                 }
             }
             else
             {
                 if (firstRegularIndex == int.MaxValue)
+                {
                     firstRegularIndex = i;
+                }
             }
         }
 
@@ -237,13 +300,21 @@ public sealed class Http2RequestEncoder
 
         var missing = new System.Text.StringBuilder();
         if (!hasMethod)
+        {
             missing.Append(missing.Length > 0 ? ", :method" : ":method");
+        }
         if (!hasPath)
+        {
             missing.Append(missing.Length > 0 ? ", :path" : ":path");
+        }
         if (!hasScheme)
+        {
             missing.Append(missing.Length > 0 ? ", :scheme" : ":scheme");
+        }
         if (!hasAuthority)
+        {
             missing.Append(missing.Length > 0 ? ", :authority" : ":authority");
+        }
 
         if (missing.Length > 0)
             throw new Http2Exception($"RFC 7540 §8.1.2.1: Missing required pseudo-headers: {missing}");
@@ -297,10 +368,10 @@ public sealed class Http2RequestEncoder
 
     // Forbidden connection-specific headers per RFC 9113 §8.2.2
     private static bool IsForbidden(string name) =>
-        string.Equals(name, "connection",        StringComparison.OrdinalIgnoreCase) ||
+        string.Equals(name, "connection", StringComparison.OrdinalIgnoreCase) ||
         string.Equals(name, "transfer-encoding", StringComparison.OrdinalIgnoreCase) ||
-        string.Equals(name, "upgrade",           StringComparison.OrdinalIgnoreCase) ||
-        string.Equals(name, "proxy-connection",  StringComparison.OrdinalIgnoreCase) ||
-        string.Equals(name, "keep-alive",        StringComparison.OrdinalIgnoreCase) ||
-        string.Equals(name, "te",                StringComparison.OrdinalIgnoreCase);
+        string.Equals(name, "upgrade", StringComparison.OrdinalIgnoreCase) ||
+        string.Equals(name, "proxy-connection", StringComparison.OrdinalIgnoreCase) ||
+        string.Equals(name, "keep-alive", StringComparison.OrdinalIgnoreCase) ||
+        string.Equals(name, "te", StringComparison.OrdinalIgnoreCase);
 }

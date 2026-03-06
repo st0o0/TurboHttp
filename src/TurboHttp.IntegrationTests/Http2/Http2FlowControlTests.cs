@@ -24,7 +24,7 @@ public sealed class Http2FlowControlTests
     [Fact(DisplayName = "IT-2A-030: Stream window exhaustion — encoder omits DATA when window is zero")]
     public void Should_OmitDataFrame_When_ConnectionSendWindowIsZero()
     {
-        var encoder = new Http2Encoder(useHuffman: false);
+        var encoder = new Http2RequestEncoder(useHuffman: false);
 
         // Drain the connection send window by encoding a 65535-byte body.
         var fullWindowBody = new ByteArrayContent(new byte[65535]);
@@ -34,9 +34,7 @@ public sealed class Http2FlowControlTests
             Content = fullWindowBody
         };
 
-        var buf1 = new byte[4 * 1024 * 1024];
-        var mem1 = buf1.AsMemory();
-        encoder.Encode(drainRequest, ref mem1);
+        encoder.EncodeToBytes(drainRequest);
 
         // Now the connection window should be 0; any additional body will not be encoded.
         var overflow = new ByteArrayContent(new byte[100]);
@@ -45,9 +43,7 @@ public sealed class Http2FlowControlTests
             Content = overflow
         };
 
-        var buf2 = new byte[4 * 1024 * 1024];
-        var mem2 = buf2.AsMemory();
-        var (_, bytesWritten2) = encoder.Encode(req2, ref mem2);
+        var (_, bytesWritten2) = encoder.EncodeToBytes(req2);
 
         // The encoded output should contain only the HEADERS frame (no DATA frame),
         // since the connection send window is 0.
@@ -63,16 +59,14 @@ public sealed class Http2FlowControlTests
     [Fact(DisplayName = "IT-2A-031: WINDOW_UPDATE received — encoder can send DATA after window replenishment")]
     public void Should_EncodeDataFrame_When_ConnectionWindowReplenished()
     {
-        var encoder = new Http2Encoder(useHuffman: false);
+        var encoder = new Http2RequestEncoder(useHuffman: false);
 
         // Drain the window.
         var drainRequest = new HttpRequestMessage(HttpMethod.Post, new Uri("http://127.0.0.1:9999/echo"))
         {
             Content = new ByteArrayContent(new byte[65535])
         };
-        var drainBuf = new byte[4 * 1024 * 1024];
-        var drainMem = drainBuf.AsMemory();
-        encoder.Encode(drainRequest, ref drainMem);
+        encoder.EncodeToBytes(drainRequest);
 
         // Replenish the connection window.
         encoder.UpdateConnectionWindow(65535);
@@ -82,9 +76,7 @@ public sealed class Http2FlowControlTests
         {
             Content = new ByteArrayContent(new byte[100])
         };
-        var buf = new byte[4 * 1024 * 1024];
-        var mem = buf.AsMemory();
-        var (_, bytesWritten) = encoder.Encode(req, ref mem);
+        var (_, bytesWritten) = encoder.EncodeToBytes(req);
 
         // Should include both HEADERS and DATA frames.
         // HEADERS + DATA(100 bytes) = at least 9 + 9 + 100 = 118 bytes.
@@ -95,7 +87,7 @@ public sealed class Http2FlowControlTests
     [Fact(DisplayName = "IT-2A-032: Connection window exhaustion — same as stream window for first stream")]
     public void Should_TrackConnectionAndStreamWindowsSeparately_When_EncoderUsed()
     {
-        var encoder = new Http2Encoder(useHuffman: false);
+        var encoder = new Http2RequestEncoder(useHuffman: false);
 
         // Verify the stream window is tracked independently from the connection window.
         // After encoding one stream, update only the stream window.
@@ -103,9 +95,7 @@ public sealed class Http2FlowControlTests
         {
             Content = new ByteArrayContent(new byte[1000])
         };
-        var buf1 = new byte[4 * 1024 * 1024];
-        var mem1 = buf1.AsMemory();
-        var (streamId1, _) = encoder.Encode(req1, ref mem1);
+        var (streamId1, _) = encoder.EncodeToBytes(req1);
 
         // Update only the stream window for stream 1 — connection window unchanged.
         encoder.UpdateStreamWindow(streamId1, 65535);
@@ -115,9 +105,7 @@ public sealed class Http2FlowControlTests
         {
             Content = new ByteArrayContent(new byte[100])
         };
-        var buf2 = new byte[4 * 1024 * 1024];
-        var mem2 = buf2.AsMemory();
-        var (_, bytesWritten2) = encoder.Encode(req2, ref mem2);
+        var (_, bytesWritten2) = encoder.EncodeToBytes(req2);
 
         Assert.True(bytesWritten2 > 0);
     }
@@ -166,7 +154,7 @@ public sealed class Http2FlowControlTests
         var decoder = new Http2Decoder();
 
         // Initial send window = 65535. Adding 2^31-1 would exceed 2^31-1 total.
-        var wu = Http2Encoder.EncodeWindowUpdate(0, 0x7FFFFFFF);
+        var wu = Http2FrameUtils.EncodeWindowUpdate(0, 0x7FFFFFFF);
 
         var ex = Assert.Throws<Http2Exception>(() =>
             decoder.TryDecode(wu.AsMemory(), out _));
@@ -240,7 +228,7 @@ public sealed class Http2FlowControlTests
     [Fact(DisplayName = "IT-2A-041: Multiple WINDOW_UPDATE frames cumulative — encoder tracks total window")]
     public void Should_AccumulateWindow_When_MultipleWindowUpdateFramesReceived()
     {
-        var encoder = new Http2Encoder(useHuffman: false);
+        var encoder = new Http2RequestEncoder(useHuffman: false);
 
         // Apply multiple window updates.
         encoder.UpdateConnectionWindow(1000);
@@ -252,9 +240,7 @@ public sealed class Http2FlowControlTests
         {
             Content = new ByteArrayContent(new byte[6000])
         };
-        var buf = new byte[4 * 1024 * 1024];
-        var mem = buf.AsMemory();
-        var (_, bytesWritten) = encoder.Encode(req, ref mem);
+        var (_, bytesWritten) = encoder.EncodeToBytes(req);
 
         // Should include DATA frame with 6000 bytes (plus headers).
         // 9 (headers-frame header) + headers payload + 9 (data-frame header) + 6000 ≈ 6100+.
@@ -264,16 +250,14 @@ public sealed class Http2FlowControlTests
     [Fact(DisplayName = "IT-2A-042: Encoder correctly tracks remaining send window after encoding")]
     public void Should_TrackRemainingWindow_When_EncoderEncodesBodies()
     {
-        var encoder = new Http2Encoder(useHuffman: false);
+        var encoder = new Http2RequestEncoder(useHuffman: false);
 
         // Encode a 1000-byte body request.
         var req = new HttpRequestMessage(HttpMethod.Post, new Uri("http://127.0.0.1:9999/echo"))
         {
             Content = new ByteArrayContent(new byte[1000])
         };
-        var buf = new byte[4 * 1024 * 1024];
-        var mem = buf.AsMemory();
-        encoder.Encode(req, ref mem);
+        encoder.EncodeToBytes(req);
 
         // The encoder consumed 1000 bytes from the send window.
         // Verify by encoding another body — should still work (65535 - 1000 = 64535 remaining).
@@ -281,9 +265,7 @@ public sealed class Http2FlowControlTests
         {
             Content = new ByteArrayContent(new byte[100])
         };
-        var buf2 = new byte[4 * 1024 * 1024];
-        var mem2 = buf2.AsMemory();
-        var (_, bytesWritten2) = encoder.Encode(req2, ref mem2);
+        var (_, bytesWritten2) = encoder.EncodeToBytes(req2);
 
         // Should include DATA frame for the 100-byte body.
         Assert.True(bytesWritten2 >= 9 + 9 + 100,

@@ -46,7 +46,7 @@ public sealed class Http2EdgeCaseTests
         var hpackEncoder = new HpackEncoder(useHuffman: false);
         var headerBlock = hpackEncoder.Encode([(":status", "204")]);
         var frame = new byte[9 + headerBlock.Length];
-        Http2FrameWriter.WriteHeadersFrame(frame, streamId: 1, headerBlock.Span, endStream: true, endHeaders: true);
+        Http2FrameTestWriter.WriteHeadersFrame(frame, streamId: 1, headerBlock.Span, endStream: true, endHeaders: true);
 
         var decoded = decoder.TryDecode(frame.AsMemory(), out var result);
 
@@ -83,7 +83,7 @@ public sealed class Http2EdgeCaseTests
     public void Should_ParseAllParameters_When_SettingsFrameContainsMultipleEntries()
     {
         var decoder = new Http2Decoder();
-        var settings = Http2Encoder.EncodeSettings([
+        var settings = Http2FrameUtils.EncodeSettings([
             (SettingsParameter.HeaderTableSize, 8192u),
             (SettingsParameter.MaxConcurrentStreams, 100u),
             (SettingsParameter.InitialWindowSize, 32768u),
@@ -141,7 +141,7 @@ public sealed class Http2EdgeCaseTests
         var headerBlock = hpackEncoder.Encode([(":status", "200")]);
 
         var frame = new byte[9 + headerBlock.Length];
-        Http2FrameWriter.WriteHeadersFrame(frame, streamId: 1, headerBlock.Span, endStream: true, endHeaders: true);
+        Http2FrameTestWriter.WriteHeadersFrame(frame, streamId: 1, headerBlock.Span, endStream: true, endHeaders: true);
 
         // Set an unknown flag (bit 6 = 0x40, not defined for HEADERS).
         frame[4] |= 0x40;
@@ -165,10 +165,10 @@ public sealed class Http2EdgeCaseTests
         var hpackEncoder = new HpackEncoder(useHuffman: false);
         var headerBlock = hpackEncoder.Encode([(":status", "200")]);
         var headersFrame = new byte[9 + headerBlock.Length];
-        Http2FrameWriter.WriteHeadersFrame(headersFrame, streamId: 1, headerBlock.Span, endStream: true, endHeaders: true);
+        Http2FrameTestWriter.WriteHeadersFrame(headersFrame, streamId: 1, headerBlock.Span, endStream: true, endHeaders: true);
 
         // Build GOAWAY frame (lastStreamId=1, NO_ERROR)
-        var goAwayFrame = Http2Encoder.EncodeGoAway(1, Http2ErrorCode.NoError);
+        var goAwayFrame = Http2FrameUtils.EncodeGoAway(1, Http2ErrorCode.NoError);
 
         // Feed both in a single call to TryDecode.
         var batch = new byte[headersFrame.Length + goAwayFrame.Length];

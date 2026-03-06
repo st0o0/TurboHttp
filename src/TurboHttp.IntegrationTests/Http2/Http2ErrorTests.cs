@@ -27,7 +27,7 @@ public sealed class Http2ErrorTests
         var decoder = new Http2Decoder();
 
         // Build a GOAWAY frame: lastStreamId=0, PROTOCOL_ERROR
-        var goAwayBytes = Http2Encoder.EncodeGoAway(0, Http2ErrorCode.ProtocolError, "test error");
+        var goAwayBytes = Http2FrameUtils.EncodeGoAway(0, Http2ErrorCode.ProtocolError, "test error");
 
         var decoded = decoder.TryDecode(goAwayBytes.AsMemory(), out var result);
 
@@ -41,7 +41,7 @@ public sealed class Http2ErrorTests
     {
         var decoder = new Http2Decoder();
 
-        var goAwayBytes = Http2Encoder.EncodeGoAway(0, Http2ErrorCode.EnhanceYourCalm);
+        var goAwayBytes = Http2FrameUtils.EncodeGoAway(0, Http2ErrorCode.EnhanceYourCalm);
 
         var decoded = decoder.TryDecode(goAwayBytes.AsMemory(), out var result);
 
@@ -69,7 +69,7 @@ public sealed class Http2ErrorTests
     {
         var decoder = new Http2Decoder();
 
-        var rstBytes = Http2Encoder.EncodeRstStream(1, Http2ErrorCode.Cancel);
+        var rstBytes = Http2FrameUtils.EncodeRstStream(1, Http2ErrorCode.Cancel);
 
         var decoded = decoder.TryDecode(rstBytes.AsMemory(), out var result);
 
@@ -84,7 +84,7 @@ public sealed class Http2ErrorTests
     {
         var decoder = new Http2Decoder();
 
-        var rstBytes = Http2Encoder.EncodeRstStream(3, Http2ErrorCode.StreamClosed);
+        var rstBytes = Http2FrameUtils.EncodeRstStream(3, Http2ErrorCode.StreamClosed);
 
         var decoded = decoder.TryDecode(rstBytes.AsMemory(), out var result);
 
@@ -103,7 +103,7 @@ public sealed class Http2ErrorTests
 
         // Build a DATA frame with stream ID 0 (invalid per RFC 7540 §6.1).
         var frameBytes = new byte[9 + 4];
-        Http2FrameWriter.WriteDataFrame(frameBytes, streamId: 0, "test"u8, endStream: false);
+        Http2FrameTestWriter.WriteDataFrame(frameBytes, streamId: 0, "test"u8, endStream: false);
 
         var ex = Assert.Throws<Http2Exception>(() =>
             decoder.TryDecode(frameBytes.AsMemory(), out _));
@@ -123,7 +123,7 @@ public sealed class Http2ErrorTests
         var headerBlock = new byte[] { 0x88 }; // indexed header, index 8 = :status 200
 
         var frameBytes = new byte[9 + headerBlock.Length];
-        Http2FrameWriter.WriteHeadersFrame(
+        Http2FrameTestWriter.WriteHeadersFrame(
             frameBytes,
             streamId: 2,
             headerBlock: headerBlock,
@@ -145,12 +145,12 @@ public sealed class Http2ErrorTests
         // HPACK index 8 = :status 200.
         var headerBlock = new byte[] { 0x88 };
         var frame1 = new byte[9 + headerBlock.Length];
-        Http2FrameWriter.WriteHeadersFrame(frame1, streamId: 1, headerBlock, endStream: true, endHeaders: true);
+        Http2FrameTestWriter.WriteHeadersFrame(frame1, streamId: 1, headerBlock, endStream: true, endHeaders: true);
         decoder.TryDecode(frame1.AsMemory(), out _); // closes stream 1
 
         // RFC 7540 §6.2: HEADERS on a closed stream is a connection error of type STREAM_CLOSED.
         var frame2 = new byte[9 + headerBlock.Length];
-        Http2FrameWriter.WriteHeadersFrame(frame2, streamId: 1, headerBlock, endStream: true, endHeaders: true);
+        Http2FrameTestWriter.WriteHeadersFrame(frame2, streamId: 1, headerBlock, endStream: true, endHeaders: true);
 
         var ex = Assert.Throws<Http2Exception>(() =>
             decoder.TryDecode(frame2.AsMemory(), out _));
@@ -167,7 +167,7 @@ public sealed class Http2ErrorTests
         var decoder = new Http2Decoder();
 
         // Build SETTINGS frame with ENABLE_PUSH=2 (invalid; only 0 or 1 are valid).
-        var settingsBytes = Http2Encoder.EncodeSettings(
+        var settingsBytes = Http2FrameUtils.EncodeSettings(
         [
             (SettingsParameter.EnablePush, 2u)
         ]);
@@ -245,7 +245,7 @@ public sealed class Http2ErrorTests
     {
         var decoder = new Http2Decoder();
 
-        var rstBytes = Http2Encoder.EncodeRstStream(1, Http2ErrorCode.RefusedStream);
+        var rstBytes = Http2FrameUtils.EncodeRstStream(1, Http2ErrorCode.RefusedStream);
 
         // Should not throw — RST_STREAM is a valid frame type.
         var decoded = decoder.TryDecode(rstBytes.AsMemory(), out var result);
@@ -268,7 +268,7 @@ public sealed class Http2ErrorTests
         var headerBlock = hpackEncoder.Encode([("content-type", "text/plain")]); // no :status
 
         var frameBytes = new byte[9 + headerBlock.Length];
-        Http2FrameWriter.WriteHeadersFrame(
+        Http2FrameTestWriter.WriteHeadersFrame(
             frameBytes, streamId: 1, headerBlock.Span,
             endStream: true, endHeaders: true);
 

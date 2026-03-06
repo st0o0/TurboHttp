@@ -20,11 +20,30 @@ public static class Http2FrameUtils
     }
 
     /// <summary>
+    /// Encodes a PING ACK frame (response to a PING).
+    /// </summary>
+    public static byte[] EncodePingAck(byte[] data)
+    {
+        var frame = new PingFrame(data, isAck: true);
+        return frame.Serialize();
+    }
+
+    /// <summary>
     /// Encodes a GOAWAY frame.
     /// </summary>
     public static byte[] EncodeGoAway(int lastStreamId, Http2ErrorCode errorCode)
     {
         var frame = new GoAwayFrame(lastStreamId, errorCode);
+        return frame.Serialize();
+    }
+
+    /// <summary>
+    /// Encodes a GOAWAY frame with an optional debug message.
+    /// </summary>
+    public static byte[] EncodeGoAway(int lastStreamId, Http2ErrorCode errorCode, string? debugMessage = null)
+    {
+        var debugData = debugMessage != null ? System.Text.Encoding.UTF8.GetBytes(debugMessage) : null;
+        var frame = new GoAwayFrame(lastStreamId, errorCode, debugData);
         return frame.Serialize();
     }
 
@@ -52,6 +71,15 @@ public static class Http2FrameUtils
     public static byte[] EncodeSettings(ReadOnlySpan<(SettingsParameter Key, uint Value)> parameters)
     {
         var frame = new SettingsFrame(parameters.ToArray());
+        return frame.Serialize();
+    }
+
+    /// <summary>
+    /// Encodes a SETTINGS ACK frame (empty SETTINGS frame with ACK flag).
+    /// </summary>
+    public static byte[] EncodeSettingsAck()
+    {
+        var frame = new SettingsFrame([], isAck: true);
         return frame.Serialize();
     }
 

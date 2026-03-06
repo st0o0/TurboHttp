@@ -65,11 +65,11 @@ public static class Http2StageTestHelper
     /// Returns null if no HEADERS frame for the expected stream is found.
     /// Throws Http2Exception if the HEADERS frame lacks a :status pseudo-header.
     /// </summary>
-    public static HttpResponseMessage? TryBuildResponseFromFrames(
-        IReadOnlyList<Http2Frame> frames,
+    public static HttpResponseMessage? TryBuildResponseFromFrames(IReadOnlyList<Http2Frame> frames,
         int expectedStreamId = 1)
     {
-        var headersFrame = frames.OfType<HeadersFrame>()
+        var headersFrame = frames
+            .OfType<HeadersFrame>()
             .FirstOrDefault(f => f.StreamId == expectedStreamId);
 
         if (headersFrame == null)
@@ -84,9 +84,7 @@ public static class Http2StageTestHelper
         if (statusHeader == default)
         {
             throw new Http2Exception(
-                "Missing :status pseudo-header",
-                Http2ErrorCode.ProtocolError,
-                Http2ErrorScope.Connection);
+                "Missing :status pseudo-header");
         }
 
         var response = new HttpResponseMessage((HttpStatusCode)int.Parse(statusHeader.Value));
@@ -122,46 +120,31 @@ public static class Http2StageTestHelper
         // RFC 9113 §6.2: HEADERS must be on stream > 0
         if (frame is HeadersFrame && frame.StreamId == 0)
         {
-            throw new Http2Exception(
-                "HEADERS on stream 0 is connection error",
-                Http2ErrorCode.ProtocolError,
-                Http2ErrorScope.Connection);
+            throw new Http2Exception("HEADERS on stream 0 is connection error");
         }
 
         // RFC 9113 §6.1: DATA must be on stream > 0
         if (frame is DataFrame && frame.StreamId == 0)
         {
-            throw new Http2Exception(
-                "DATA on stream 0 is connection error",
-                Http2ErrorCode.ProtocolError,
-                Http2ErrorScope.Connection);
+            throw new Http2Exception("DATA on stream 0 is connection error");
         }
 
         // RFC 9113 §6.5: SETTINGS must be on stream 0
         if (frame is SettingsFrame && frame.StreamId != 0)
         {
-            throw new Http2Exception(
-                "SETTINGS on non-zero stream is connection error",
-                Http2ErrorCode.ProtocolError,
-                Http2ErrorScope.Connection);
+            throw new Http2Exception("SETTINGS on non-zero stream is connection error");
         }
 
         // RFC 9113 §6.7: PING must be on stream 0
         if (frame is PingFrame && frame.StreamId != 0)
         {
-            throw new Http2Exception(
-                "PING on non-zero stream is connection error",
-                Http2ErrorCode.ProtocolError,
-                Http2ErrorScope.Connection);
+            throw new Http2Exception("PING on non-zero stream is connection error");
         }
 
         // RFC 9113 §6.8: GOAWAY must be on stream 0
         if (frame is GoAwayFrame && frame.StreamId != 0)
         {
-            throw new Http2Exception(
-                "GOAWAY on non-zero stream is connection error",
-                Http2ErrorCode.ProtocolError,
-                Http2ErrorScope.Connection);
+            throw new Http2Exception("GOAWAY on non-zero stream is connection error");
         }
     }
 }

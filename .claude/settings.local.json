@@ -15,7 +15,12 @@
       "Bash(xargs:*)",
       "mcp__plugin_context-mode_context-mode__execute_file",
       "Bash(git restore:*)",
-      "mcp__plugin_context-mode_context-mode__execute"
+      "mcp__plugin_context-mode_context-mode__execute",
+      "Bash(git commit:*)",
+      "Bash(rm:*)",
+      "Bash(find src:*)",
+      "Bash(find:*)",
+      "Bash(git checkout:*)"
     ]
   }
 }

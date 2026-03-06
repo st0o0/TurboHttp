@@ -62,7 +62,7 @@ public sealed class Http2RoundTripHandshakeTests
     [Fact(DisplayName = "RT-2-001: HTTP/2 connection preface + SETTINGS exchange")]
     public void Should_ContainMagicAndSettings_When_ConnectionPrefaceBuilt()
     {
-        var preface = Http2Encoder.BuildConnectionPreface();
+        var preface = Http2FrameUtils.BuildConnectionPreface();
 
         // Verify PRI magic (24 bytes)
         var magic = "PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n"u8.ToArray();
@@ -89,7 +89,7 @@ public sealed class Http2RoundTripHandshakeTests
     [Fact(DisplayName = "RT-2-002: HTTP/2 GET → 200 on stream 1")]
     public async Task Should_Return200_When_Http2GetRoundTrip()
     {
-        var encoder = new Http2Encoder(useHuffman: false);
+        var encoder = new Http2RequestEncoder(useHuffman: false);
         var buf = new byte[4096].AsMemory();
         var request = new HttpRequestMessage(HttpMethod.Get, "https://example.com/");
         var (streamId, written) = encoder.Encode(request, ref buf);
@@ -115,7 +115,7 @@ public sealed class Http2RoundTripHandshakeTests
     [Fact(DisplayName = "RT-2-003: HTTP/2 POST → HEADERS+DATA → 201 response")]
     public async Task Should_Return201_When_Http2PostRoundTrip()
     {
-        var encoder = new Http2Encoder(useHuffman: false);
+        var encoder = new Http2RequestEncoder(useHuffman: false);
         var encoderBuf = new byte[8192];
         var buf = encoderBuf.AsMemory();
         var request = new HttpRequestMessage(HttpMethod.Post, "https://example.com/items")
@@ -156,7 +156,7 @@ public sealed class Http2RoundTripHandshakeTests
     [Fact(DisplayName = "RT-2-004: HTTP/2 three concurrent streams each complete independently")]
     public async Task Should_ReturnThreeResponses_When_ThreeConcurrentStreams()
     {
-        var encoder = new Http2Encoder(useHuffman: false);
+        var encoder = new Http2RequestEncoder(useHuffman: false);
         var buf = new byte[4096].AsMemory();
 
         var (id1, _) = encoder.Encode(
@@ -284,7 +284,7 @@ public sealed class Http2RoundTripHandshakeTests
         Assert.Single(result.SettingsAcksToSend);
 
         // Apply to encoder: encoder respects the new max frame size
-        var encoder = new Http2Encoder(useHuffman: false);
+        var encoder = new Http2RequestEncoder(useHuffman: false);
         encoder.ApplyServerSettings(settings);
         var buf = new byte[65536].AsMemory();
         var request = new HttpRequestMessage(HttpMethod.Get, "https://example.com/");
@@ -382,7 +382,7 @@ public sealed class Http2RoundTripHandshakeTests
         Assert.Equal(0x10, block1.Span[0] & 0xF0);
 
         // Full round-trip: encode a request with Authorization, then decode a 200 response
-        var encoder = new Http2Encoder(useHuffman: false);
+        var encoder = new Http2RequestEncoder(useHuffman: false);
         var buf = new byte[4096].AsMemory();
         var request = new HttpRequestMessage(HttpMethod.Get, "https://api.example.com/secure");
         request.Headers.TryAddWithoutValidation("Authorization", "Bearer secret123");
@@ -414,7 +414,7 @@ public sealed class Http2RoundTripHandshakeTests
         Assert.Equal(0x10, block1.Span[0] & 0xF0);
 
         // Full round-trip
-        var encoder = new Http2Encoder(useHuffman: false);
+        var encoder = new Http2RequestEncoder(useHuffman: false);
         var buf = new byte[4096].AsMemory();
         var request = new HttpRequestMessage(HttpMethod.Get, "https://api.example.com/profile");
         request.Headers.TryAddWithoutValidation("Cookie", "session=abc123; user=alice");
@@ -435,7 +435,7 @@ public sealed class Http2RoundTripHandshakeTests
     public async Task Should_UseContinuationFrames_When_HeadersExceedMaxFrameSize()
     {
         // Set a small max frame size to force CONTINUATION frames
-        var encoder = new Http2Encoder(useHuffman: false);
+        var encoder = new Http2RequestEncoder(useHuffman: false);
         encoder.ApplyServerSettings([(SettingsParameter.MaxFrameSize, 10u)]);
 
         var encoderBuf = new byte[4096];
@@ -553,7 +553,7 @@ public sealed class Http2RoundTripHandshakeTests
         Assert.Contains(result.WindowUpdates, u => u.StreamId == 0 && u.Increment == increment);
 
         // Encoder applies the window update and can now send more data
-        var encoder = new Http2Encoder(useHuffman: false);
+        var encoder = new Http2RequestEncoder(useHuffman: false);
         encoder.UpdateConnectionWindow(increment);
         encoder.UpdateStreamWindow(1, increment);
 
@@ -572,7 +572,7 @@ public sealed class Http2RoundTripHandshakeTests
     [Fact(DisplayName = "RT-2-015: HTTP/2 request → 404 response on stream decoded")]
     public void Should_Return404_When_Http2StreamReturnsNotFound()
     {
-        var encoder = new Http2Encoder(useHuffman: false);
+        var encoder = new Http2RequestEncoder(useHuffman: false);
         var buf = new byte[4096].AsMemory();
         var request = new HttpRequestMessage(HttpMethod.Get, "https://example.com/missing");
         var (streamId, written) = encoder.Encode(request, ref buf);
@@ -647,7 +647,7 @@ public sealed class Http2RoundTripHandshakeTests
     [Fact(DisplayName = "RT-2-019: SETTINGS ACK frame consumed silently, no response queued")]
     public void Should_ConsumeSettingsAck_When_SettingsAckFrameReceived()
     {
-        var settingsAck = Http2Encoder.EncodeSettingsAck();
+        var settingsAck = Http2FrameUtils.EncodeSettingsAck();
         var decoder = new Http2Decoder();
         var decoded = decoder.TryDecode(settingsAck.AsMemory(), out var result);
 

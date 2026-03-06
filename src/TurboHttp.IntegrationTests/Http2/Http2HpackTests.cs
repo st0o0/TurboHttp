@@ -25,16 +25,12 @@ public sealed class Http2HpackTests
     public async Task Should_EncodeAllLiteral_When_FirstRequestSent()
     {
         // Encode two requests with independent encoders to compare sizes.
-        var encoder = new Http2Encoder(useHuffman: false);
-        var buffer1 = new byte[1024 * 64];
-        var mem1 = buffer1.AsMemory();
+        var encoder = new Http2RequestEncoder(useHuffman: false);
         var request = new HttpRequestMessage(HttpMethod.Get, new Uri($"http://127.0.0.1:{_fixture.Port}/ping"));
-        var (_, written1) = encoder.Encode(request, ref mem1);
+        var (_, written1) = encoder.EncodeToBytes(request);
 
         // Encode same request again — HPACK table is warm, so second should be smaller.
-        var buffer2 = new byte[1024 * 64];
-        var mem2 = buffer2.AsMemory();
-        var (_, written2) = encoder.Encode(request, ref mem2);
+        var (_, written2) = encoder.EncodeToBytes(request);
 
         Assert.True(written2 <= written1,
             $"Second identical request ({written2} bytes) should be <= first ({written1} bytes) due to HPACK indexing.");
@@ -50,19 +46,14 @@ public sealed class Http2HpackTests
     [Fact(DisplayName = "IT-2-041: Second identical request uses indexed headers (smaller HEADERS frame)")]
     public async Task Should_UseSmallerHeadersFrame_When_SecondIdenticalRequestSent()
     {
-        var encoder = new Http2Encoder(useHuffman: false);
+        var encoder = new Http2RequestEncoder(useHuffman: false);
         var uri = new Uri($"http://127.0.0.1:{_fixture.Port}/hello");
 
         var req1 = new HttpRequestMessage(HttpMethod.Get, uri);
         var req2 = new HttpRequestMessage(HttpMethod.Get, uri);
 
-        var buf1 = new byte[1024 * 64];
-        var mem1 = buf1.AsMemory();
-        var (_, written1) = encoder.Encode(req1, ref mem1);
-
-        var buf2 = new byte[1024 * 64];
-        var mem2 = buf2.AsMemory();
-        var (_, written2) = encoder.Encode(req2, ref mem2);
+        var (_, written1) = encoder.EncodeToBytes(req1);
+        var (_, written2) = encoder.EncodeToBytes(req2);
 
         Assert.True(written2 < written1,
             $"Second request ({written2} bytes) should be smaller than first ({written1} bytes).");
@@ -72,7 +63,7 @@ public sealed class Http2HpackTests
     public async Task Should_GrowDynamicTable_When_CustomHeadersSentAcrossRequests()
     {
         // After several requests with the same custom header, later requests are smaller.
-        var encoder = new Http2Encoder(useHuffman: false);
+        var encoder = new Http2RequestEncoder(useHuffman: false);
         var uri = new Uri($"http://127.0.0.1:{_fixture.Port}/headers/echo");
         const string headerName = "X-My-Header";
         const string headerValue = "constant-value";
@@ -82,9 +73,7 @@ public sealed class Http2HpackTests
         {
             var req = new HttpRequestMessage(HttpMethod.Get, uri);
             req.Headers.TryAddWithoutValidation(headerName, headerValue);
-            var buf = new byte[1024 * 64];
-            var mem = buf.AsMemory();
-            var (_, written) = encoder.Encode(req, ref mem);
+            var (_, written) = encoder.EncodeToBytes(req);
             sizes.Add(written);
         }
 
@@ -108,7 +97,7 @@ public sealed class Http2HpackTests
     public async Task Should_UseStaticTableEntries_When_CommonMethodsAndPathsEncoded()
     {
         // GET and /ping are in the static table; subsequent requests should be smaller.
-        var encoder = new Http2Encoder(useHuffman: false);
+        var encoder = new Http2RequestEncoder(useHuffman: false);
         var uri = new Uri($"http://127.0.0.1:{_fixture.Port}/");
 
         var req1 = new HttpRequestMessage(HttpMethod.Get, uri);
@@ -124,8 +113,8 @@ public sealed class Http2HpackTests
     public async Task Should_CompressHeaders_When_HuffmanEncodingEnabled()
     {
         // Compare encoded size with Huffman on vs off.
-        var encoderHuffman = new Http2Encoder(useHuffman: true);
-        var encoderNoHuffman = new Http2Encoder(useHuffman: false);
+        var encoderHuffman = new Http2RequestEncoder(useHuffman: true);
+        var encoderNoHuffman = new Http2RequestEncoder(useHuffman: false);
         var uri = new Uri($"http://127.0.0.1:{_fixture.Port}/hello");
 
         var req1 = new HttpRequestMessage(HttpMethod.Get, uri);
@@ -253,7 +242,7 @@ public sealed class Http2HpackTests
     [Fact(DisplayName = "IT-2-053: Multiple requests with same custom header — subsequent encodings are smaller")]
     public async Task Should_CompressSubsequentRequests_When_SameCustomHeaderRepeated()
     {
-        var encoder = new Http2Encoder(useHuffman: false);
+        var encoder = new Http2RequestEncoder(useHuffman: false);
         var uri = new Uri($"http://127.0.0.1:{_fixture.Port}/ping");
         const string customHeader = "X-Repeated-Header";
         const string customValue = "same-value-every-time";

@@ -16,7 +16,7 @@ public sealed class Http2StageTestHelperTests
     [Fact(DisplayName = "40-001: DecodeFrames returns GoAwayFrame for GOAWAY bytes")]
     public void DecodeFrames_ReturnsGoAwayFrame()
     {
-        var bytes = Http2Encoder.EncodeGoAway(0, Http2ErrorCode.ProtocolError, "test");
+        var bytes = Http2FrameUtils.EncodeGoAway(0, Http2ErrorCode.ProtocolError, "test");
 
         var frames = Http2StageTestHelper.DecodeFrames(bytes);
 
@@ -29,7 +29,7 @@ public sealed class Http2StageTestHelperTests
     [Fact(DisplayName = "40-002: DecodeFrames returns SettingsFrame for SETTINGS bytes")]
     public void DecodeFrames_ReturnsSettingsFrame()
     {
-        var bytes = Http2Encoder.EncodeSettings(
+        var bytes = Http2FrameUtils.EncodeSettings(
             [(SettingsParameter.MaxConcurrentStreams, 100u)]);
 
         var frames = Http2StageTestHelper.DecodeFrames(bytes);
@@ -44,8 +44,8 @@ public sealed class Http2StageTestHelperTests
     [Fact(DisplayName = "40-003: DecodeFrames decodes multiple frames in sequence")]
     public void DecodeFrames_DecodesMultipleFrames()
     {
-        var settings = Http2Encoder.EncodeSettings([]);
-        var ack = Http2Encoder.EncodeSettingsAck();
+        var settings = Http2FrameUtils.EncodeSettings([]);
+        var ack = Http2FrameUtils.EncodeSettingsAck();
         var combined = new byte[settings.Length + ack.Length];
         settings.CopyTo(combined, 0);
         ack.CopyTo(combined, settings.Length);

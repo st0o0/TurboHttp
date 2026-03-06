@@ -16,7 +16,7 @@ public sealed class Http2EncoderStreamSettingsTests
     [InlineData(SettingsParameter.MaxHeaderListSize, 8192u)]
     public void Settings_Parameter_EncodedCorrectly(SettingsParameter param, uint value)
     {
-        var frame = Http2Encoder.EncodeSettings([(param, value)]);
+        var frame = Http2FrameUtils.EncodeSettings([(param, value)]);
         Assert.Equal((byte)FrameType.Settings, frame[3]);
         Assert.Equal(0, frame[4]); // not ACK
 
@@ -30,7 +30,7 @@ public sealed class Http2EncoderStreamSettingsTests
     [Fact(DisplayName = "enc5-set-002: SETTINGS ACK frame has type=0x04 flags=0x01 stream=0")]
     public void SettingsAck_HasCorrectTypeAndFlags()
     {
-        var ack = Http2Encoder.EncodeSettingsAck();
+        var ack = Http2FrameUtils.EncodeSettingsAck();
         Assert.Equal((byte)FrameType.Settings, ack[3]);         // type = 0x04
         Assert.Equal((byte)SettingsFlags.Ack, ack[4]);          // flags = 0x01
         var streamId = BinaryPrimitives.ReadUInt32BigEndian(ack.AsSpan(5)) & 0x7FFFFFFFu;
@@ -40,7 +40,7 @@ public sealed class Http2EncoderStreamSettingsTests
     [Fact(DisplayName = "7540-5.1-001: First request uses stream ID 1")]
     public void StreamId_FirstRequest_IsOne()
     {
-        var encoder = new Http2Encoder(useHuffman: false);
+        var encoder = new Http2RequestEncoder(useHuffman: false);
         var req = new HttpRequestMessage(HttpMethod.Get, "https://example.com/");
         using var owner = MemoryPool<byte>.Shared.Rent(4096);
         var buf = owner.Memory;
@@ -51,7 +51,7 @@ public sealed class Http2EncoderStreamSettingsTests
     [Fact(DisplayName = "7540-5.1-002: Stream IDs increment (1,3,5,...)")]
     public void StreamId_Increments_ByTwo()
     {
-        var encoder = new Http2Encoder(useHuffman: false);
+        var encoder = new Http2RequestEncoder(useHuffman: false);
         var req = new HttpRequestMessage(HttpMethod.Get, "https://example.com/");
 
         using var owner = MemoryPool<byte>.Shared.Rent(4096);
@@ -73,7 +73,7 @@ public sealed class Http2EncoderStreamSettingsTests
     [Fact(DisplayName = "enc5-sid-001: Client never produces even stream IDs")]
     public void StreamId_NeverEven()
     {
-        var encoder = new Http2Encoder(useHuffman: false);
+        var encoder = new Http2RequestEncoder(useHuffman: false);
         var req = new HttpRequestMessage(HttpMethod.Get, "https://example.com/");
         using var owner = MemoryPool<byte>.Shared.Rent(4096);
 
@@ -88,10 +88,10 @@ public sealed class Http2EncoderStreamSettingsTests
     [Fact(DisplayName = "enc5-sid-002: Stream ID approaching 2^31 handled gracefully")]
     public void StreamId_Near2Pow31_ThrowsGracefully()
     {
-        var encoder = new Http2Encoder(useHuffman: false);
+        var encoder = new Http2RequestEncoder(useHuffman: false);
 
         // Set _nextStreamId to the last valid odd value (2^31 - 1 = 0x7FFFFFFF)
-        var field = typeof(Http2Encoder).GetField("_nextStreamId",
+        var field = typeof(Http2RequestEncoder).GetField("_nextStreamId",
             System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!;
         field.SetValue(encoder, 0x7FFFFFFF);
 
@@ -111,7 +111,7 @@ public sealed class Http2EncoderStreamSettingsTests
     [Fact(DisplayName = "7540-5.2-enc-001: Encoder does not exceed initial 65535-byte window")]
     public void FlowControl_InitialWindow_LimitsToDefault()
     {
-        var encoder = new Http2Encoder(useHuffman: false);
+        var encoder = new Http2RequestEncoder(useHuffman: false);
         var body = new string('X', 65535); // exactly fills the default window
         var request = CreatePostRequest("example.com", "/api", body);
 
@@ -141,7 +141,7 @@ public sealed class Http2EncoderStreamSettingsTests
     [Fact(DisplayName = "7540-5.2-enc-002: WINDOW_UPDATE allows more DATA to be sent")]
     public void FlowControl_WindowUpdate_AllowsMoreData()
     {
-        var encoder = new Http2Encoder(useHuffman: false);
+        var encoder = new Http2RequestEncoder(useHuffman: false);
 
         // Drain the initial connection window (65535) with stream 1
         using var drainOwner = MemoryPool<byte>.Shared.Rent(1 << 20);
@@ -182,7 +182,7 @@ public sealed class Http2EncoderStreamSettingsTests
     [Fact(DisplayName = "7540-5.2-enc-005: Encoder blocks when window is zero")]
     public void FlowControl_ZeroWindow_BlocksData()
     {
-        var encoder = new Http2Encoder(useHuffman: false);
+        var encoder = new Http2RequestEncoder(useHuffman: false);
 
         // Drain the full connection window with stream 1
         using var drainOwner = MemoryPool<byte>.Shared.Rent(1 << 20);
@@ -217,7 +217,7 @@ public sealed class Http2EncoderStreamSettingsTests
     [Fact(DisplayName = "7540-5.2-enc-006: Connection-level window limits total DATA")]
     public void FlowControl_ConnectionWindow_LimitsTotalData()
     {
-        var encoder = new Http2Encoder(useHuffman: false);
+        var encoder = new Http2RequestEncoder(useHuffman: false);
 
         // Drain the full connection window with stream 1
         using var drainOwner = MemoryPool<byte>.Shared.Rent(1 << 20);
@@ -256,7 +256,7 @@ public sealed class Http2EncoderStreamSettingsTests
     [Fact(DisplayName = "7540-5.2-enc-007: Per-stream window limits DATA on that stream")]
     public void FlowControl_PerStreamWindow_LimitsStreamData()
     {
-        var encoder = new Http2Encoder(useHuffman: false);
+        var encoder = new Http2RequestEncoder(useHuffman: false);
 
         // Give a large connection window so it is not the limiting factor
         encoder.UpdateConnectionWindow(0x7FFFFFFF - 65535);
@@ -308,7 +308,7 @@ public sealed class Http2EncoderStreamSettingsTests
 
     private static (int StreamId, byte[] Data) Encode(HttpRequestMessage request, bool useHuffman = false)
     {
-        var encoder = new Http2Encoder(useHuffman);
+        var encoder = new Http2RequestEncoder(useHuffman);
         using var owner = MemoryPool<byte>.Shared.Rent(4096);
         var buffer = owner.Memory;
         var (streamId, written) = encoder.Encode(request, ref buffer);

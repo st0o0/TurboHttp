@@ -10,7 +10,7 @@ public sealed class Http2EncoderRfcTaggedTests
     [Fact(DisplayName = "7540-3.5-001: Client preface is PRI * HTTP/2.0 SM")]
     public void Preface_MagicBytes_MatchSpec()
     {
-        var preface = Http2Encoder.BuildConnectionPreface();
+        var preface = Http2FrameUtils.BuildConnectionPreface();
         var expected = "PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n"u8.ToArray();
         Assert.Equal(expected, preface[..expected.Length]);
     }
@@ -18,7 +18,7 @@ public sealed class Http2EncoderRfcTaggedTests
     [Fact(DisplayName = "7540-3.5-003: SETTINGS frame immediately follows client preface")]
     public void Preface_SettingsFrame_ImmediatelyFollowsMagic()
     {
-        var preface = Http2Encoder.BuildConnectionPreface();
+        var preface = Http2FrameUtils.BuildConnectionPreface();
         const int magicLen = 24; // "PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n"
         Assert.Equal((byte)FrameType.Settings, preface[magicLen + 3]);
     }
@@ -150,7 +150,7 @@ public sealed class Http2EncoderRfcTaggedTests
     [Fact(DisplayName = "7540-6.9-001: Headers exceeding max frame size split into CONTINUATION")]
     public void LargeHeaders_SplitIntoContinuation()
     {
-        var encoder = new Http2Encoder(useHuffman: false);
+        var encoder = new Http2RequestEncoder(useHuffman: false);
         encoder.ApplyServerSettings([(SettingsParameter.MaxFrameSize, 64u)]);
 
         var request = new HttpRequestMessage(HttpMethod.Get, "https://example.com/")
@@ -171,7 +171,7 @@ public sealed class Http2EncoderRfcTaggedTests
     [Fact(DisplayName = "7540-6.9-002: END_HEADERS on final CONTINUATION frame")]
     public void ContinuationFrame_FinalHasEndHeaders()
     {
-        var encoder = new Http2Encoder(useHuffman: false);
+        var encoder = new Http2RequestEncoder(useHuffman: false);
         encoder.ApplyServerSettings([(SettingsParameter.MaxFrameSize, 64u)]);
 
         var request = new HttpRequestMessage(HttpMethod.Get, "https://example.com/")
@@ -204,7 +204,7 @@ public sealed class Http2EncoderRfcTaggedTests
     [Fact(DisplayName = "7540-6.9-003: Multiple CONTINUATION frames for very large headers")]
     public void VeryLargeHeaders_MultipleContinuationFrames()
     {
-        var encoder = new Http2Encoder(useHuffman: false);
+        var encoder = new Http2RequestEncoder(useHuffman: false);
         encoder.ApplyServerSettings([(SettingsParameter.MaxFrameSize, 32u)]);
 
         var request = new HttpRequestMessage(HttpMethod.Get, "https://example.com/")
@@ -280,7 +280,7 @@ public sealed class Http2EncoderRfcTaggedTests
     [Fact(DisplayName = "enc5-data-002: DATA frame carries correct stream ID")]
     public void DataFrame_CarriesCorrectStreamId()
     {
-        var encoder = new Http2Encoder(useHuffman: false);
+        var encoder = new Http2RequestEncoder(useHuffman: false);
         var request = CreatePostRequest("example.com", "/api", "payload");
         using var owner = MemoryPool<byte>.Shared.Rent(4096);
         var buf = owner.Memory;
@@ -297,7 +297,7 @@ public sealed class Http2EncoderRfcTaggedTests
     [Fact(DisplayName = "enc5-data-003: Body exceeding MAX_FRAME_SIZE split into multiple DATA frames")]
     public void DataFrame_LargeBody_SplitIntoMultipleFrames()
     {
-        var encoder = new Http2Encoder(useHuffman: false);
+        var encoder = new Http2RequestEncoder(useHuffman: false);
         encoder.ApplyServerSettings([(SettingsParameter.MaxFrameSize, 16u)]);
         // Expand window so the full body fits
         encoder.UpdateConnectionWindow(0x7FFFFFFF - 65535);
@@ -346,7 +346,7 @@ public sealed class Http2EncoderRfcTaggedTests
 
     private static (int StreamId, byte[] Data) Encode(HttpRequestMessage request, bool useHuffman = false)
     {
-        var encoder = new Http2Encoder(useHuffman);
+        var encoder = new Http2RequestEncoder(useHuffman);
         using var owner = MemoryPool<byte>.Shared.Rent(4096);
         var buffer = owner.Memory;
         var (streamId, written) = encoder.Encode(request, ref buffer);
