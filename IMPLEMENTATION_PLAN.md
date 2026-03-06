@@ -472,7 +472,7 @@ implementation shown below. This is the only phase with significant new logic.
 ---
 
 ### Phase 3 — Migrate `01_ConnectionPrefaceTests.cs` (1 ref)
-- [ ] **Status**: pending
+- [x] **Status**: complete (2026-03-06, iter-04)
 
 **Prerequisite**: Phase 2 complete.
 
