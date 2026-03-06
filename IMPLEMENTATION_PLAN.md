@@ -505,7 +505,7 @@ implementation shown below. This is the only phase with significant new logic.
 ---
 
 ### Phase 5 — Audit `12_DecoderConnectionPrefaceTests.cs` for unique tests
-- [ ] **Status**: pending
+- [x] **Status**: complete (2026-03-06, iter-01)
 
 **File**: `src/TurboHttp.Tests/RFC9113/12_DecoderConnectionPrefaceTests.cs`
 
@@ -520,6 +520,49 @@ No code changes in this phase — this is a read-and-analyse step.
 **Acceptance criteria**:
 - List of unique tests documented (in a comment or scratch file)
 - No code changed; all tests still pass
+
+**Findings** (2026-03-06, iter-01):
+
+Overlap with `01_` (2 tests — map to commented-out SP-002/SP-005 stubs):
+- `ServerPreface_NonSettingsFrame_ThrowsProtocolError` ↔ SP-005
+- `ServerPreface_IncompleteBytes_ReturnsFalse` ↔ SP-002
+
+Unique tests (27) — must be migrated in Phase 6:
+
+Frame-header (7540-4.1-xxx):
+- `FrameHeader_Valid9Bytes_DecodedCorrectly`
+- `FrameHeader_LargePayload_24BitLengthParsed`
+- `FrameType_AllKnownTypes_DispatchedWithoutCrash` [Theory]
+- `FrameType_Unknown0x0A_Ignored`
+- `FrameHeader_RBitSetInGoAway_LastStreamIdMasked`
+- `FrameHeader_RBitSetInStreamId_ThrowsProtocolError`
+- `FrameHeader_PayloadExceedsMaxFrameSize_ThrowsFrameSizeError`
+
+DATA frame (7540-6.1-xxx):
+- `DataFrame_Payload_DecodedCorrectly`
+- `DataFrame_EndStream_MarksStreamClosed`
+- `DataFrame_Padded_PaddingStripped`
+- `DataFrame_Stream0_ThrowsProtocolError`
+- `DataFrame_ClosedStream_ThrowsStreamClosed`
+- `DataFrame_EmptyWithEndStream_ResponseComplete`
+
+HEADERS frame (7540-6.2-xxx):
+- `HeadersFrame_ResponseHeaders_Decoded`
+- `HeadersFrame_EndStream_StreamClosedImmediately`
+- `HeadersFrame_EndHeaders_HeaderBlockComplete`
+- `HeadersFrame_Padded_PaddingStripped`
+- `HeadersFrame_PriorityFlag_ConsumedCorrectly`
+- `HeadersFrame_WithoutEndHeaders_WaitsForContinuation`
+- `HeadersFrame_Stream0_ThrowsProtocolError`
+
+CONTINUATION frame (7540-6.9-xxx, dec6-cont-001):
+- `ContinuationFrame_AppendedToHeaders_HeaderBlockMerged`
+- `ContinuationFrame_EndHeaders_CompletesBlock`
+- `ContinuationFrame_Multiple_AllMerged`
+- `ContinuationFrame_WrongStream_ThrowsProtocolError`
+- `ContinuationFrame_NonContinuationAfterHeaders_ThrowsProtocolError`
+- `ContinuationFrame_Stream0_ThrowsProtocolError`
+- `ContinuationFrame_WithoutPrecedingHeaders_ThrowsProtocolError`
 
 ---
 
