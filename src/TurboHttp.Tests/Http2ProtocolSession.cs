@@ -19,6 +19,8 @@ public sealed class Http2ProtocolSession
     private readonly List<byte[]> _pingRequests = new();
     private readonly List<(int StreamId, Http2ErrorCode Error)> _rstStreams = new();
     private readonly List<(int StreamId, int Increment)> _windowUpdates = new();
+    private readonly HashSet<int> _promisedStreamIds = [];
+    private readonly Dictionary<int, (HttpResponseMessage Response, List<byte> Body)> _pendingResponses = new();
     private int _connectionReceiveWindow = 65535;
     private long _connectionSendWindow = 65535;
     private readonly Dictionary<int, long> _streamSendWindows = new();
@@ -48,6 +50,7 @@ public sealed class Http2ProtocolSession
     public IReadOnlyList<byte[]> PingRequests => _pingRequests;
     public IReadOnlyList<(int StreamId, Http2ErrorCode Error)> RstStreams => _rstStreams;
     public IReadOnlyList<(int StreamId, int Increment)> WindowUpdates => _windowUpdates;
+    public IReadOnlyCollection<int> PromisedStreamIds => _promisedStreamIds;
 
     public Http2StreamLifecycleState GetStreamState(int streamId) =>
         _streamStates.TryGetValue(streamId, out var s) ? s : Http2StreamLifecycleState.Idle;
@@ -92,6 +95,7 @@ public sealed class Http2ProtocolSession
             case RstStreamFrame r:    HandleRst(r);           break;
             case GoAwayFrame g:       _goAwayFrame = g;       break;
             case ContinuationFrame c: HandleContinuation(c);  break;
+            case PushPromiseFrame pp: HandlePushPromise(pp);  break;
         }
     }
 
@@ -102,6 +106,14 @@ public sealed class Http2ProtocolSession
         if (streamId == 0)
         {
             throw new Http2Exception("HEADERS on stream 0 is a connection error",
+                Http2ErrorCode.ProtocolError, Http2ErrorScope.Connection);
+        }
+
+        // RFC 7540 §5.1.1: Server-initiated (even) stream IDs must be pre-announced via PUSH_PROMISE.
+        if (streamId % 2 == 0 && !_promisedStreamIds.Contains(streamId))
+        {
+            throw new Http2Exception(
+                $"HEADERS on even stream {streamId} without prior PUSH_PROMISE",
                 Http2ErrorCode.ProtocolError, Http2ErrorScope.Connection);
         }
 
@@ -122,31 +134,34 @@ public sealed class Http2ProtocolSession
         }
         else if (currentState == Http2StreamLifecycleState.Closed)
         {
+            // RFC 7540 §6.2 / §5.1: HEADERS on a closed stream is a connection error of type STREAM_CLOSED.
             throw new Http2Exception(
                 $"HEADERS on closed stream {streamId}",
-                Http2ErrorCode.StreamClosed, Http2ErrorScope.Stream);
+                Http2ErrorCode.StreamClosed, Http2ErrorScope.Connection);
         }
 
         if (frame.EndHeaders)
         {
             var headers = _hpack.Decode(frame.HeaderBlockFragment.Span);
             var response = BuildResponse(headers, streamId);
-            if (response != null)
-            {
-                _responses.Add((streamId, response));
-            }
 
-            var newState = frame.EndStream
-                ? Http2StreamLifecycleState.Closed
-                : Http2StreamLifecycleState.Open;
-
-            if (newState == Http2StreamLifecycleState.Closed)
+            if (frame.EndStream)
             {
+                // Complete response — no body incoming.
+                if (response != null)
+                {
+                    _responses.Add((streamId, response));
+                }
                 MarkClosed(streamId);
             }
             else
             {
-                _streamStates[streamId] = newState;
+                // Headers received; body expected via DATA frames.
+                if (response != null)
+                {
+                    _pendingResponses[streamId] = (response, new List<byte>());
+                }
+                _streamStates[streamId] = Http2StreamLifecycleState.Open;
             }
         }
         else
@@ -213,6 +228,12 @@ public sealed class Http2ProtocolSession
                 Http2ErrorCode.StreamClosed, Http2ErrorScope.Stream, streamId);
         }
 
+        // Accumulate body bytes for the pending response.
+        if (_pendingResponses.TryGetValue(streamId, out var pending))
+        {
+            pending.Body.AddRange(frame.Data.ToArray());
+        }
+
         _connectionReceiveWindow -= frame.Data.Length;
         if (_streamReceiveWindows.TryGetValue(streamId, out var sw))
         {
@@ -221,6 +242,13 @@ public sealed class Http2ProtocolSession
 
         if (frame.EndStream && state == Http2StreamLifecycleState.Open)
         {
+            // Body complete — promote pending response to the responses list.
+            if (_pendingResponses.TryGetValue(streamId, out var completePending))
+            {
+                completePending.Response.Content = new ByteArrayContent(completePending.Body.ToArray());
+                _responses.Add((streamId, completePending.Response));
+                _pendingResponses.Remove(streamId);
+            }
             MarkClosed(streamId);
         }
     }
@@ -285,6 +313,11 @@ public sealed class Http2ProtocolSession
     {
         _rstStreams.Add((frame.StreamId, frame.ErrorCode));
         MarkClosed(frame.StreamId);
+    }
+
+    private void HandlePushPromise(PushPromiseFrame frame)
+    {
+        _promisedStreamIds.Add(frame.PromisedStreamId);
     }
 
     private void MarkClosed(int streamId)

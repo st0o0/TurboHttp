@@ -146,8 +146,7 @@ public sealed class Http2StreamLifecycleTests
         Assert.Equal(1, ex.StreamId);
     }
 
-    /// RFC 9113 §5.1 — HEADERS on closed stream is STREAM_CLOSED error (RFC 7540 §6.2)
-    /// Note: Http2ProtocolSession uses stream-scope (vs connection-scope in Http2Decoder).
+    /// RFC 9113 §5.1 — HEADERS on closed stream is connection error STREAM_CLOSED (RFC 7540 §6.2)
     [Fact(DisplayName = "RFC9113-5.1-SS-008: HEADERS on closed stream is STREAM_CLOSED error (RFC 7540 §6.2)")]
     public void Headers_OnClosedStream_ThrowsStreamClosed()
     {
@@ -156,12 +155,11 @@ public sealed class Http2StreamLifecycleTests
         session.Process(MakeResponseHeadersFrame(streamId: 1, endStream: true));
         Assert.Equal(Http2StreamLifecycleState.Closed, session.GetStreamState(1));
 
-        // RFC 7540 §6.2: HEADERS on a closed stream is a STREAM_CLOSED error.
-        // Http2ProtocolSession uses stream-scope for this error.
+        // RFC 7540 §6.2: HEADERS on a closed stream is a connection error of type STREAM_CLOSED.
         var headers2 = MakeResponseHeadersFrame(streamId: 1, endStream: false);
         var ex = Assert.Throws<Http2Exception>(() => session.Process(headers2));
         Assert.Equal(Http2ErrorCode.StreamClosed, ex.ErrorCode);
-        Assert.Equal(Http2ErrorScope.Stream, ex.Scope);
+        Assert.Equal(Http2ErrorScope.Connection, ex.Scope);
     }
 
     // =========================================================================
@@ -321,12 +319,11 @@ public sealed class Http2StreamLifecycleTests
         var rst = new RstStreamFrame(1, Http2ErrorCode.Cancel).Serialize();
         session.Process(rst);
 
-        // RFC 7540 §6.2: HEADERS on a closed stream is a STREAM_CLOSED error.
-        // Http2ProtocolSession uses stream-scope for this error.
+        // RFC 7540 §6.2: HEADERS on a closed stream is a connection error of type STREAM_CLOSED.
         var headers2 = MakeResponseHeadersFrame(streamId: 1, endStream: false);
         var ex = Assert.Throws<Http2Exception>(() => session.Process(headers2));
         Assert.Equal(Http2ErrorCode.StreamClosed, ex.ErrorCode);
-        Assert.Equal(Http2ErrorScope.Stream, ex.Scope);
+        Assert.Equal(Http2ErrorScope.Connection, ex.Scope);
     }
 
     /// RFC 9113 §5.1 — DATA on stream with only DATA+END_STREAM received (half-closed-remote) throws STREAM_CLOSED

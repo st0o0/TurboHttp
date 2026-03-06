@@ -1,4 +1,5 @@
 using TurboHttp.Protocol;
+using TurboHttp.Tests;
 
 namespace TurboHttp.Tests.RFC9113;
 
@@ -13,13 +14,13 @@ public sealed class Http2DecoderStreamValidationTests
         var dataFrame = new DataFrame(1, "body"u8.ToArray(), endStream: true).Serialize();
 
         var combined = headersFrame.Concat(dataFrame).ToArray();
-        var decoder = new Http2Decoder();
-        decoder.TryDecode(combined, out var result);
+        var session = new Http2ProtocolSession();
+        session.Process(combined);
 
         // When END_STREAM arrives on DATA, the stream is half-closed remote → response produced.
-        Assert.Single(result.Responses);
-        Assert.Equal(200, (int)result.Responses[0].Response.StatusCode);
-        var body = await result.Responses[0].Response.Content.ReadAsStringAsync();
+        Assert.Single(session.Responses);
+        Assert.Equal(200, (int)session.Responses[0].Response.StatusCode);
+        var body = await session.Responses[0].Response.Content.ReadAsStringAsync();
         Assert.Equal("body", body);
     }
 
@@ -31,11 +32,11 @@ public sealed class Http2DecoderStreamValidationTests
         // END_STREAM + END_HEADERS → stream fully closed, response produced immediately.
         var headersFrame = new HeadersFrame(1, headerBlock, endStream: true, endHeaders: true).Serialize();
 
-        var decoder = new Http2Decoder();
-        decoder.TryDecode(headersFrame, out var result);
+        var session = new Http2ProtocolSession();
+        session.Process(headersFrame);
 
-        Assert.Single(result.Responses);
-        Assert.Equal(204, (int)result.Responses[0].Response.StatusCode);
+        Assert.Single(session.Responses);
+        Assert.Equal(204, (int)session.Responses[0].Response.StatusCode);
     }
 
     [Fact(DisplayName = "7540-5.1-005: PUSH_PROMISE moves pushed stream to reserved remote")]
@@ -46,11 +47,11 @@ public sealed class Http2DecoderStreamValidationTests
         var headerBlock = hpack.Encode([(":method", "GET"), (":path", "/pushed")]);
         var ppFrame = new PushPromiseFrame(1, 2, headerBlock).Serialize();
 
-        var decoder = new Http2Decoder();
-        decoder.TryDecode(ppFrame, out var result);
+        var session = new Http2ProtocolSession();
+        session.Process(ppFrame);
 
         // Promised stream ID 2 should be recorded.
-        Assert.Contains(2, result.PromisedStreamIds);
+        Assert.Contains(2, session.PromisedStreamIds);
     }
 
     [Fact(DisplayName = "7540-5.1-006: DATA on closed stream causes STREAM_CLOSED error")]
@@ -61,12 +62,12 @@ public sealed class Http2DecoderStreamValidationTests
         // Close stream 1 with END_STREAM on HEADERS.
         var headersFrame = new HeadersFrame(1, headerBlock, endStream: true, endHeaders: true).Serialize();
 
-        var decoder = new Http2Decoder();
-        decoder.TryDecode(headersFrame, out _);
+        var session = new Http2ProtocolSession();
+        session.Process(headersFrame);
 
         // Now send DATA on the closed stream.
         var dataFrame = new DataFrame(1, new byte[4], endStream: false).Serialize();
-        var ex = Assert.Throws<Http2Exception>(() => decoder.TryDecode(dataFrame, out _));
+        var ex = Assert.Throws<Http2Exception>(() => session.Process(dataFrame));
         Assert.Equal(Http2ErrorCode.StreamClosed, ex.ErrorCode);
     }
 
@@ -77,13 +78,13 @@ public sealed class Http2DecoderStreamValidationTests
         var headerBlock = hpack.Encode([(":status", "200")]);
         var headersFrame = new HeadersFrame(1, headerBlock, endStream: true, endHeaders: true).Serialize();
 
-        var decoder = new Http2Decoder();
-        decoder.TryDecode(headersFrame, out _);
+        var session = new Http2ProtocolSession();
+        session.Process(headersFrame);
 
         // RFC 7540 §6.2: HEADERS on a closed stream is a connection error of type STREAM_CLOSED.
         var headerBlock2 = hpack.Encode([(":status", "200")]);
         var headersFrame2 = new HeadersFrame(1, headerBlock2, endStream: true, endHeaders: true).Serialize();
-        var ex = Assert.Throws<Http2Exception>(() => decoder.TryDecode(headersFrame2, out _));
+        var ex = Assert.Throws<Http2Exception>(() => session.Process(headersFrame2));
         Assert.Equal(Http2ErrorCode.StreamClosed, ex.ErrorCode);
         Assert.Equal(Http2ErrorScope.Connection, ex.Scope);
     }
@@ -96,8 +97,8 @@ public sealed class Http2DecoderStreamValidationTests
         var headerBlock = hpack.Encode([(":status", "200")]);
         var headersFrame = new HeadersFrame(2, headerBlock, endStream: true, endHeaders: true).Serialize();
 
-        var decoder = new Http2Decoder();
-        var ex = Assert.Throws<Http2Exception>(() => decoder.TryDecode(headersFrame, out _));
+        var session = new Http2ProtocolSession();
+        var ex = Assert.Throws<Http2Exception>(() => session.Process(headersFrame));
         Assert.Equal(Http2ErrorCode.ProtocolError, ex.ErrorCode);
     }
 
@@ -113,8 +114,8 @@ public sealed class Http2DecoderStreamValidationTests
             0x00, 0x00, 0x00, 0x00  // payload (4 bytes)
         };
 
-        var decoder = new Http2Decoder();
-        var ex = Assert.Throws<Http2Exception>(() => decoder.TryDecode(frame, out _));
+        var session = new Http2ProtocolSession();
+        var ex = Assert.Throws<Http2Exception>(() => session.Process(frame));
         Assert.Equal(Http2ErrorCode.ProtocolError, ex.ErrorCode);
     }
 
@@ -130,8 +131,8 @@ public sealed class Http2DecoderStreamValidationTests
             0x88                    // HPACK: :status 200
         };
 
-        var decoder = new Http2Decoder();
-        var ex = Assert.Throws<Http2Exception>(() => decoder.TryDecode(frame, out _));
+        var session = new Http2ProtocolSession();
+        var ex = Assert.Throws<Http2Exception>(() => session.Process(frame));
         Assert.Equal(Http2ErrorCode.ProtocolError, ex.ErrorCode);
     }
 }
