@@ -136,7 +136,7 @@ created in the integration project (Phase 35–36). Its public API is identical.
 ---
 
 ### Phase 1 — Create `Http2ProtocolSession` skeleton
-- [ ] **Status**: pending
+- [x] **Status**: complete (2026-03-06, iter-02)
 
 **File to create**: `src/TurboHttp.Tests/Http2ProtocolSession.cs`
 
