@@ -756,7 +756,7 @@ throws and `Process()` does not catch.
 ---
 
 ### Phase 15 — Migrate `14_DecoderErrorCodeTests.cs` (15 refs)
-- [ ] **Status**: pending
+- [x] **Status**: complete (2026-03-06, iter-06)
 
 **File**: `src/TurboHttp.Tests/RFC9113/14_DecoderErrorCodeTests.cs`
 
