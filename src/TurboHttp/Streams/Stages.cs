@@ -17,6 +17,50 @@ namespace TurboHttp.Streams;
 
 public class Stages
 {
+    // ── RFC 7540 §3.5 — prepend connection preface to the first outbound bytes ──
+
+    public sealed class
+        PrependPrefaceStage : GraphStage<FlowShape<(IMemoryOwner<byte>, int), (IMemoryOwner<byte>, int)>>
+    {
+        private readonly Inlet<(IMemoryOwner<byte>, int)> _inlet = new("preface.in");
+        private readonly Outlet<(IMemoryOwner<byte>, int)> _outlet = new("preface.out");
+
+        public override FlowShape<(IMemoryOwner<byte>, int), (IMemoryOwner<byte>, int)> Shape
+            => new(_inlet, _outlet);
+
+        protected override GraphStageLogic CreateLogic(Attributes inheritedAttributes)
+            => new Logic(this);
+
+        private sealed class Logic : GraphStageLogic
+        {
+            private bool _prefaceSent;
+
+            public Logic(PrependPrefaceStage stage) : base(stage.Shape)
+            {
+                SetHandler(stage._outlet, onPull: () =>
+                {
+                    if (!_prefaceSent)
+                    {
+                        _prefaceSent = true;
+                        var preface = Http2Encoder.BuildConnectionPreface();
+                        var owner = MemoryPool<byte>.Shared.Rent(preface.Length);
+                        ((ReadOnlySpan<byte>)preface).CopyTo(owner.Memory.Span);
+                        Push(stage._outlet, (owner, preface.Length));
+                    }
+                    else
+                    {
+                        Pull(stage._inlet);
+                    }
+                });
+
+                SetHandler(stage._inlet,
+                    onPush: () => Push(stage._outlet, Grab(stage._inlet)),
+                    onUpstreamFinish: CompleteStage,
+                    onUpstreamFailure: FailStage);
+            }
+        }
+    }
+
     public sealed class HostRoutingFlow : GraphStage<FlowShape<HttpRequestMessage, HttpResponseMessage>>
     {
         private readonly Inlet<HttpRequestMessage> _inlet = new("pool.in");
