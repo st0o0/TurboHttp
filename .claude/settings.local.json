@@ -2,7 +2,13 @@
   "permissions": {
     "allow": [
       "Bash(echo:*)",
-      "Bash(wc:*)"
+      "Bash(wc:*)",
+      "Bash(ls:*)",
+      "Bash(mkdir:*)",
+      "Bash(mv:*)",
+      "Bash(dotnet build:*)",
+      "Bash(git add:*)",
+      "Bash(grep:*)"
     ]
   }
 }
