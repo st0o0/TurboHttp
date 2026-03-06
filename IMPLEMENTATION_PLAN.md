@@ -771,7 +771,7 @@ throws and `Process()` does not catch.
 ---
 
 ### Phase 16 — Migrate `08_GoAwayTests.cs` (20 refs)
-- [ ] **Status**: pending
+- [x] **Status**: complete (2026-03-06, iter-07)
 
 **File**: `src/TurboHttp.Tests/RFC9113/08_GoAwayTests.cs`
 

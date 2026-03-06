@@ -131,7 +131,7 @@ public sealed class Http2ProtocolSession
             case PingFrame p:         HandlePing(p);          break;
             case WindowUpdateFrame w: HandleWindowUpdate(w);  break;
             case RstStreamFrame r:    HandleRst(r);           break;
-            case GoAwayFrame g:       _goAwayFrame = g;       break;
+            case GoAwayFrame g:       HandleGoAway(g);        break;
             case ContinuationFrame c: HandleContinuation(c);  break;
             case PushPromiseFrame pp: HandlePushPromise(pp);  break;
         }
@@ -144,6 +144,14 @@ public sealed class Http2ProtocolSession
         if (streamId == 0)
         {
             throw new Http2Exception("HEADERS on stream 0 is a connection error",
+                Http2ErrorCode.ProtocolError, Http2ErrorScope.Connection);
+        }
+
+        // RFC 7540 §6.8: After GOAWAY, reject new streams with IDs > lastStreamId.
+        if (_goAwayFrame is not null && streamId > _goAwayFrame.LastStreamId)
+        {
+            throw new Http2Exception(
+                $"HEADERS on stream {streamId} after GOAWAY with lastStreamId={_goAwayFrame.LastStreamId}",
                 Http2ErrorCode.ProtocolError, Http2ErrorScope.Connection);
         }
 
@@ -457,6 +465,21 @@ public sealed class Http2ProtocolSession
     {
         _rstStreams.Add((frame.StreamId, frame.ErrorCode));
         MarkClosed(frame.StreamId);
+    }
+
+    private void HandleGoAway(GoAwayFrame frame)
+    {
+        _goAwayFrame = frame;
+
+        // RFC 7540 §6.8: Streams with ID > lastStreamId were not processed; mark them Closed.
+        foreach (var streamId in _streamStates.Keys.ToList())
+        {
+            if (streamId > frame.LastStreamId &&
+                _streamStates[streamId] == Http2StreamLifecycleState.Open)
+            {
+                MarkClosed(streamId);
+            }
+        }
     }
 
     private void HandlePushPromise(PushPromiseFrame frame)
