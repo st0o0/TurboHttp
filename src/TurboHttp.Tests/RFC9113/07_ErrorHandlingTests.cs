@@ -155,8 +155,8 @@ public sealed class Http2ErrorMappingTests
     public void DataOnStream0_IsConnectionProtocolError()
     {
         var frame = BuildRawFrame(0x0, 0x0, 0, new byte[4]);
-        var decoder = new Http2Decoder();
-        var ex = Assert.Throws<Http2Exception>(() => decoder.TryDecode(frame, out _));
+        var session = new Http2ProtocolSession();
+        var ex = Assert.Throws<Http2Exception>(() => session.Process(frame));
         Assert.Equal(Http2ErrorCode.ProtocolError, ex.ErrorCode);
         Assert.Equal(Http2ErrorScope.Connection, ex.Scope);
         Assert.True(ex.IsConnectionError);
@@ -166,9 +166,9 @@ public sealed class Http2ErrorMappingTests
     [Fact(DisplayName = "EM-006: DATA on idle stream is connection PROTOCOL_ERROR")]
     public void DataOnIdleStream_IsConnectionProtocolError()
     {
-        var decoder = new Http2Decoder();
+        var session = new Http2ProtocolSession();
         var frame = BuildDataFrame(1, new byte[4], endStream: false);
-        var ex = Assert.Throws<Http2Exception>(() => decoder.TryDecode(frame, out _));
+        var ex = Assert.Throws<Http2Exception>(() => session.Process(frame));
         Assert.Equal(Http2ErrorCode.ProtocolError, ex.ErrorCode);
         Assert.Equal(Http2ErrorScope.Connection, ex.Scope);
         Assert.True(ex.IsConnectionError);
@@ -179,8 +179,8 @@ public sealed class Http2ErrorMappingTests
     public void ContinuationWithoutHeaders_IsConnectionProtocolError()
     {
         var contFrame = BuildRawFrame(0x9, 0x4, 1, new byte[4]); // CONTINUATION on stream 1
-        var decoder = new Http2Decoder();
-        var ex = Assert.Throws<Http2Exception>(() => decoder.TryDecode(contFrame, out _));
+        var session = new Http2ProtocolSession();
+        var ex = Assert.Throws<Http2Exception>(() => session.Process(contFrame));
         Assert.Equal(Http2ErrorCode.ProtocolError, ex.ErrorCode);
         Assert.Equal(Http2ErrorScope.Connection, ex.Scope);
     }
@@ -192,8 +192,8 @@ public sealed class Http2ErrorMappingTests
     public void PingWrongLength_IsConnectionFrameSizeError()
     {
         var frame = BuildRawFrame(0x6, 0x0, 0, new byte[4]); // PING needs 8 bytes
-        var decoder = new Http2Decoder();
-        var ex = Assert.Throws<Http2Exception>(() => decoder.TryDecode(frame, out _));
+        var session = new Http2ProtocolSession();
+        var ex = Assert.Throws<Http2Exception>(() => session.Process(frame));
         Assert.Equal(Http2ErrorCode.FrameSizeError, ex.ErrorCode);
         Assert.Equal(Http2ErrorScope.Connection, ex.Scope);
     }
@@ -203,8 +203,8 @@ public sealed class Http2ErrorMappingTests
     public void SettingsWrongLength_IsConnectionFrameSizeError()
     {
         var frame = BuildRawFrame(0x4, 0x0, 0, new byte[7]); // 7 is not multiple of 6
-        var decoder = new Http2Decoder();
-        var ex = Assert.Throws<Http2Exception>(() => decoder.TryDecode(frame, out _));
+        var session = new Http2ProtocolSession();
+        var ex = Assert.Throws<Http2Exception>(() => session.Process(frame));
         Assert.Equal(Http2ErrorCode.FrameSizeError, ex.ErrorCode);
         Assert.Equal(Http2ErrorScope.Connection, ex.Scope);
     }
@@ -219,14 +219,14 @@ public sealed class Http2ErrorMappingTests
         var headerBlock = hpackEncoder.Encode([(":status", "200")]).ToArray();
         var headersFrame = BuildHeadersFrame(1, headerBlock, endStream: false, endHeaders: true);
 
-        var decoder = new Http2Decoder();
-        decoder.TryDecode(headersFrame, out _);
+        var session = new Http2ProtocolSession();
+        session.Process(headersFrame);
 
         // Set connection window to 0 so next DATA frame will exceed it.
-        decoder.SetConnectionReceiveWindow(0);
+        session.SetConnectionReceiveWindow(0);
         var dataFrame = BuildDataFrame(1, new byte[100], endStream: true);
 
-        var ex = Assert.Throws<Http2Exception>(() => decoder.TryDecode(dataFrame, out _));
+        var ex = Assert.Throws<Http2Exception>(() => session.Process(dataFrame));
         Assert.Equal(Http2ErrorCode.FlowControlError, ex.ErrorCode);
         Assert.Equal(Http2ErrorScope.Connection, ex.Scope);
         Assert.True(ex.IsConnectionError);
@@ -236,15 +236,15 @@ public sealed class Http2ErrorMappingTests
     [Fact(DisplayName = "EM-011: WINDOW_UPDATE connection overflow is connection FLOW_CONTROL_ERROR")]
     public void WindowUpdateConnectionOverflow_IsConnectionFlowControlError()
     {
-        var decoder = new Http2Decoder();
+        var session = new Http2ProtocolSession();
 
         // First WINDOW_UPDATE sets connection window near max.
         var wuFrame1 = BuildWindowUpdateFrame(0, 0x7FFF0000);
-        decoder.TryDecode(wuFrame1, out _);
+        session.Process(wuFrame1);
 
         // Second WINDOW_UPDATE causes overflow (current + increment > 2^31-1).
         var wuFrame2 = BuildWindowUpdateFrame(0, 0x7FFF0000);
-        var ex = Assert.Throws<Http2Exception>(() => decoder.TryDecode(wuFrame2, out _));
+        var ex = Assert.Throws<Http2Exception>(() => session.Process(wuFrame2));
         Assert.Equal(Http2ErrorCode.FlowControlError, ex.ErrorCode);
         Assert.Equal(Http2ErrorScope.Connection, ex.Scope);
         Assert.True(ex.IsConnectionError);
@@ -261,14 +261,14 @@ public sealed class Http2ErrorMappingTests
         var headerBlock = hpackEncoder.Encode([(":status", "200")]).ToArray();
         var headersFrame = BuildHeadersFrame(1, headerBlock, endStream: false, endHeaders: true);
 
-        var decoder = new Http2Decoder();
-        decoder.TryDecode(headersFrame, out _);
+        var session = new Http2ProtocolSession();
+        session.Process(headersFrame);
 
         // Reduce stream window to 0.
-        decoder.SetStreamReceiveWindow(1, 0);
+        session.SetStreamReceiveWindow(1, 0);
         var dataFrame = BuildDataFrame(1, new byte[100], endStream: true);
 
-        var ex = Assert.Throws<Http2Exception>(() => decoder.TryDecode(dataFrame, out _));
+        var ex = Assert.Throws<Http2Exception>(() => session.Process(dataFrame));
         Assert.Equal(Http2ErrorCode.FlowControlError, ex.ErrorCode);
         Assert.Equal(Http2ErrorScope.Stream, ex.Scope);
         Assert.False(ex.IsConnectionError);
@@ -283,12 +283,12 @@ public sealed class Http2ErrorMappingTests
         var headerBlock = hpackEncoder.Encode([(":status", "200")]).ToArray();
         var headersFrame = BuildHeadersFrame(3, headerBlock, endStream: false, endHeaders: true);
 
-        var decoder = new Http2Decoder();
-        decoder.TryDecode(headersFrame, out _);
-        decoder.SetStreamReceiveWindow(3, 0);
+        var session = new Http2ProtocolSession();
+        session.Process(headersFrame);
+        session.SetStreamReceiveWindow(3, 0);
         var dataFrame = BuildDataFrame(3, new byte[50], endStream: true);
 
-        var ex = Assert.Throws<Http2Exception>(() => decoder.TryDecode(dataFrame, out _));
+        var ex = Assert.Throws<Http2Exception>(() => session.Process(dataFrame));
         Assert.Equal(3, ex.StreamId);
         Assert.Equal(Http2ErrorScope.Stream, ex.Scope);
     }
@@ -301,15 +301,15 @@ public sealed class Http2ErrorMappingTests
         var headerBlock = hpackEncoder.Encode([(":status", "200")]).ToArray();
         var headersFrame = BuildHeadersFrame(5, headerBlock, endStream: false, endHeaders: true);
 
-        var decoder = new Http2Decoder();
-        decoder.TryDecode(headersFrame, out _);
+        var session = new Http2ProtocolSession();
+        session.Process(headersFrame);
 
         // Two large WINDOW_UPDATEs on stream 5 to cause overflow.
         var wu1 = BuildWindowUpdateFrame(5, 0x7FFF0000);
-        decoder.TryDecode(wu1, out _);
+        session.Process(wu1);
         var wu2 = BuildWindowUpdateFrame(5, 0x7FFF0000);
 
-        var ex = Assert.Throws<Http2Exception>(() => decoder.TryDecode(wu2, out _));
+        var ex = Assert.Throws<Http2Exception>(() => session.Process(wu2));
         Assert.Equal(Http2ErrorCode.FlowControlError, ex.ErrorCode);
         Assert.Equal(Http2ErrorScope.Stream, ex.Scope);
         Assert.False(ex.IsConnectionError);
@@ -326,11 +326,11 @@ public sealed class Http2ErrorMappingTests
         var headerBlock = hpackEncoder.Encode([(":status", "200")]).ToArray();
         var headersFrame = BuildHeadersFrame(1, headerBlock, endStream: true, endHeaders: true);
 
-        var decoder = new Http2Decoder();
-        decoder.TryDecode(headersFrame, out _); // stream 1 is now closed
+        var session = new Http2ProtocolSession();
+        session.Process(headersFrame); // stream 1 is now closed
 
         var dataFrame = BuildDataFrame(1, new byte[4], endStream: true);
-        var ex = Assert.Throws<Http2Exception>(() => decoder.TryDecode(dataFrame, out _));
+        var ex = Assert.Throws<Http2Exception>(() => session.Process(dataFrame));
         Assert.Equal(Http2ErrorCode.StreamClosed, ex.ErrorCode);
         Assert.Equal(Http2ErrorScope.Stream, ex.Scope);
         Assert.False(ex.IsConnectionError);
@@ -345,11 +345,11 @@ public sealed class Http2ErrorMappingTests
         var headerBlock = hpackEncoder.Encode([(":status", "200")]).ToArray();
         var headersFrame = BuildHeadersFrame(7, headerBlock, endStream: true, endHeaders: true);
 
-        var decoder = new Http2Decoder();
-        decoder.TryDecode(headersFrame, out _); // stream 7 is now closed
+        var session = new Http2ProtocolSession();
+        session.Process(headersFrame); // stream 7 is now closed
 
         var dataFrame = BuildDataFrame(7, new byte[4]);
-        var ex = Assert.Throws<Http2Exception>(() => decoder.TryDecode(dataFrame, out _));
+        var ex = Assert.Throws<Http2Exception>(() => session.Process(dataFrame));
         Assert.Equal(7, ex.StreamId);
         Assert.Equal(Http2ErrorScope.Stream, ex.Scope);
     }
@@ -360,25 +360,25 @@ public sealed class Http2ErrorMappingTests
     [Fact(DisplayName = "EM-017: Exceeding MAX_CONCURRENT_STREAMS is stream REFUSED_STREAM error")]
     public void ExceedMaxConcurrentStreams_IsStreamRefusedStreamError()
     {
-        var decoder = new Http2Decoder();
+        var session = new Http2ProtocolSession();
 
         // Set MAX_CONCURRENT_STREAMS = 1 via SETTINGS.
         var settingsPayload = new byte[6];
         BinaryPrimitives.WriteUInt16BigEndian(settingsPayload, 0x3); // SETTINGS_MAX_CONCURRENT_STREAMS
         BinaryPrimitives.WriteUInt32BigEndian(settingsPayload.AsSpan(2), 1u);
         var settingsFrame = BuildRawFrame(0x4, 0x0, 0, settingsPayload);
-        decoder.TryDecode(settingsFrame, out _);
+        session.Process(settingsFrame);
 
         var hpackEncoder = new HpackEncoder(useHuffman: false);
         var headerBlock = hpackEncoder.Encode([(":status", "200")]).ToArray();
 
         // Open stream 1 (occupies the single slot).
         var headers1 = BuildHeadersFrame(1, headerBlock, endStream: false, endHeaders: true);
-        decoder.TryDecode(headers1, out _);
+        session.Process(headers1);
 
         // Opening stream 3 exceeds the limit → REFUSED_STREAM.
         var headers3 = BuildHeadersFrame(3, headerBlock, endStream: false, endHeaders: true);
-        var ex = Assert.Throws<Http2Exception>(() => decoder.TryDecode(headers3, out _));
+        var ex = Assert.Throws<Http2Exception>(() => session.Process(headers3));
         Assert.Equal(Http2ErrorCode.RefusedStream, ex.ErrorCode);
         Assert.Equal(Http2ErrorScope.Stream, ex.Scope);
         Assert.False(ex.IsConnectionError);
@@ -388,23 +388,23 @@ public sealed class Http2ErrorMappingTests
     [Fact(DisplayName = "EM-018: REFUSED_STREAM carries the refused stream's ID")]
     public void RefusedStream_CarriesStreamId()
     {
-        var decoder = new Http2Decoder();
+        var session = new Http2ProtocolSession();
 
         // Set MAX_CONCURRENT_STREAMS = 1.
         var settingsPayload = new byte[6];
         BinaryPrimitives.WriteUInt16BigEndian(settingsPayload, 0x3);
         BinaryPrimitives.WriteUInt32BigEndian(settingsPayload.AsSpan(2), 1u);
         var settingsFrame = BuildRawFrame(0x4, 0x0, 0, settingsPayload);
-        decoder.TryDecode(settingsFrame, out _);
+        session.Process(settingsFrame);
 
         var hpackEncoder = new HpackEncoder(useHuffman: false);
         var headerBlock = hpackEncoder.Encode([(":status", "200")]).ToArray();
         var headers1 = BuildHeadersFrame(1, headerBlock, endStream: false, endHeaders: true);
-        decoder.TryDecode(headers1, out _);
+        session.Process(headers1);
 
         // Stream 5 gets refused.
         var headers5 = BuildHeadersFrame(5, headerBlock, endStream: false, endHeaders: true);
-        var ex = Assert.Throws<Http2Exception>(() => decoder.TryDecode(headers5, out _));
+        var ex = Assert.Throws<Http2Exception>(() => session.Process(headers5));
         Assert.Equal(5, ex.StreamId);
         Assert.Equal(Http2ErrorCode.RefusedStream, ex.ErrorCode);
     }
@@ -419,12 +419,12 @@ public sealed class Http2ErrorMappingTests
         var headerBlock = hpackEncoder.Encode([(":status", "200")]).ToArray();
         var headersFrame = BuildHeadersFrame(1, headerBlock, endStream: true, endHeaders: true);
 
-        var decoder = new Http2Decoder();
-        decoder.TryDecode(headersFrame, out _); // stream 1 is now closed
+        var session = new Http2ProtocolSession();
+        session.Process(headersFrame); // stream 1 is now closed
 
         // Sending another HEADERS on stream 1 is a connection error per RFC 7540 §6.2.
         var headersAgain = BuildHeadersFrame(1, headerBlock, endStream: true, endHeaders: true);
-        var ex = Assert.Throws<Http2Exception>(() => decoder.TryDecode(headersAgain, out _));
+        var ex = Assert.Throws<Http2Exception>(() => session.Process(headersAgain));
         Assert.Equal(Http2ErrorCode.StreamClosed, ex.ErrorCode);
         Assert.Equal(Http2ErrorScope.Connection, ex.Scope);
         Assert.True(ex.IsConnectionError);
@@ -438,11 +438,11 @@ public sealed class Http2ErrorMappingTests
         var headerBlock = hpackEncoder.Encode([(":status", "200")]).ToArray();
         var headersFirst = BuildHeadersFrame(3, headerBlock, endStream: true, endHeaders: true);
 
-        var decoder = new Http2Decoder();
-        decoder.TryDecode(headersFirst, out _); // stream 3 closed
+        var session = new Http2ProtocolSession();
+        session.Process(headersFirst); // stream 3 closed
 
         var headersAgain = BuildHeadersFrame(3, headerBlock, endStream: true, endHeaders: true);
-        var ex = Assert.Throws<Http2Exception>(() => decoder.TryDecode(headersAgain, out _));
+        var ex = Assert.Throws<Http2Exception>(() => session.Process(headersAgain));
 
         // Must be Connection scope (not Stream) — the whole connection must be torn down.
         Assert.Equal(Http2ErrorScope.Connection, ex.Scope);
@@ -456,9 +456,9 @@ public sealed class Http2ErrorMappingTests
     public void RstStreamWrongLength_IsConnectionFrameSizeError()
     {
         // RST_STREAM must be exactly 4 bytes; send 3 bytes.
-        var decoder = new Http2Decoder();
+        var session = new Http2ProtocolSession();
         var frame = BuildRawFrame(0x3, 0x0, 1, new byte[3]);
-        var ex = Assert.Throws<Http2Exception>(() => decoder.TryDecode(frame, out _));
+        var ex = Assert.Throws<Http2Exception>(() => session.Process(frame));
         Assert.Equal(Http2ErrorCode.FrameSizeError, ex.ErrorCode);
         Assert.Equal(Http2ErrorScope.Connection, ex.Scope);
     }
@@ -468,8 +468,8 @@ public sealed class Http2ErrorMappingTests
     public void WindowUpdateZeroIncrement_IsProtocolError()
     {
         var frame = BuildWindowUpdateFrame(0, 0);
-        var decoder = new Http2Decoder();
-        var ex = Assert.Throws<Http2Exception>(() => decoder.TryDecode(frame, out _));
+        var session = new Http2ProtocolSession();
+        var ex = Assert.Throws<Http2Exception>(() => session.Process(frame));
         Assert.Equal(Http2ErrorCode.ProtocolError, ex.ErrorCode);
     }
 
@@ -478,8 +478,8 @@ public sealed class Http2ErrorMappingTests
     public void SettingsAckWithPayload_IsFrameSizeError()
     {
         var frame = BuildRawFrame(0x4, 0x1, 0, new byte[6]); // ACK with payload
-        var decoder = new Http2Decoder();
-        var ex = Assert.Throws<Http2Exception>(() => decoder.TryDecode(frame, out _));
+        var session = new Http2ProtocolSession();
+        var ex = Assert.Throws<Http2Exception>(() => session.Process(frame));
         Assert.Equal(Http2ErrorCode.FrameSizeError, ex.ErrorCode);
         Assert.Equal(Http2ErrorScope.Connection, ex.Scope);
     }

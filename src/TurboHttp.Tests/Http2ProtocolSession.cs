@@ -278,8 +278,9 @@ public sealed class Http2ProtocolSession
 
         if (state == Http2StreamLifecycleState.Idle)
         {
+            // RFC 9113 §5.1: DATA on an idle stream is a connection error of type PROTOCOL_ERROR.
             throw new Http2Exception($"DATA on idle stream {streamId}",
-                Http2ErrorCode.StreamClosed, Http2ErrorScope.Connection);
+                Http2ErrorCode.ProtocolError, Http2ErrorScope.Connection);
         }
 
         if (state == Http2StreamLifecycleState.Closed)

@@ -70,9 +70,11 @@ public sealed class Http2FrameDecoder
 
             FrameType.WindowUpdate => CreateWindowUpdateFrame(streamId, payload),
 
-            FrameType.RstStream => new RstStreamFrame(
-                streamId,
-                (Http2ErrorCode)BinaryPrimitives.ReadUInt32BigEndian(payload.Span)),
+            FrameType.RstStream => payload.Length == 4
+                ? new RstStreamFrame(streamId, (Http2ErrorCode)BinaryPrimitives.ReadUInt32BigEndian(payload.Span))
+                : throw new Http2Exception(
+                    $"RFC 7540 §6.4: RST_STREAM frame must be exactly 4 bytes; got {payload.Length}.",
+                    Http2ErrorCode.FrameSizeError),
 
             FrameType.GoAway => ParseGoAway(payload),
 
@@ -128,6 +130,23 @@ public sealed class Http2FrameDecoder
     private static SettingsFrame ParseSettings(ReadOnlyMemory<byte> payload, byte flags)
     {
         var isAck = (flags & (byte)SettingsFlags.Ack) != 0;
+
+        // RFC 7540 §6.5: A SETTINGS frame with ACK flag MUST have an empty payload.
+        if (isAck && payload.Length > 0)
+        {
+            throw new Http2Exception(
+                "RFC 7540 §6.5: SETTINGS frame with ACK flag MUST have empty payload.",
+                Http2ErrorCode.FrameSizeError);
+        }
+
+        // RFC 7540 §6.5: A SETTINGS payload length not a multiple of 6 octets is a FRAME_SIZE_ERROR.
+        if (!isAck && payload.Length % 6 != 0)
+        {
+            throw new Http2Exception(
+                $"RFC 7540 §6.5: SETTINGS payload length {payload.Length} is not a multiple of 6.",
+                Http2ErrorCode.FrameSizeError);
+        }
+
         var list = new List<(SettingsParameter, uint)>();
         var span = payload.Span;
 
