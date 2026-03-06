@@ -1,3 +1,485 @@
+# TIER 0: HTTP/2 STAGE TESTING & RFC COMPLIANCE REFACTORING — Phases 39-43
+
+## Executive Summary
+
+**Objective**: Migrate Http2Decoder unit tests to Stage-based testing architecture.
+
+**Rationale**:
+- Http2Decoder (55KB) is NOT used in production
+- Production uses clean Akka Stages (Http2FrameDecoderStage, Http2StreamStage, Http2ConnectionStage)
+- 500+ Http2Decoder references in tests create maintenance debt
+- Stage-based tests mirror production pipeline (better validation)
+
+**Outcome**: 100% RFC compliance maintained, cleaner test architecture, zero regressions.
+
+---
+
+## Current State Analysis
+
+### Production Code (Working)
+- Http2FrameDecoderStage: Parses raw bytes → Http2Frame objects
+- Http2ConnectionStage: Connection-level multiplexing, flow control
+- Http2StreamStage: Stream aggregation → HttpResponseMessage
+
+### Test Code (Problematic)
+- Http2Decoder: Monolithic class combining frame parsing + state aggregation
+- 500+ references: 185 RFC9113 tests + 315+ other tests
+- NOT unit-testable in isolation (depends on internal state)
+- Creates gap between test code and production code
+
+### RFC Compliance
+- Current: 185 HTTP/2 tests, all passing
+- Coverage: RFC 9113, RFC 7541, RFC 9110
+- Goal: Maintain 100% coverage during migration
+
+---
+
+## Phase 39: Deprecate Http2Decoder ✅
+
+**Deliverables**:
+1. Mark Http2Decoder class with `[Obsolete]` attribute:
+   ```csharp
+   [Obsolete("Http2Decoder is for testing only. Use Http2FrameDecoder + Stages directly. " +
+             "See IMPLEMENTATION_PLAN.md Phase 39 for migration guide.",
+             error: false)]
+   public sealed class Http2Decoder
+   ```
+
+2. Rename test files (remove "Decoder" prefix):
+   - `Http2DecoderMaxConcurrentStreamsTests.cs` → `Http2MaxConcurrentStreamsTests.cs`
+   - `Http2DecoderStreamValidationTests.cs` → `Http2StreamValidationTests.cs`
+   - `Http2DecoderErrorCodeTests.cs` → `Http2ErrorCodeTests.cs`
+
+3. Create `Http2DecoderLegacyTests.cs`:
+   - Move all pure decoder unit tests here
+   - Add `[Obsolete]` comments to each test
+   - Purpose: Keep tests passing while Phase 40-42 migration runs
+
+4. Update namespaces and usings as needed
+
+**Acceptance Criteria**:
+- `dotnet build` succeeds with ObsoleteAttribute warnings (not errors)
+- Test files renamed but tests still passing
+- Zero functional changes to test logic
+- Commit: "Phase 39: Mark Http2Decoder obsolete, organize test files"
+
+**Effort**: 2-3 hours
+
+---
+
+## Phase 40: Create Http2StageTestHelper
+
+**Location**: `src/TurboHttp.Tests/Http2StageTestHelper.cs`
+
+**Purpose**: Reusable utilities for Stage-based RFC testing.
+
+**Methods** (Implementation required):
+
+### 1. Frame Decoding
+```csharp
+/// <summary>
+/// Decode raw HTTP/2 bytes into frame objects.
+/// Does not aggregate or interpret frames.
+/// </summary>
+public static IReadOnlyList<Http2Frame> DecodeFrames(ReadOnlyMemory<byte> data)
+{
+    var decoder = new Http2FrameDecoder();
+    return decoder.Decode(data);
+}
+```
+
+### 2. Frame Building (Test Helpers)
+```csharp
+/// <summary>
+/// Build a HEADERS frame with HPACK-encoded headers.
+/// RFC 9113 §6.2
+/// </summary>
+public static HeadersFrame BuildHeadersFrame(
+    int streamId,
+    Dictionary<string, string> headers,
+    bool endStream = true,
+    bool endHeaders = true)
+{
+    var hpack = new HpackEncoder(useHuffman: false);
+    var headerList = headers
+        .Select(kv => (kv.Key.ToLowerInvariant(), kv.Value))
+        .ToList();
+    var block = hpack.Encode(headerList).ToArray();
+    return new HeadersFrame(streamId, block, endStream, endHeaders);
+}
+
+/// <summary>
+/// Build a DATA frame.
+/// RFC 9113 §6.1
+/// </summary>
+public static DataFrame BuildDataFrame(int streamId, byte[] payload, bool endStream = false)
+{
+    return new DataFrame(streamId, payload, endStream);
+}
+```
+
+### 3. Response Aggregation
+```csharp
+/// <summary>
+/// Simulate Http2StreamStage: convert frame sequence → HttpResponseMessage
+/// </summary>
+public static HttpResponseMessage? TryBuildResponseFromFrames(
+    IReadOnlyList<Http2Frame> frames,
+    int expectedStreamId = 1)
+{
+    // 1. Find HEADERS frame with :status
+    var headersFrame = frames.OfType<HeadersFrame>()
+        .FirstOrDefault(f => f.StreamId == expectedStreamId);
+
+    if (headersFrame == null) return null;
+
+    // 2. Decode HPACK
+    var hpack = new HpackDecoder();
+    var headers = hpack.DecodeHeaderBlock(headersFrame.HeaderBlockFragment);
+
+    // 3. Extract :status and build response
+    var statusHeader = headers.FirstOrDefault(h => h.Name == ":status");
+    if (statusHeader == null)
+        throw new Http2Exception("Missing :status pseudo-header", Http2ErrorCode.ProtocolError);
+
+    var response = new HttpResponseMessage((HttpStatusCode)int.Parse(statusHeader.Value));
+
+    // 4. Add regular headers
+    foreach (var (name, value) in headers.Where(h => !h.Name.StartsWith(':')))
+    {
+        response.Content.Headers.TryAddWithoutValidation(name, value);
+    }
+
+    // 5. Append DATA frames to body
+    var bodyFrames = frames.OfType<DataFrame>()
+        .Where(f => f.StreamId == expectedStreamId)
+        .OrderBy(f => frames.IndexOf(f));
+
+    var bodyBytes = new MemoryStream();
+    foreach (var dataFrame in bodyFrames)
+    {
+        bodyBytes.Write(dataFrame.Payload);
+    }
+
+    response.Content = new ByteArrayContent(bodyBytes.ToArray());
+    return response;
+}
+```
+
+### 4. RFC Validation
+```csharp
+/// <summary>
+/// Validate frame compliance with RFC 9113 rules.
+/// Throws Http2Exception if invalid.
+/// </summary>
+public static void ValidateFrame(Http2Frame frame)
+{
+    // RFC 9113 §6.2: HEADERS must be on stream > 0
+    if (frame is HeadersFrame && frame.StreamId == 0)
+        throw new Http2Exception("HEADERS on stream 0 is connection error", Http2ErrorCode.ProtocolError);
+
+    // RFC 9113 §6.1: DATA must be on stream > 0
+    if (frame is DataFrame && frame.StreamId == 0)
+        throw new Http2Exception("DATA on stream 0 is connection error", Http2ErrorCode.ProtocolError);
+
+    // Add more rules as needed
+}
+```
+
+**Unit Tests for Helper**: 8-10 tests in `Http2StageTestHelperTests.cs`
+- Test frame decoding accuracy
+- Test frame building produces valid bytes
+- Test response aggregation with various header combinations
+- Test validation catches protocol errors
+
+**Acceptance Criteria**:
+- `dotnet build` succeeds
+- All helper tests pass
+- Helpers are used in Phase 41-42 migration
+- Commit: "Phase 40: Create Http2StageTestHelper framework"
+
+**Effort**: 8-10 hours
+
+---
+
+## Phase 41: Migrate RFC9113 Sections 1-5
+
+**Goal**: Convert 5 test files from Http2Decoder to Stage-based tests.
+
+**Files to Migrate**:
+
+| File | Tests | Strategy |
+|------|-------|----------|
+| 01_ConnectionPrefaceTests.cs | 8 | Http2Encoder.BuildConnectionPreface() validation only |
+| 02_FrameParsingTests.cs | 15 | Http2FrameDecoder.Decode() frame parsing |
+| 03_StreamStateMachineTests.cs | 12 | Http2FrameDecoder + manual state tracking |
+| 04_SettingsTests.cs | 18 | Http2FrameDecoder + settings frame parsing |
+| 05_FlowControlTests.cs | 20 | Http2FrameDecoder + window math validation |
+
+**Example Migration Pattern**:
+
+```csharp
+// BEFORE (Http2Decoder - deprecated)
+[Fact(DisplayName = "RFC9113 §8.2.2: GOAWAY with PROTOCOL_ERROR")]
+public void Should_ParseGoAway_When_DecoderReceivesProtocolError()
+{
+    var decoder = new Http2Decoder(); // ❌ OBSOLETE
+    var goAwayBytes = Http2Encoder.EncodeGoAway(0, Http2ErrorCode.ProtocolError, "test");
+    var decoded = decoder.TryDecode(goAwayBytes.AsMemory(), out var result);
+
+    Assert.True(decoded);
+    Assert.NotNull(result.GoAway);
+    Assert.Equal(Http2ErrorCode.ProtocolError, result.GoAway!.ErrorCode);
+}
+
+// AFTER (Stage-based - clean)
+[Fact(DisplayName = "RFC9113 §8.2.2: GOAWAY frame with PROTOCOL_ERROR must be parsed")]
+public void RFC9113_Section8_2_2_GoAwayFrame_ParsesProtocolError()
+{
+    // Arrange
+    var goAwayBytes = Http2Encoder.EncodeGoAway(0, Http2ErrorCode.ProtocolError, "test");
+
+    // Act
+    var frames = Http2StageTestHelper.DecodeFrames(goAwayBytes);
+
+    // Assert
+    Assert.Single(frames);
+    var goAwayFrame = Assert.IsType<GoAwayFrame>(frames[0]);
+    Assert.Equal(0, goAwayFrame.LastStreamId);
+    Assert.Equal(Http2ErrorCode.ProtocolError, goAwayFrame.ErrorCode);
+    Assert.Equal("test", goAwayFrame.DebugData.ToString(Encoding.UTF8));
+}
+```
+
+**Refactoring Checklist**:
+- [ ] Update test class documentation to reference RFC section
+- [ ] Update test method names to encode RFC section + requirement
+- [ ] Replace `new Http2Decoder()` with `Http2StageTestHelper.DecodeFrames()`
+- [ ] Validate frame types and properties instead of aggregated decoder state
+- [ ] Remove references to `result.Responses`, `result.GoAway`, etc.
+- [ ] Use frame type assertions: `Assert.IsType<GoAwayFrame>()`
+- [ ] Run: `dotnet test src/TurboHttp.Tests/TurboHttp.Tests.csproj --filter "RFC9113" -v`
+- [ ] Verify: All 73 tests pass, zero regressions
+
+**Validation**:
+```bash
+# Before Phase 41
+dotnet test --filter "FullyQualifiedName~RFC9113" --logger "console;verbosity=quiet"
+# Expected: 185 tests pass
+
+# During Phase 41 (sections 1-5 only)
+dotnet test --filter "FullyQualifiedName~(01_|02_|03_|04_|05_)" --logger "console;verbosity=quiet"
+# Expected: 73 tests pass
+
+# Check for Http2Decoder usage in migrated files
+grep -r "new Http2Decoder()" src/TurboHttp.Tests/RFC9113/0[1-5]*.cs
+# Expected: No matches (or only in legacy file)
+```
+
+**Acceptance Criteria**:
+- All 73 tests passing
+- Zero regressions in other RFC tests (still 185 total)
+- `dotnet build` succeeds
+- No `new Http2Decoder()` in migrated files except legacy
+- Commit: "Phase 41: Migrate RFC9113 sections 1-5 to Stage-based tests"
+
+**Effort**: 12-16 hours
+
+---
+
+## Phase 42: Migrate RFC9113 Sections 6-9
+
+**Goal**: Complete migration of core RFC9113 tests.
+
+**Files to Migrate**:
+
+| File | Tests | Strategy |
+|------|-------|----------|
+| 06_HeadersTests.cs | 25 | Http2FrameDecoder + HPACK validation |
+| 07_ErrorHandlingTests.cs | 20 | Frame validation + exception types |
+| 08_GoAwayTests.cs | 15 | Frame parsing + state (defer aggregation) |
+| 09_ContinuationFrameTests.cs | 18 | Frame sequence validation |
+
+**Key Pattern for Complex Tests**:
+
+For tests that need stream state (e.g., "stream must be open to receive HEADERS"):
+- Do NOT use Http2Decoder state machine
+- Instead: Build frame sequences manually, validate frame-by-frame
+- Document RFC section requiring state
+
+Example:
+```csharp
+[Fact]
+public void RFC9113_Section3_StreamState_MustRejectHeadersOnClosedStream()
+{
+    // RFC 9113 §5.1.1: HEADERS on closed stream is connection error STREAM_CLOSED
+
+    var frames = new List<Http2Frame>
+    {
+        // First: close stream 1 with END_STREAM
+        Http2StageTestHelper.BuildHeadersFrame(1, new() { { ":status", "200" } }, endStream: true),
+
+        // Second: try to send DATA on closed stream (invalid)
+        Http2StageTestHelper.BuildDataFrame(1, new byte[] { 1, 2, 3 }, endStream: false)
+    };
+
+    // The second frame should be rejected
+    Http2StageTestHelper.ValidateFrame(frames[1]); // Should throw or flag as error
+    // OR: verify it's a DATA frame on stream 1 (downstream stages would reject)
+}
+```
+
+**Migration Checklist** (same as Phase 41):
+- [ ] Update test class documentation
+- [ ] Update test method names (RFC + requirement)
+- [ ] Replace Http2Decoder with Http2FrameDecoder
+- [ ] Use frame builders from Http2StageTestHelper
+- [ ] Validate frame properties, not decoder state
+- [ ] Run full test suite
+- [ ] Zero regressions
+
+**Validation**:
+```bash
+# Check Phase 41 + 42 coverage
+dotnet test --filter "FullyQualifiedName~RFC9113"
+# Expected: 185 tests pass (73 from Phase 41 + 78 from Phase 42 + 34 existing)
+
+# Verify no Http2Decoder usage in RFC tests except legacy
+grep -r "new Http2Decoder()" src/TurboHttp.Tests/RFC9113/
+# Expected: 0 matches
+```
+
+**Acceptance Criteria**:
+- All 185 RFC9113 tests passing
+- Zero regressions in other tests
+- `dotnet build` succeeds
+- Commit: "Phase 42: Migrate RFC9113 sections 6-9 to Stage-based tests"
+
+**Effort**: 12-16 hours
+
+---
+
+## Phase 43: Validation Gate
+
+**Objective**: Confirm migration success, zero regressions, ready for production.
+
+**Validation Checklist**:
+
+### Build & Test Execution
+- [ ] `dotnet build --configuration Release src/TurboHttp.sln` succeeds
+- [ ] `dotnet test src/TurboHttp.sln --logger "console;verbosity=minimal"` → all pass
+- [ ] Test summary: At least 260 RFC tests passing (185 HTTP/2 + 75 other)
+
+### Code Quality
+- [ ] No `new Http2Decoder()` in src/TurboHttp/ (only tests)
+- [ ] All Http2Decoder references are in `Http2DecoderLegacyTests.cs`
+- [ ] No compiler warnings related to ObsoleteAttribute
+- [ ] Code style consistent (Allman braces, 4-space indent)
+
+### Regression Testing
+- [ ] RFC9110 tests: All passing
+- [ ] RFC9112 tests: All passing
+- [ ] RFC7541 tests: All passing
+- [ ] Integration tests: All passing
+
+### Coverage Verification
+```bash
+# Code coverage (if available)
+dotnet test /p:CollectCoverage=true /p:CoverageFormat=opencover src/TurboHttp.Tests/TurboHttp.Tests.csproj
+
+# Expected: No regression in coverage for Protocol layer
+```
+
+### Compliance Report
+Create `PHASE_43_VALIDATION_REPORT.md`:
+```markdown
+# Phase 39-43 Validation Report
+
+## Migration Summary
+- Http2Decoder: Marked [Obsolete]
+- Test files migrated: 9 files
+- Test cases migrated: 151 tests
+- New helper framework: Http2StageTestHelper (8 methods)
+
+## Test Results
+- Total RFC tests: 260+
+- All passing: YES
+- Regressions: ZERO
+
+## Code Metrics
+- Http2Decoder references in production code: 0
+- Http2Decoder references in tests: 35 (legacy file only)
+- Build warnings: 0 (ObsoleteAttribute)
+- Build errors: 0
+
+## Compliance Verification
+- RFC 9113 coverage: 100% (185 tests)
+- RFC 7541 coverage: 100% (48 tests)
+- RFC 9110 coverage: 100% (16 tests)
+- RFC 9112 coverage: 100% (94 tests)
+- Integration tests: 100% passing
+
+## Ready for Production: YES
+```
+
+**Final Commit**:
+```bash
+git commit -m "Phase 39-43: Refactor HTTP/2 tests to Stage-based architecture
+
+- Phase 39: Deprecate Http2Decoder, organize test files
+- Phase 40: Create Http2StageTestHelper framework
+- Phase 41: Migrate RFC9113 sections 1-5 (73 tests)
+- Phase 42: Migrate RFC9113 sections 6-9 (78 tests)
+- Phase 43: Validation gate - zero regressions, 260+ RFC tests passing
+
+All tests passing. Production-aligned test architecture. RFC compliance
+maintained at 100%. Http2Decoder marked [Obsolete] for gradual cleanup."
+```
+
+**Acceptance Criteria**:
+- All automated checks pass
+- Validation report complete and correct
+- Zero blocking issues
+- Team review sign-off (if applicable)
+- **Status**: PHASE 39-43 COMPLETE ✅
+
+**Effort**: 4-6 hours (validation + reporting)
+
+---
+
+## Post-Phase 43 Decisions (Deferred)
+
+### Option A: Delete Http2Decoder.cs
+- **Pros**: Complete cleanup, no technical debt
+- **Cons**: Remove test utility some teams may depend on
+- **Timeline**: 1-2 weeks after Phase 43 stabilization
+
+### Option B: Keep Http2Decoder as Legacy Utility
+- **Pros**: Backward compatibility, available if needed
+- **Cons**: Ongoing maintenance burden, obsolete attribute warning
+- **Timeline**: Indefinite (low-cost maintenance)
+
+### Option C: Refactor Http2Decoder to Minimal State Machine
+- **Pros**: Reduced scope, still testable
+- **Cons**: Significant refactoring effort
+- **Timeline**: 3-4 weeks
+
+**Recommendation**: Option B (keep with [Obsolete]) for Phase 43 sign-off. Revisit in 1 month.
+
+---
+
+## Success Metrics
+
+| Metric | Target | Validation |
+|--------|--------|-----------|
+| Build success | 100% | `dotnet build` succeeds |
+| Test pass rate | 100% | `dotnet test` all green |
+| Regressions | 0 | Coverage maintained, same test counts |
+| Obsolete warnings | 0 | Only in Http2DecoderLegacyTests.cs |
+| Code cleanliness | Stage-based | No Http2Decoder in production paths |
+
+---
+
 # TIER 1: RFC COMPLIANCE — Phases 28-38
 ## Detailed Implementation Guide
 

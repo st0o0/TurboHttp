@@ -9,6 +9,9 @@ using System.Net.Http;
 
 namespace TurboHttp.Protocol;
 
+[Obsolete("Http2Decoder is for testing only. Use Http2FrameDecoder + Stages directly. " +
+          "See IMPLEMENTATION_PLAN.md Phase 39 for migration guide.",
+          error: false)]
 public sealed class Http2Decoder
 {
     private readonly HpackDecoder _hpack = new();
