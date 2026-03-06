@@ -332,7 +332,20 @@ public sealed class Http2ProtocolSession
             // Body complete — promote pending response to the responses list.
             if (_pendingResponses.TryGetValue(streamId, out var completePending))
             {
-                completePending.Response.Content = new ByteArrayContent(completePending.Body.ToArray());
+                var previousContent = completePending.Response.Content;
+                var bodyContent = new ByteArrayContent(completePending.Body.ToArray());
+                // Preserve content headers stored on the initial placeholder Content.
+                if (previousContent != null)
+                {
+                    foreach (var h in previousContent.Headers)
+                    {
+                        if (!h.Key.Equals("Content-Length", StringComparison.OrdinalIgnoreCase))
+                        {
+                            bodyContent.Headers.TryAddWithoutValidation(h.Key, h.Value);
+                        }
+                    }
+                }
+                completePending.Response.Content = bodyContent;
                 _responses.Add((streamId, completePending.Response));
                 _pendingResponses.Remove(streamId);
             }
@@ -504,10 +517,37 @@ public sealed class Http2ProtocolSession
         }
 
         var response = new HttpResponseMessage((HttpStatusCode)int.Parse(status.Value));
+        List<(string Name, string Value)>? contentHeaders = null;
+
         foreach (var h in headers.Where(h => !h.Name.StartsWith(':')))
         {
-            response.Headers.TryAddWithoutValidation(h.Name, h.Value);
+            if (IsContentHeader(h.Name))
+            {
+                (contentHeaders ??= new List<(string, string)>()).Add((h.Name, h.Value));
+            }
+            else
+            {
+                response.Headers.TryAddWithoutValidation(h.Name, h.Value);
+            }
         }
+
+        if (contentHeaders != null)
+        {
+            response.Content = new ByteArrayContent(Array.Empty<byte>());
+            foreach (var (name, value) in contentHeaders)
+            {
+                response.Content.Headers.TryAddWithoutValidation(name, value);
+            }
+        }
+
         return response;
     }
+
+    private static bool IsContentHeader(string name) => name.ToLowerInvariant() switch
+    {
+        "content-type" or "content-length" or "content-encoding" or
+        "content-language" or "content-location" or "content-md5" or
+        "content-range" or "content-disposition" or "expires" or "last-modified" => true,
+        _ => false
+    };
 }

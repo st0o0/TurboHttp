@@ -461,8 +461,8 @@ public sealed class Http2ConnectionPrefaceTests
         }
     }
 
-    [Fact(DisplayName = "7540-4.1-004: Unknown frame type 0x0A — Http2FrameDecoder throws Http2Exception")]
-    public void FrameType_Unknown0x0A_ThrowsHttp2Exception()
+    [Fact(DisplayName = "7540-4.1-004: Unknown frame type 0x0A — silently ignored per RFC 9113 §5.5")]
+    public void FrameType_Unknown0x0A_SilentlyIgnored()
     {
         // Build a raw frame with unknown type 0x0A (10).
         var frame = new byte[]
@@ -474,11 +474,10 @@ public sealed class Http2ConnectionPrefaceTests
             0x00, 0x00, 0x00, 0x00  // 4 bytes payload
         };
 
-        // NOTE: RFC 9113 §5.1 requires ignoring unknown frame types, but Http2FrameDecoder
-        // currently treats them as a protocol error. This test documents current behaviour.
+        // RFC 7540 §4.1 / RFC 9113 §5.5: Unknown frame types MUST be ignored.
         var session = new Http2ProtocolSession();
-        var ex = Assert.Throws<Http2Exception>(() => session.Process(frame));
-        Assert.Equal(Http2ErrorCode.ProtocolError, ex.ErrorCode);
+        var result = session.Process(frame);
+        Assert.Empty(result); // unknown frame produces no output — silently discarded
     }
 
     [Fact(DisplayName = "7540-4.1-005: R-bit masked out when reading GoAway last-stream-id")]

@@ -36,7 +36,12 @@ public sealed class Http2FrameDecoder
             var streamId = (int)(BinaryPrimitives.ReadUInt32BigEndian(span[5..]) & 0x7FFFFFFFu);
             var payload = working.Slice(9, payloadLen);
 
-            frames.Add(CreateFrame(type, flags, streamId, payload));
+            var frame = CreateFrame(type, flags, streamId, payload);
+            // RFC 7540 §4.1 / RFC 9113 §5.5: Unknown frame types MUST be ignored.
+            if (frame != null)
+            {
+                frames.Add(frame);
+            }
             working = working[(9 + payloadLen)..];
         }
 
@@ -48,7 +53,7 @@ public sealed class Http2FrameDecoder
 
     // ── Frame object creation — all 9 types ──────────────────────────────────
 
-    private static Http2Frame CreateFrame(FrameType type, byte flags, int streamId, ReadOnlyMemory<byte> payload)
+    private static Http2Frame? CreateFrame(FrameType type, byte flags, int streamId, ReadOnlyMemory<byte> payload)
     {
         return type switch
         {
@@ -80,7 +85,8 @@ public sealed class Http2FrameDecoder
 
             FrameType.PushPromise => ParsePushPromise(streamId, flags, payload),
 
-            _ => throw new Http2Exception($"Unknown frame type 0x{(byte)type:X2}")
+            // RFC 7540 §4.1 / RFC 9113 §5.5: Unknown frame types MUST be ignored.
+            _ => null
         };
     }
 

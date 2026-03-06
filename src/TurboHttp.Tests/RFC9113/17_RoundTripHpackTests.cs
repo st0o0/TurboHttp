@@ -1,6 +1,7 @@
 using System.Net;
 using System.Text;
 using TurboHttp.Protocol;
+using TurboHttp.Tests;
 
 namespace TurboHttp.Tests.RFC9113;
 
@@ -80,18 +81,16 @@ public sealed class Http2RoundTripHpackTests
         var headersFrame = new HeadersFrame(1, block, endStream: false, endHeaders: true).Serialize();
         var dataFrame = new DataFrame(1, "split-body"u8.ToArray(), endStream: true).Serialize();
 
-        var decoder = new Http2Decoder();
+        var session = new Http2ProtocolSession();
 
         // First call: only HEADERS frame
-        var decoded1 = decoder.TryDecode(headersFrame.AsMemory(), out var result1);
-        Assert.True(decoded1);
-        Assert.False(result1.HasResponses); // not complete yet (no DATA with END_STREAM)
+        session.Process(headersFrame.AsMemory());
+        Assert.Empty(session.Responses); // not complete yet (no DATA with END_STREAM)
 
         // Second call: only DATA frame
-        var decoded2 = decoder.TryDecode(dataFrame.AsMemory(), out var result2);
-        Assert.True(decoded2);
-        Assert.True(result2.HasResponses);
-        Assert.Equal("split-body", await result2.Responses[0].Response.Content.ReadAsStringAsync());
+        session.Process(dataFrame.AsMemory());
+        Assert.NotEmpty(session.Responses);
+        Assert.Equal("split-body", await session.Responses[0].Response.Content.ReadAsStringAsync());
     }
 
     // ── RT-2-041 ───────────────────────────────────────────────────────────────
@@ -107,15 +106,15 @@ public sealed class Http2RoundTripHpackTests
         var part1 = headersFrame[..4]; // only 4 bytes of the 9-byte header
         var part2 = headersFrame[4..]; // rest
 
-        var decoder = new Http2Decoder();
+        var session = new Http2ProtocolSession();
 
-        var decoded1 = decoder.TryDecode(part1.AsMemory(), out var result1);
-        Assert.False(decoded1); // incomplete — cannot even read frame length
+        var frames1 = session.Process(part1.AsMemory());
+        Assert.Empty(frames1); // incomplete — cannot even read frame length
 
-        var decoded2 = decoder.TryDecode(part2.AsMemory(), out var result2);
-        Assert.True(decoded2);
-        Assert.True(result2.HasResponses);
-        Assert.Equal(HttpStatusCode.OK, result2.Responses[0].Response.StatusCode);
+        var frames2 = session.Process(part2.AsMemory());
+        Assert.NotEmpty(frames2);
+        Assert.NotEmpty(session.Responses);
+        Assert.Equal(HttpStatusCode.OK, session.Responses[0].Response.StatusCode);
     }
 
     // ── RT-2-042 ───────────────────────────────────────────────────────────────
@@ -127,23 +126,20 @@ public sealed class Http2RoundTripHpackTests
         var block = hpack.Encode([(":status", "200")]);
         var headersFrame = new HeadersFrame(1, block, endStream: true, endHeaders: true).Serialize();
 
-        var decoder = new Http2Decoder();
-        Http2DecodeResult? finalResult = null;
+        var session = new Http2ProtocolSession();
 
         for (var i = 0; i < headersFrame.Length; i++)
         {
             var oneByte = headersFrame.AsMemory(i, 1);
-            decoder.TryDecode(oneByte, out var partialResult);
-            if (partialResult.HasResponses)
+            session.Process(oneByte);
+            if (session.Responses.Count > 0)
             {
-                finalResult = partialResult;
                 break;
             }
         }
 
-        Assert.NotNull(finalResult);
-        Assert.True(finalResult.HasResponses);
-        Assert.Equal(HttpStatusCode.OK, finalResult.Responses[0].Response.StatusCode);
+        Assert.True(session.Responses.Count > 0);
+        Assert.Equal(HttpStatusCode.OK, session.Responses[0].Response.StatusCode);
     }
 
     // ── RT-2-043 ───────────────────────────────────────────────────────────────
@@ -155,12 +151,12 @@ public sealed class Http2RoundTripHpackTests
         var block = hpack.Encode([(":status", "204")]);
         var headersFrame = new HeadersFrame(1, block, endStream: true, endHeaders: true).Serialize();
 
-        var decoder = new Http2Decoder();
-        decoder.TryDecode(headersFrame.AsMemory(), out var result);
+        var session = new Http2ProtocolSession();
+        session.Process(headersFrame.AsMemory());
 
-        Assert.True(result.HasResponses);
-        Assert.Equal(HttpStatusCode.NoContent, result.Responses[0].Response.StatusCode);
-        var body = await result.Responses[0].Response.Content.ReadAsByteArrayAsync();
+        Assert.NotEmpty(session.Responses);
+        Assert.Equal(HttpStatusCode.NoContent, session.Responses[0].Response.StatusCode);
+        var body = await session.Responses[0].Response.Content.ReadAsByteArrayAsync();
         Assert.Empty(body);
     }
 
@@ -181,12 +177,12 @@ public sealed class Http2RoundTripHpackTests
 
         var combined = CombineFrames(unknownFrame, settingsFrame);
 
-        var decoder = new Http2Decoder();
-        var decoded = decoder.TryDecode(combined.AsMemory(), out var result);
+        var session = new Http2ProtocolSession();
+        var frames = session.Process(combined.AsMemory());
 
-        Assert.True(decoded);
-        Assert.True(result.HasNewSettings);
-        Assert.Single(result.SettingsAcksToSend);
+        Assert.NotEmpty(frames);
+        Assert.True(session.HasNewSettings);
+        Assert.Single(session.SettingsAcksToSend);
     }
 
     // ── RT-2-045 ───────────────────────────────────────────────────────────────
@@ -206,16 +202,16 @@ public sealed class Http2RoundTripHpackTests
         var headers3 = new HeadersFrame(3, block, endStream: false, endHeaders: true).Serialize();
         var headers5 = new HeadersFrame(5, block, endStream: false, endHeaders: true).Serialize();
 
-        var decoder = new Http2Decoder();
-        decoder.TryDecode(settingsFrame.AsMemory(), out _);
+        var session = new Http2ProtocolSession();
+        session.Process(settingsFrame.AsMemory());
 
         // Open 2 streams → OK
-        decoder.TryDecode(CombineFrames(headers1, headers3).AsMemory(), out _);
-        Assert.Equal(2, decoder.GetActiveStreamCount());
+        session.Process(CombineFrames(headers1, headers3).AsMemory());
+        Assert.Equal(2, session.ActiveStreamCount);
 
         // Third stream → should throw
         var ex = Assert.Throws<Http2Exception>(() =>
-            decoder.TryDecode(headers5.AsMemory(), out _));
+            session.Process(headers5.AsMemory()));
 
         Assert.Equal(Http2ErrorCode.RefusedStream, ex.ErrorCode);
     }
@@ -245,24 +241,24 @@ public sealed class Http2RoundTripHpackTests
     public async Task Should_AcceptNewStreams_When_DecoderResetBetweenConnections()
     {
         var hpack1 = new HpackEncoder(useHuffman: false);
-        var decoder = new Http2Decoder();
+        var session = new Http2ProtocolSession();
 
         // First connection: stream 1
         var frame1 = BuildH2Response(1, 200, "conn1", hpack1);
-        decoder.TryDecode(frame1, out var result1);
-        Assert.True(result1.HasResponses);
+        session.Process(frame1);
+        Assert.NotEmpty(session.Responses);
 
         // Reset for new connection
-        decoder.Reset();
+        session.Reset();
 
         // Second connection: stream 1 again (valid after reset)
         var hpack2 = new HpackEncoder(useHuffman: false);
         var frame2 = BuildH2Response(1, 200, "conn2", hpack2);
-        decoder.TryDecode(frame2, out var result2);
+        session.Process(frame2);
 
-        Assert.True(result2.HasResponses);
-        Assert.Equal(1, result2.Responses[0].StreamId);
-        Assert.Equal("conn2", await result2.Responses[0].Response.Content.ReadAsStringAsync());
+        Assert.NotEmpty(session.Responses);
+        Assert.Equal(1, session.Responses[0].StreamId);
+        Assert.Equal("conn2", await session.Responses[0].Response.Content.ReadAsStringAsync());
     }
 
     // ── RT-2-048 ───────────────────────────────────────────────────────────────
@@ -273,12 +269,12 @@ public sealed class Http2RoundTripHpackTests
         var debugMsg = "Server shutting down for maintenance";
         var goAwayFrame = Http2FrameUtils.EncodeGoAway(7, Http2ErrorCode.NoError, debugMsg);
 
-        var decoder = new Http2Decoder();
-        decoder.TryDecode(goAwayFrame.AsMemory(), out var result);
+        var session = new Http2ProtocolSession();
+        session.Process(goAwayFrame.AsMemory());
 
-        Assert.True(result.HasGoAway);
-        Assert.Equal(7, result.GoAway!.LastStreamId);
-        Assert.Equal(Http2ErrorCode.NoError, result.GoAway.ErrorCode);
+        Assert.True(session.IsGoingAway);
+        Assert.Equal(7, session.GoAwayFrame!.LastStreamId);
+        Assert.Equal(Http2ErrorCode.NoError, session.GoAwayFrame.ErrorCode);
     }
 
     // ── RT-2-049 ───────────────────────────────────────────────────────────────
@@ -315,11 +311,11 @@ public sealed class Http2RoundTripHpackTests
         ]);
         var headersFrame = new HeadersFrame(1, block, endStream: true, endHeaders: true).Serialize();
 
-        var decoder = new Http2Decoder();
-        decoder.TryDecode(headersFrame.AsMemory(), out var result);
+        var session = new Http2ProtocolSession();
+        session.Process(headersFrame.AsMemory());
 
-        Assert.True(result.HasResponses);
-        var response = result.Responses[0].Response;
+        Assert.NotEmpty(session.Responses);
+        var response = session.Responses[0].Response;
         Assert.Equal(HttpStatusCode.MovedPermanently, response.StatusCode);
         // Location header should be present
         Assert.True(response.Headers.Location is not null || response.Headers.Contains("location"));
@@ -340,11 +336,11 @@ public sealed class Http2RoundTripHpackTests
         var headersFrame = new HeadersFrame(1, block, endStream: false, endHeaders: true).Serialize();
         var dataFrame = new DataFrame(1, body, endStream: true).Serialize();
 
-        var decoder = new Http2Decoder();
-        decoder.TryDecode(CombineFrames(headersFrame, dataFrame), out var result);
+        var session = new Http2ProtocolSession();
+        session.Process(CombineFrames(headersFrame, dataFrame));
 
-        Assert.True(result.HasResponses);
-        var response = result.Responses[0].Response;
+        Assert.NotEmpty(session.Responses);
+        var response = session.Responses[0].Response;
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.Equal("text/plain", response.Content.Headers.ContentType!.MediaType);
         Assert.Equal(body.Length, response.Content.Headers.ContentLength);
@@ -363,11 +359,11 @@ public sealed class Http2RoundTripHpackTests
         ]);
         var headersFrame = new HeadersFrame(1, block, endStream: true, endHeaders: true).Serialize();
 
-        var decoder = new Http2Decoder();
-        decoder.TryDecode(headersFrame.AsMemory(), out var result);
+        var session = new Http2ProtocolSession();
+        session.Process(headersFrame.AsMemory());
 
-        Assert.True(result.HasResponses);
-        var response = result.Responses[0].Response;
+        Assert.NotEmpty(session.Responses);
+        var response = session.Responses[0].Response;
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var body = await response.Content.ReadAsByteArrayAsync();
         Assert.Empty(body);
@@ -378,13 +374,12 @@ public sealed class Http2RoundTripHpackTests
     [Fact(DisplayName = "RT-2-053: ValidateServerPreface accepts valid SETTINGS frame on stream 0")]
     public void Should_ReturnTrue_When_ServerPrefaceHasValidSettingsFrame()
     {
-        var decoder = new Http2Decoder();
         var settingsFrame = new SettingsFrame(new List<(SettingsParameter, uint)>
         {
             (SettingsParameter.MaxConcurrentStreams, 100u),
         }).Serialize();
 
-        var result = decoder.ValidateServerPreface(settingsFrame.AsMemory());
+        var result = Http2StageTestHelper.ValidateServerPreface(settingsFrame.AsMemory());
         Assert.True(result);
     }
 
@@ -427,7 +422,7 @@ public sealed class Http2RoundTripHpackTests
     public void Should_PreserveAllEntityHeaders_When_ResponseDecodedWithEntityHeaders()
     {
         var hpack = new HpackEncoder(useHuffman: false);
-        var decoder = new Http2Decoder();
+        var session = new Http2ProtocolSession();
 
         // Build a 200 response with all 7 uncovered entity header types and a small body.
         var responseBytes = BuildH2Response(
@@ -443,14 +438,14 @@ public sealed class Http2RoundTripHpackTests
             ("expires", "Thu, 01 Jan 2026 00:00:00 GMT"),
             ("last-modified", "Wed, 01 Jan 2025 00:00:00 GMT"));
 
-        decoder.TryDecode(responseBytes.AsMemory(), out var result);
+        session.Process(responseBytes.AsMemory());
 
-        Assert.True(result.HasResponses);
-        var response = result.Responses[0].Response;
+        Assert.NotEmpty(session.Responses);
+        var response = session.Responses[0].Response;
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.NotNull(response.Content);
 
-        // All 7 entity headers must be present in Content.Headers (lines 1220-1226 in Http2Decoder)
+        // All 7 entity headers must be present in Content.Headers
         Assert.True(response.Content.Headers.Contains("content-language"),   "content-language missing");
         Assert.True(response.Content.Headers.Contains("content-location"),    "content-location missing");
         Assert.True(response.Content.Headers.Contains("content-range"),       "content-range missing");
@@ -465,29 +460,28 @@ public sealed class Http2RoundTripHpackTests
     public async Task Should_MaintainHpackState_When_MultipleFramesSentAcrossDecodeCallBatches()
     {
         var hpack = new HpackEncoder(useHuffman: false);
-        var decoder = new Http2Decoder();
+        var session = new Http2ProtocolSession();
 
         // Batch 1: stream 1 response
         var block1 = hpack.Encode([(":status", "200"), ("x-trace", "trace-001")]);
         var frames1 = CombineFrames(
             new HeadersFrame(1, block1, endStream: false, endHeaders: true).Serialize(),
             new DataFrame(1, "batch1"u8.ToArray(), endStream: true).Serialize());
-        decoder.TryDecode(frames1.AsMemory(), out var result1);
+        session.Process(frames1.AsMemory());
 
         // Batch 2: stream 3 response — uses dynamic table from batch 1
         var block2 = hpack.Encode([(":status", "200"), ("x-trace", "trace-001")]);
         var frames2 = CombineFrames(
             new HeadersFrame(3, block2, endStream: false, endHeaders: true).Serialize(),
             new DataFrame(3, "batch2"u8.ToArray(), endStream: true).Serialize());
-        decoder.TryDecode(frames2.AsMemory(), out var result2);
+        session.Process(frames2.AsMemory());
 
         // Both batches decoded correctly
-        Assert.True(result1.HasResponses);
-        Assert.True(result2.HasResponses);
-        Assert.Equal(HttpStatusCode.OK, result1.Responses[0].Response.StatusCode);
-        Assert.Equal(HttpStatusCode.OK, result2.Responses[0].Response.StatusCode);
-        Assert.Equal("batch1", await result1.Responses[0].Response.Content.ReadAsStringAsync());
-        Assert.Equal("batch2", await result2.Responses[0].Response.Content.ReadAsStringAsync());
+        Assert.Equal(2, session.Responses.Count);
+        Assert.Equal(HttpStatusCode.OK, session.Responses[0].Response.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, session.Responses[1].Response.StatusCode);
+        Assert.Equal("batch1", await session.Responses[0].Response.Content.ReadAsStringAsync());
+        Assert.Equal("batch2", await session.Responses[1].Response.Content.ReadAsStringAsync());
 
         // Second block should be shorter (dynamic table reuse)
         Assert.True(block2.Length < block1.Length,
