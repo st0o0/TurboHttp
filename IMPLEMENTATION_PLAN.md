@@ -1441,7 +1441,7 @@ attributes and RFC/stream tags. No tests exist for `Http20Engine`, the top-level
 ---
 
 ### Phase 46 — Extract `EngineTestBase.cs` from `EngineTests.cs`
-- [ ] **Status**: pending
+- [x] **Status**: complete (2026-03-07, iter-01)
 
 **File**: `src/TurboHttp.StreamTests/EngineTests.cs`
 
