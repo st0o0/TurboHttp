@@ -1060,6 +1060,9 @@ public class Stages
 
                 public HttpResponseMessage? Response;
 
+                // Captured during DecodeHeaders for use in HandleData decompression.
+                public string? ContentEncoding;
+
                 public StreamState(MemoryPool<byte> pool)
                 {
                     _pool = pool;
@@ -1137,6 +1140,10 @@ public class Stages
 
             private readonly HpackDecoder _hpack = new();
 
+            // Set when Push(outlet) is called in the current onPush turn.
+            // Prevents calling Pull(inlet) twice (once from onPush, once from outlet.onPull).
+            private bool _responsePushed;
+
             public Logic(Http2StreamStage stage) : base(stage.Shape)
             {
                 _stage = stage;
@@ -1144,6 +1151,7 @@ public class Stages
                 {
                     var frame = Grab(stage._inlet);
                     _streams.TryAdd(frame.StreamId, new StreamState(MemoryPool<byte>.Shared));
+                    _responsePushed = false;
                     switch (frame)
                     {
                         case HeadersFrame h:
@@ -1159,10 +1167,17 @@ public class Stages
                             break;
                     }
 
-                    Pull(stage._inlet);
+                    if (!_responsePushed)
+                    {
+                        Pull(stage._inlet);
+                    }
                 });
 
-                SetHandler(stage._outlet, () => { Pull(stage._inlet); });
+                SetHandler(stage._outlet, () =>
+                {
+                    _responsePushed = false;
+                    Pull(stage._inlet);
+                });
             }
 
             private void HandleHeaders(HeadersFrame frame)
@@ -1204,8 +1219,17 @@ public class Stages
 
                 var response = state.Response ?? new HttpResponseMessage();
 
-                response.Content = new ByteArrayContent(state.BodyBuffer[..state.BodyLength].ToArray());
+                var bodyBytes = state.BodyBuffer[..state.BodyLength].ToArray();
 
+                // RFC 9110 §8.4 — apply content-encoding decompression (gzip, deflate, br)
+                if (!string.IsNullOrEmpty(state.ContentEncoding))
+                {
+                    bodyBytes = ContentEncodingDecoder.Decompress(bodyBytes, state.ContentEncoding);
+                }
+
+                response.Content = new ByteArrayContent(bodyBytes);
+
+                _responsePushed = true;
                 Push(_stage._outlet, response);
 
                 state.Dispose();
@@ -1231,6 +1255,11 @@ public class Stages
                     else if (!h.Name.StartsWith(':'))
                     {
                         response.Headers.TryAddWithoutValidation(h.Name, h.Value);
+
+                        if (h.Name.Equals("content-encoding", StringComparison.OrdinalIgnoreCase))
+                        {
+                            state.ContentEncoding = h.Value;
+                        }
                     }
                 }
 
@@ -1241,6 +1270,7 @@ public class Stages
                     return;
                 }
 
+                _responsePushed = true;
                 Push(_stage._outlet, response);
 
                 state.Dispose();

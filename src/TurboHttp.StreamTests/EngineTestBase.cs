@@ -240,6 +240,57 @@ public abstract class EngineTestBase : TestKit
     }
 
     /// <summary>
+    /// Runs the H2 engine against pre-queued server frames, sending multiple requests.
+    /// Returns all decoded responses and all outbound H2 frames (excluding the client preface chunk).
+    /// </summary>
+    protected async Task<(List<HttpResponseMessage> Responses, IReadOnlyList<Http2Frame> OutboundFrames)> SendH2ManyAsync(
+        BidiFlow<HttpRequestMessage, (IMemoryOwner<byte>, int),
+            (IMemoryOwner<byte>, int), HttpResponseMessage, NotUsed> engine,
+        IEnumerable<HttpRequestMessage> requests,
+        int expectedCount,
+        params byte[][] serverFrames)
+    {
+        var fake = new H2FakeConnectionStage(serverFrames);
+        var flow = engine.Join(Flow.FromGraph<(IMemoryOwner<byte>, int), (IMemoryOwner<byte>, int), NotUsed>(fake));
+
+        var results = new List<HttpResponseMessage>();
+        var tcs = new TaskCompletionSource();
+
+        _ = Source.From(requests)
+            .Via(flow)
+            .RunWith(Sink.ForEach<HttpResponseMessage>(res =>
+            {
+                results.Add(res);
+                if (results.Count == expectedCount)
+                {
+                    tcs.TrySetResult();
+                }
+            }), Materializer);
+
+        await tcs.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+        var outboundBytes = new List<byte>();
+        bool skippedPreface = false;
+        while (fake.OutboundChannel.Reader.TryRead(out var chunk))
+        {
+            var bytes = chunk.Item1.Memory.Span[..chunk.Item2].ToArray();
+            if (!skippedPreface)
+            {
+                skippedPreface = true;
+                continue;
+            }
+
+            outboundBytes.AddRange(bytes);
+        }
+
+        IReadOnlyList<Http2Frame> frames = outboundBytes.Count > 0
+            ? new Http2FrameDecoder().Decode(outboundBytes.ToArray().AsMemory())
+            : Array.Empty<Http2Frame>();
+
+        return (results, frames);
+    }
+
+    /// <summary>
     /// Runs the H2 engine against pre-queued server frames. Returns the decoded response and
     /// all outbound H2 frames (excluding the client preface chunk).
     /// serverFrames: byte arrays served to the engine's inbound decoder in order.
