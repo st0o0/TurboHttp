@@ -1394,7 +1394,7 @@ If any refs remain, identify and fix them before proceeding to Phase 43.
 ---
 
 ### Phase 44 — Full RFC9113 regression run
-- [ ] **Status**: pending
+- [x] **Status**: complete (2026-03-07, iter-09)
 
 **Prerequisite**: Phase 43 complete.
 
