@@ -1259,7 +1259,7 @@ instances for isolated protocol-assertion tests (no real TCP connection).
 ---
 
 ### Phase 37 — Migrate `Http2EdgeCaseTests.cs` (6 refs)
-- [ ] **Status**: pending
+- [x] **Status**: complete (2026-03-07, iter-02)
 
 **Prerequisite**: Phase 36.
 
