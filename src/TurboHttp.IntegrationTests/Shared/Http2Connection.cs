@@ -18,6 +18,7 @@ public sealed class Http2Connection : IAsyncDisposable
     private readonly Dictionary<int, int> _streamReceiveWindows = new();
     private readonly Http2RequestEncoder _encoder;
     private readonly byte[] _readBuffer;
+    private readonly Queue<byte[]> _pendingPingAcks = new();
 
     // Track the connection receive window so we can send WINDOW_UPDATE when needed.
     private const int InitialReceiveWindow = 65535;
@@ -386,6 +387,40 @@ public sealed class Http2Connection : IAsyncDisposable
     }
 
     // ── Internal helpers ──────────────────────────────────────────────────────
+
+    private async Task DispatchControlFrameAsync(Http2Frame frame, CancellationToken ct)
+    {
+        switch (frame)
+        {
+            case SettingsFrame { IsAck: false }:
+                await _stream.WriteAsync(Http2FrameUtils.EncodeSettingsAck(), ct);
+                break;
+            case PingFrame { IsAck: false } ping:
+                await _stream.WriteAsync(Http2FrameUtils.EncodePingAck(ping.Data), ct);
+                break;
+            case PingFrame { IsAck: true } ackPing:
+                _pendingPingAcks.Enqueue(ackPing.Data);
+                break;
+            case WindowUpdateFrame wu:
+                if (wu.StreamId == 0)
+                {
+                    _encoder.UpdateConnectionWindow(wu.Increment);
+                }
+                else
+                {
+                    _encoder.UpdateStreamWindow(wu.StreamId, wu.Increment);
+                }
+                break;
+            case RstStreamFrame rst:
+                throw new Http2Exception(
+                    $"RST_STREAM on stream {rst.StreamId}: {rst.ErrorCode}",
+                    rst.ErrorCode, Http2ErrorScope.Stream);
+            case GoAwayFrame goAway:
+                throw new Http2Exception(
+                    $"GOAWAY: lastStreamId={goAway.LastStreamId} error={goAway.ErrorCode}",
+                    goAway.ErrorCode, Http2ErrorScope.Connection);
+        }
+    }
 
     private async Task PerformPrefaceAsync(CancellationToken ct)
     {

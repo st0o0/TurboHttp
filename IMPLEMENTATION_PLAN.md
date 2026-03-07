@@ -1103,7 +1103,7 @@ That is expected — the remaining phases complete the refactor.
 ---
 
 ### Phase 32 — Implement SETTINGS + PING dispatch in `Http2Connection.cs`
-- [ ] **Status**: pending
+- [x] **Status**: complete (2026-03-07, iter-08)
 
 **Prerequisite**: Phase 31.
 
