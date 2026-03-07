@@ -1498,7 +1498,7 @@ attributes and RFC/stream tags. No tests exist for `Http20Engine`, the top-level
 ---
 
 ### Phase 49 — Add `Http20EngineTests.cs` — first batch (ST-20-001 to ST-20-004)
-- [ ] **Status**: pending
+- [x] **Status**: complete
 
 **Prerequisite**: Phase 48 complete.
 

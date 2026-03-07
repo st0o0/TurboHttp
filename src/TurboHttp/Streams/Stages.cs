@@ -762,7 +762,7 @@ public class Stages
                 var newOwner = _pool.Rent(newSize);
 
                 _buffer.Span.CopyTo(newOwner.Memory.Span);
-                _bufferOwner.Dispose();
+                _bufferOwner?.Dispose();
 
                 _bufferOwner = newOwner;
                 _buffer = newOwner.Memory;
@@ -943,9 +943,18 @@ public class Stages
                     }
 
                     Push(stage._outletRaw, frame);
+                }, onUpstreamFinish: () =>
+                {
+                    // Request stream finished — keep stage alive to receive server responses.
                 });
 
-                SetHandler(stage._outletRaw, onPull: () => Pull(stage._inletRequest));
+                SetHandler(stage._outletRaw, onPull: () =>
+                {
+                    if (!HasBeenPulled(stage._inletRequest))
+                    {
+                        Pull(stage._inletRequest);
+                    }
+                });
             }
 
             private void HandleSettings(SettingsFrame frame)
