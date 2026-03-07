@@ -966,7 +966,7 @@ Uses flow control + stream count accessors.
 ---
 
 ### Phase 26 — Migrate `Http2FuzzHarnessTests.cs` (30 refs)
-- [ ] **Status**: pending
+- [x] **Status**: complete (2026-03-07, iter-02)
 
 **File**: `src/TurboHttp.Tests/RFC9113/Http2FuzzHarnessTests.cs`
 

@@ -677,7 +677,12 @@ public sealed class Http2ProtocolSession
             return null;
         }
 
-        var response = new HttpResponseMessage((HttpStatusCode)int.Parse(status.Value));
+        if (!int.TryParse(status.Value, out var statusCode))
+        {
+            return null;
+        }
+
+        var response = new HttpResponseMessage((HttpStatusCode)statusCode);
         List<(string Name, string Value)>? contentHeaders = null;
 
         foreach (var h in headers.Where(h => !h.Name.StartsWith(':')))
