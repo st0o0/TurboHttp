@@ -1021,7 +1021,7 @@ that decode a hand-built HTTP/2 response frame to verify decompression.
 ---
 
 ### Phase 29 — Migrate `Integration/TcpFragmentationTests.cs` (9 refs)
-- [ ] **Status**: pending
+- [x] **Status**: complete (2026-03-07, iter-05)
 
 **File**: `src/TurboHttp.Tests/Integration/TcpFragmentationTests.cs`
 

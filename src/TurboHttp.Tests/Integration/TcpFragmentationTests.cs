@@ -1,6 +1,7 @@
 using System.Net;
 using System.Text;
 using TurboHttp.Protocol;
+using TurboHttp.Tests;
 
 namespace TurboHttp.Tests.Integration;
 
@@ -290,53 +291,57 @@ public sealed class TcpFragmentationTests
     public void Should_ReturnFalse_When_Http2FrameHeaderSplitAtByte1()
     {
         var frame = SettingsFrame9(); // 9 bytes total
-        var decoder = new Http2Decoder();
+        var session = new Http2ProtocolSession();
 
         // 1 byte < 9-byte frame header → NeedMoreData
-        Assert.False(decoder.TryDecode(frame.AsMemory(0, 1), out _));
+        Assert.Empty(session.Process(frame.AsMemory(0, 1)));
 
         // Feed remaining 8 bytes → complete SETTINGS frame decoded
-        Assert.True(decoder.TryDecode(frame.AsMemory(1), out var result));
-        Assert.True(result.HasNewSettings);
+        var frames = session.Process(frame.AsMemory(1));
+        Assert.NotEmpty(frames);
+        Assert.Contains(frames, f => f is SettingsFrame sf && !sf.IsAck);
     }
 
     [Fact(DisplayName = "FRAG-2-002: HTTP/2 frame header split at byte 3 (end of length)")]
     public void Should_ReturnFalse_When_Http2FrameHeaderSplitAtByte3()
     {
         var frame = SettingsFrame9();
-        var decoder = new Http2Decoder();
+        var session = new Http2ProtocolSession();
 
         // 3 bytes (length field only) < 9 → NeedMoreData
-        Assert.False(decoder.TryDecode(frame.AsMemory(0, 3), out _));
+        Assert.Empty(session.Process(frame.AsMemory(0, 3)));
 
-        Assert.True(decoder.TryDecode(frame.AsMemory(3), out var result));
-        Assert.True(result.HasNewSettings);
+        var frames = session.Process(frame.AsMemory(3));
+        Assert.NotEmpty(frames);
+        Assert.Contains(frames, f => f is SettingsFrame sf && !sf.IsAck);
     }
 
     [Fact(DisplayName = "FRAG-2-003: HTTP/2 frame header split at byte 5 (flags)")]
     public void Should_ReturnFalse_When_Http2FrameHeaderSplitAtByte5()
     {
         var frame = SettingsFrame9();
-        var decoder = new Http2Decoder();
+        var session = new Http2ProtocolSession();
 
         // 5 bytes (length + type + flags) < 9 → NeedMoreData
-        Assert.False(decoder.TryDecode(frame.AsMemory(0, 5), out _));
+        Assert.Empty(session.Process(frame.AsMemory(0, 5)));
 
-        Assert.True(decoder.TryDecode(frame.AsMemory(5), out var result));
-        Assert.True(result.HasNewSettings);
+        var frames = session.Process(frame.AsMemory(5));
+        Assert.NotEmpty(frames);
+        Assert.Contains(frames, f => f is SettingsFrame sf && !sf.IsAck);
     }
 
     [Fact(DisplayName = "FRAG-2-004: HTTP/2 frame header split at byte 8 (last stream byte)")]
     public void Should_ReturnFalse_When_Http2FrameHeaderSplitAtByte8()
     {
         var frame = SettingsFrame9();
-        var decoder = new Http2Decoder();
+        var session = new Http2ProtocolSession();
 
         // 8 bytes < 9 (missing final stream-id byte) → NeedMoreData
-        Assert.False(decoder.TryDecode(frame.AsMemory(0, 8), out _));
+        Assert.Empty(session.Process(frame.AsMemory(0, 8)));
 
-        Assert.True(decoder.TryDecode(frame.AsMemory(8), out var result));
-        Assert.True(result.HasNewSettings);
+        var frames = session.Process(frame.AsMemory(8));
+        Assert.NotEmpty(frames);
+        Assert.Contains(frames, f => f is SettingsFrame sf && !sf.IsAck);
     }
 
     [Fact(DisplayName = "FRAG-2-005: HTTP/2 DATA payload split mid-content")]
@@ -351,22 +356,22 @@ public sealed class TcpFragmentationTests
         var dataFrame = new Protocol.DataFrame(1, bodyBytes, endStream: true).Serialize();
 
         var combined = Combine(headersFrame, dataFrame);
-        var decoder = new Http2Decoder();
+        var session = new Http2ProtocolSession();
 
         // Split: complete HEADERS + complete DATA header (9 bytes) + 5 of 11 body bytes.
         // After HEADERS is processed, working = 14 bytes of DATA; 14 < 9+11 → DATA payload incomplete.
         var split = headersFrame.Length + 9 + 5;
-        var got1 = decoder.TryDecode(combined.AsMemory(0, split), out var r1);
+        var frames1 = session.Process(combined.AsMemory(0, split));
 
-        // HEADERS frame was decoded (decoded=true) but no complete response yet
-        Assert.True(got1);
-        Assert.False(r1.HasResponses);
+        // HEADERS frame was decoded (frames returned) but no complete response yet
+        Assert.NotEmpty(frames1);
+        Assert.Empty(session.Responses);
 
         // Feed remaining DATA bytes → completes stream
-        Assert.True(decoder.TryDecode(combined.AsMemory(split), out var r2));
-        Assert.True(r2.HasResponses);
-        Assert.Equal(1, r2.Responses[0].StreamId);
-        Assert.Equal(HttpStatusCode.OK, r2.Responses[0].Response.StatusCode);
+        Assert.NotEmpty(session.Process(combined.AsMemory(split)));
+        Assert.NotEmpty(session.Responses);
+        Assert.Equal(1, session.Responses[0].StreamId);
+        Assert.Equal(HttpStatusCode.OK, session.Responses[0].Response.StatusCode);
     }
 
     [Fact(DisplayName = "FRAG-2-006: HTTP/2 HEADERS HPACK block split mid-stream")]
@@ -387,15 +392,15 @@ public sealed class TcpFragmentationTests
 
         // Split within the payload: frame header (9) + half the HPACK block
         var split = 9 + headerBlock.Length / 2;
-        var decoder = new Http2Decoder();
+        var session = new Http2ProtocolSession();
 
         // First slice: 9-byte frame header + partial payload → payloadLength > bytes-available → NeedMoreData
-        Assert.False(decoder.TryDecode(headersFrame.AsMemory(0, split), out _));
+        Assert.Empty(session.Process(headersFrame.AsMemory(0, split)));
 
         // Second slice: rest of payload → HPACK decoding completes, response emitted
-        Assert.True(decoder.TryDecode(headersFrame.AsMemory(split), out var result));
-        Assert.True(result.HasResponses);
-        Assert.Equal(HttpStatusCode.OK, result.Responses[0].Response.StatusCode);
+        Assert.NotEmpty(session.Process(headersFrame.AsMemory(split)));
+        Assert.NotEmpty(session.Responses);
+        Assert.Equal(HttpStatusCode.OK, session.Responses[0].Response.StatusCode);
     }
 
     [Fact(DisplayName = "FRAG-2-007: HTTP/2 split between HEADERS and CONTINUATION frames")]
@@ -417,18 +422,18 @@ public sealed class TcpFragmentationTests
         var headersFrame = new Protocol.HeadersFrame(1, firstPart, endStream: true, endHeaders: false).Serialize();
         var contFrame = new Protocol.ContinuationFrame(1, secondPart, endHeaders: true).Serialize();
 
-        var decoder = new Http2Decoder();
+        var session = new Http2ProtocolSession();
 
         // First call: deliver HEADERS frame only → frame is processed but response is not yet complete
         // (awaiting CONTINUATION to finalise the header block)
-        var got1 = decoder.TryDecode(headersFrame, out var r1);
-        Assert.True(got1);                // HEADERS frame decoded
-        Assert.False(r1.HasResponses);    // no complete response yet
+        var frames1 = session.Process(headersFrame);
+        Assert.NotEmpty(frames1);         // HEADERS frame decoded
+        Assert.Empty(session.Responses);  // no complete response yet
 
         // Second call: deliver CONTINUATION → header block assembled, response emitted
-        Assert.True(decoder.TryDecode(contFrame, out var r2));
-        Assert.True(r2.HasResponses);
-        Assert.Equal(HttpStatusCode.OK, r2.Responses[0].Response.StatusCode);
+        Assert.NotEmpty(session.Process(contFrame));
+        Assert.NotEmpty(session.Responses);
+        Assert.Equal(HttpStatusCode.OK, session.Responses[0].Response.StatusCode);
     }
 
     [Fact(DisplayName = "FRAG-2-008: Two complete HTTP/2 frames in one read both processed")]
@@ -445,12 +450,13 @@ public sealed class TcpFragmentationTests
         }).Serialize();
 
         var combined = Combine(settings1, settings2);
-        var decoder = new Http2Decoder();
+        var session = new Http2ProtocolSession();
 
         // Single call must process both SETTINGS frames
-        Assert.True(decoder.TryDecode(combined, out var result));
-        Assert.Equal(2, result.ReceivedSettings.Count);
-        Assert.Equal(2, result.SettingsAcksToSend.Count);
+        var frames = session.Process(combined);
+        Assert.NotEmpty(frames);
+        Assert.Equal(2, session.ReceivedSettings.Count);
+        Assert.Equal(2, frames.Count(f => f is SettingsFrame sf && !sf.IsAck));
     }
 
     [Fact(DisplayName = "FRAG-2-009: Second stream's HEADERS split across reads while first stream active")]
@@ -465,21 +471,21 @@ public sealed class TcpFragmentationTests
         var stream1Frame = new Protocol.HeadersFrame(1, block1, endStream: true, endHeaders: true).Serialize();
         var stream3Frame = new Protocol.HeadersFrame(3, block1, endStream: true, endHeaders: true).Serialize();
 
-        var decoder = new Http2Decoder();
+        var session = new Http2ProtocolSession();
 
         // First call: stream-1 HEADERS complete (10 bytes) + stream-3 frame header only (9 bytes).
         // After stream-1: stream-3 working = 9 bytes; payloadLength=1; 9 < 9+1=10 → stored in _remainder.
         var firstSlice = Combine(stream1Frame, stream3Frame[..9]);
-        var got1 = decoder.TryDecode(firstSlice, out var r1);
-        Assert.True(got1);
-        Assert.Single(r1.Responses);
-        Assert.Equal(1, r1.Responses[0].StreamId);
-        Assert.Equal(HttpStatusCode.OK, r1.Responses[0].Response.StatusCode);
+        var frames1 = session.Process(firstSlice);
+        Assert.NotEmpty(frames1);
+        Assert.Single(session.Responses);
+        Assert.Equal(1, session.Responses[0].StreamId);
+        Assert.Equal(HttpStatusCode.OK, session.Responses[0].Response.StatusCode);
 
         // Second call: remaining 1 byte of stream-3 HPACK payload
-        Assert.True(decoder.TryDecode(stream3Frame.AsMemory(9), out var r2));
-        Assert.Single(r2.Responses);
-        Assert.Equal(3, r2.Responses[0].StreamId);
-        Assert.Equal(HttpStatusCode.OK, r2.Responses[0].Response.StatusCode);
+        Assert.NotEmpty(session.Process(stream3Frame.AsMemory(9)));
+        Assert.Equal(2, session.Responses.Count);
+        Assert.Equal(3, session.Responses[1].StreamId);
+        Assert.Equal(HttpStatusCode.OK, session.Responses[1].Response.StatusCode);
     }
 }
