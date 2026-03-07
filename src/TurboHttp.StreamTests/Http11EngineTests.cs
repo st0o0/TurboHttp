@@ -1,4 +1,4 @@
-﻿using System.Net;
+using System.Net;
 using System.Text;
 using TurboHttp.Streams;
 
@@ -14,7 +14,7 @@ public sealed class Http11EngineTests : EngineTestBase
 
     private Http11Engine Engine => new();
 
-    [Fact]
+    [Fact(DisplayName = "ST-11-001: Simple GET returns 200")]
     public async Task Simple_GET_Returns_200()
     {
         var request = new HttpRequestMessage(HttpMethod.Get, "http://example.com/")
@@ -28,7 +28,7 @@ public sealed class Http11EngineTests : EngineTestBase
         Assert.Equal(HttpVersion.Version11, response.Version);
     }
 
-    [Fact]
+    [Fact(DisplayName = "ST-11-002: Simple GET encodes request line")]
     public async Task Simple_GET_Encodes_Request_Line()
     {
         var request = new HttpRequestMessage(HttpMethod.Get, "http://example.com/foo?bar=1")
@@ -41,7 +41,7 @@ public sealed class Http11EngineTests : EngineTestBase
         Assert.StartsWith("GET /foo?bar=1 HTTP/1.1\r\n", raw);
     }
 
-    [Fact]
+    [Fact(DisplayName = "ST-11-003: GET contains Host header")]
     public async Task GET_Contains_Host_Header()
     {
         var request = new HttpRequestMessage(HttpMethod.Get, "http://example.com/")
@@ -54,7 +54,7 @@ public sealed class Http11EngineTests : EngineTestBase
         Assert.Contains("Host: example.com", raw);
     }
 
-    [Fact]
+    [Fact(DisplayName = "ST-11-004: POST with body uses chunked or Content-Length")]
     public async Task POST_With_Body_Uses_Chunked_Or_Content_Length()
     {
         var request = new HttpRequestMessage(HttpMethod.Post, "http://example.com/submit")
@@ -69,7 +69,7 @@ public sealed class Http11EngineTests : EngineTestBase
         Assert.True(raw.Contains("Content-Length:") || raw.Contains("Transfer-Encoding: chunked"));
     }
 
-    [Fact]
+    [Fact(DisplayName = "ST-11-005: Response with body is decoded")]
     public async Task Response_With_Body_Is_Decoded()
     {
         var request = new HttpRequestMessage(HttpMethod.Get, "http://example.com/")
@@ -84,7 +84,7 @@ public sealed class Http11EngineTests : EngineTestBase
         Assert.Equal("hello", body);
     }
 
-    [Fact]
+    [Fact(DisplayName = "ST-11-006: Custom header is forwarded")]
     public async Task Custom_Header_Is_Forwarded()
     {
         var request = new HttpRequestMessage(HttpMethod.Get, "http://example.com/")
@@ -98,7 +98,7 @@ public sealed class Http11EngineTests : EngineTestBase
         Assert.Contains("X-Custom: test-value", raw);
     }
 
-    [Fact]
+    [Fact(DisplayName = "ST-11-007: Multiple pipelined requests all return 200")]
     public async Task Multiple_Pipelined_Requests_All_Return_200()
     {
         var requests = new[]
