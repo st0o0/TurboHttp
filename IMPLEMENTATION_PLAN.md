@@ -1372,7 +1372,7 @@ If any refs remain, identify and fix them before proceeding to Phase 43.
 ---
 
 ### Phase 43 — Delete `Http2Decoder.cs`, `Http2DecodeResult.cs`, `Http2StreamLifecycleState.cs`
-- [ ] **Status**: pending
+- [x] **Status**: complete (2026-03-07, iter-08)
 
 **Prerequisite**: Phase 42 (grep confirms zero refs).
 
