@@ -85,6 +85,7 @@ public sealed class Http2IntegrationSession
         {
             if (frame is UnknownFrame)
             {
+                visible.Add(frame);
                 continue;
             }
 
