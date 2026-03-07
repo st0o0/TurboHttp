@@ -1338,7 +1338,7 @@ which was fixed in Phase 34.
 ---
 
 ### Phase 41 — Migrate `Http2PushPromiseTests.cs` (9 refs)
-- [ ] **Status**: pending
+- [x] **Status**: complete (2026-03-07, iter-06)
 
 **File**: `src/TurboHttp.IntegrationTests/Http2/Http2PushPromiseTests.cs`
 
