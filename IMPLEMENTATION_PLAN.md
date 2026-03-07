@@ -1316,7 +1316,7 @@ First half: tests up to approximately midpoint of the file.
 ---
 
 ### Phase 40 — Migrate `Http2FlowControlTests.cs` (3 refs)
-- [ ] **Status**: pending
+- [x] **Status**: complete (2026-03-07, iter-05)
 
 **File**: `src/TurboHttp.IntegrationTests/Http2/Http2FlowControlTests.cs`
 

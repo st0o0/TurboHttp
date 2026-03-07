@@ -151,13 +151,13 @@ public sealed class Http2FlowControlTests
     [Fact(DisplayName = "IT-2A-036: Window overflow detection — WINDOW_UPDATE > 2^31-1 throws FLOW_CONTROL_ERROR")]
     public void Should_ThrowFlowControlError_When_WindowUpdateCausesOverflow()
     {
-        var decoder = new Http2Decoder();
+        var session = new Http2IntegrationSession();
 
         // Initial send window = 65535. Adding 2^31-1 would exceed 2^31-1 total.
         var wu = Http2FrameUtils.EncodeWindowUpdate(0, 0x7FFFFFFF);
 
         var ex = Assert.Throws<Http2Exception>(() =>
-            decoder.TryDecode(wu.AsMemory(), out _));
+            session.Process(wu.AsMemory()));
 
         Assert.Equal(Http2ErrorCode.FlowControlError, ex.ErrorCode);
     }
@@ -165,7 +165,7 @@ public sealed class Http2FlowControlTests
     [Fact(DisplayName = "IT-2A-037: Zero WINDOW_UPDATE increment on stream → PROTOCOL_ERROR")]
     public void Should_ThrowProtocolError_When_StreamWindowUpdateIncrementIsZero()
     {
-        var decoder = new Http2Decoder();
+        var session = new Http2IntegrationSession();
 
         // Build WINDOW_UPDATE frame for stream 1 with increment = 0.
         var frameBytes = new byte[9 + 4];
@@ -176,7 +176,7 @@ public sealed class Http2FlowControlTests
         // increment = 0 (from array init)
 
         var ex = Assert.Throws<Http2Exception>(() =>
-            decoder.TryDecode(frameBytes.AsMemory(), out _));
+            session.Process(frameBytes.AsMemory()));
 
         Assert.Equal(Http2ErrorCode.ProtocolError, ex.ErrorCode);
     }
@@ -184,7 +184,7 @@ public sealed class Http2FlowControlTests
     [Fact(DisplayName = "IT-2A-038: Zero WINDOW_UPDATE increment on connection → PROTOCOL_ERROR")]
     public void Should_ThrowProtocolError_When_ConnectionWindowUpdateIncrementIsZero()
     {
-        var decoder = new Http2Decoder();
+        var session = new Http2IntegrationSession();
 
         // WINDOW_UPDATE on stream 0 (connection) with increment = 0.
         var frameBytes = new byte[9 + 4];
@@ -193,7 +193,7 @@ public sealed class Http2FlowControlTests
         // stream = 0, increment = 0 (from array init)
 
         var ex = Assert.Throws<Http2Exception>(() =>
-            decoder.TryDecode(frameBytes.AsMemory(), out _));
+            session.Process(frameBytes.AsMemory()));
 
         Assert.Equal(Http2ErrorCode.ProtocolError, ex.ErrorCode);
     }
