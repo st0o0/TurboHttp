@@ -1244,7 +1244,7 @@ instances for isolated protocol-assertion tests (no real TCP connection).
 ---
 
 ### Phase 36 — Implement `Http2IntegrationSession` full logic
-- [ ] **Status**: pending
+- [x] **Status**: complete (2026-03-07, iter-01)
 
 **Prerequisite**: Phase 35.
 
