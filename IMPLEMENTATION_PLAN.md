@@ -1301,7 +1301,7 @@ First half: tests up to approximately midpoint of the file.
 ---
 
 ### Phase 39 — Migrate `Http2ErrorTests.cs` — second half (~7 refs)
-- [ ] **Status**: pending
+- [x] **Status**: complete (2026-03-07, iter-04)
 
 **Prerequisite**: Phase 38.
 

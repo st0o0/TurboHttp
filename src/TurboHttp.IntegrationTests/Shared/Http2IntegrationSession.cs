@@ -310,6 +310,15 @@ public sealed class Http2IntegrationSession
     {
         var streamId = frame.StreamId;
 
+        // RFC 7540 §4.2: Frame size exceeded is a connection error of type FRAME_SIZE_ERROR.
+        // Check before stream state so the correct error code is returned.
+        if (frame.Data.Length > _maxFrameSize)
+        {
+            throw new Http2Exception(
+                $"RFC 7540 §4.2: DATA frame payload {frame.Data.Length} exceeds MAX_FRAME_SIZE {_maxFrameSize}.",
+                Http2ErrorCode.FrameSizeError);
+        }
+
         if (streamId == 0)
         {
             throw new Http2Exception("DATA on stream 0 is a connection error");

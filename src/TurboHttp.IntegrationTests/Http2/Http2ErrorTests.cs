@@ -164,7 +164,7 @@ public sealed class Http2ErrorTests
     [Fact(DisplayName = "IT-2-088: SETTINGS with ENABLE_PUSH=2 → decoder throws PROTOCOL_ERROR")]
     public void Should_ThrowProtocolError_When_EnablePushSetToInvalidValue()
     {
-        var decoder = new Http2Decoder();
+        var session = new Http2IntegrationSession();
 
         // Build SETTINGS frame with ENABLE_PUSH=2 (invalid; only 0 or 1 are valid).
         var settingsBytes = Http2FrameUtils.EncodeSettings(
@@ -173,7 +173,7 @@ public sealed class Http2ErrorTests
         ]);
 
         var ex = Assert.Throws<Http2Exception>(() =>
-            decoder.TryDecode(settingsBytes.AsMemory(), out _));
+            session.Process(settingsBytes.AsMemory()));
 
         Assert.Equal(Http2ErrorCode.ProtocolError, ex.ErrorCode);
     }
@@ -181,7 +181,7 @@ public sealed class Http2ErrorTests
     [Fact(DisplayName = "IT-2-089: SETTINGS ACK with non-empty payload → decoder throws FRAME_SIZE_ERROR")]
     public void Should_ThrowFrameSizeError_When_SettingsAckHasNonEmptyPayload()
     {
-        var decoder = new Http2Decoder();
+        var session = new Http2IntegrationSession();
 
         // Build a SETTINGS ACK frame with a non-empty payload (invalid).
         var frameBytes = new byte[9 + 6]; // 9 header + 6 payload
@@ -192,7 +192,7 @@ public sealed class Http2ErrorTests
         // stream ID = 0 (already zero from array init)
 
         var ex = Assert.Throws<Http2Exception>(() =>
-            decoder.TryDecode(frameBytes.AsMemory(), out _));
+            session.Process(frameBytes.AsMemory()));
 
         Assert.Equal(Http2ErrorCode.FrameSizeError, ex.ErrorCode);
     }
@@ -202,7 +202,7 @@ public sealed class Http2ErrorTests
     [Fact(DisplayName = "IT-2-090: WINDOW_UPDATE increment of 0 → decoder throws PROTOCOL_ERROR")]
     public void Should_ThrowProtocolError_When_WindowUpdateIncrementIsZero()
     {
-        var decoder = new Http2Decoder();
+        var session = new Http2IntegrationSession();
 
         // Build a WINDOW_UPDATE frame with increment = 0 (forbidden per RFC 7540 §6.9).
         var frameBytes = new byte[9 + 4];
@@ -211,7 +211,7 @@ public sealed class Http2ErrorTests
         // flags = 0, stream = 0, increment = 0 (all zero from array init)
 
         var ex = Assert.Throws<Http2Exception>(() =>
-            decoder.TryDecode(frameBytes.AsMemory(), out _));
+            session.Process(frameBytes.AsMemory()));
 
         Assert.Equal(Http2ErrorCode.ProtocolError, ex.ErrorCode);
     }
@@ -222,7 +222,7 @@ public sealed class Http2ErrorTests
     public void Should_IgnoreUnknownFrameType_When_Received()
     {
         // RFC 7540 §4.1: Implementations MUST ignore unknown frame types.
-        var decoder = new Http2Decoder();
+        var session = new Http2IntegrationSession();
 
         // Build a frame with type 0xFF (unknown), length 4, stream 1.
         var frameBytes = new byte[9 + 4];
@@ -232,10 +232,10 @@ public sealed class Http2ErrorTests
         BinaryPrimitives.WriteUInt32BigEndian(frameBytes.AsSpan(5), 1);
 
         // Should not throw — unknown frames are silently ignored.
-        decoder.TryDecode(frameBytes.AsMemory(), out var result);
+        session.Process(frameBytes.AsMemory());
         // No responses, no control frames, no error.
-        Assert.Empty(result.Responses);
-        Assert.Null(result.GoAway);
+        Assert.Empty(session.Responses);
+        Assert.Null(session.GoAwayFrame);
     }
 
     // ── Server-initiated RST ──────────────────────────────────────────────────
@@ -243,16 +243,16 @@ public sealed class Http2ErrorTests
     [Fact(DisplayName = "IT-2-092: Server-initiated RST_STREAM decoded cleanly — no exception from decoder")]
     public void Should_DecodeRstStreamCleanly_When_ServerSendsIt()
     {
-        var decoder = new Http2Decoder();
+        var session = new Http2IntegrationSession();
 
         var rstBytes = Http2FrameUtils.EncodeRstStream(1, Http2ErrorCode.RefusedStream);
 
         // Should not throw — RST_STREAM is a valid frame type.
-        var decoded = decoder.TryDecode(rstBytes.AsMemory(), out var result);
+        var frames = session.Process(rstBytes.AsMemory());
 
-        Assert.True(decoded);
-        Assert.Single(result.RstStreams);
-        Assert.Equal(Http2ErrorCode.RefusedStream, result.RstStreams[0].Error);
+        Assert.NotEmpty(frames);
+        Assert.Single(session.RstStreams);
+        Assert.Equal(Http2ErrorCode.RefusedStream, session.RstStreams[0].Error);
     }
 
     // ── Response without :status ──────────────────────────────────────────────
@@ -262,7 +262,7 @@ public sealed class Http2ErrorTests
     {
         // RFC 9113 §8.3.2: Responses MUST include exactly one :status pseudo-header.
         // Absence of :status is a PROTOCOL_ERROR — the connection must be terminated.
-        var decoder = new Http2Decoder();
+        var session = new Http2IntegrationSession();
 
         var hpackEncoder = new HpackEncoder(useHuffman: false);
         var headerBlock = hpackEncoder.Encode([("content-type", "text/plain")]); // no :status
@@ -273,7 +273,7 @@ public sealed class Http2ErrorTests
             endStream: true, endHeaders: true);
 
         var ex = Assert.Throws<Http2Exception>(() =>
-            decoder.TryDecode(frameBytes.AsMemory(), out _));
+            session.Process(frameBytes.AsMemory()));
 
         Assert.Equal(Http2ErrorCode.ProtocolError, ex.ErrorCode);
     }
@@ -283,7 +283,7 @@ public sealed class Http2ErrorTests
     [Fact(DisplayName = "IT-2-094: Frame payload exceeds MAX_FRAME_SIZE → decoder throws FRAME_SIZE_ERROR")]
     public void Should_ThrowFrameSizeError_When_PayloadExceedsMaxFrameSize()
     {
-        var decoder = new Http2Decoder();
+        var session = new Http2IntegrationSession();
 
         // The default MAX_FRAME_SIZE is 16384. Build a complete DATA frame with 16385 bytes
         // of payload (header size check runs only once the full payload bytes are available).
@@ -298,7 +298,7 @@ public sealed class Http2ErrorTests
         // Payload bytes are already zero from array init.
 
         var ex = Assert.Throws<Http2Exception>(() =>
-            decoder.TryDecode(frameBytes.AsMemory(), out _));
+            session.Process(frameBytes.AsMemory()));
 
         Assert.Equal(Http2ErrorCode.FrameSizeError, ex.ErrorCode);
     }
