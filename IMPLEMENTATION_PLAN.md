@@ -1057,7 +1057,7 @@ state accumulates across `Process()` calls.
 ---
 
 ### Phase 30 — Grep verification: zero `Http2Decoder` refs in `TurboHttp.Tests`
-- [ ] **Status**: pending
+- [x] **Status**: complete (2026-03-07, iter-06)
 
 **Prerequisite**: Phases 3–29 all complete.
 
