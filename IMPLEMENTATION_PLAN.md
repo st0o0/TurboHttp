@@ -1007,7 +1007,7 @@ that decode a hand-built HTTP/2 response frame to verify decompression.
 ---
 
 ### Phase 28 — Migrate `RFC9110/02_ContentEncodingDeflateTests.cs` (2 refs)
-- [ ] **Status**: pending
+- [x] **Status**: complete (2026-03-07, iter-04)
 
 **File**: `src/TurboHttp.Tests/RFC9110/02_ContentEncodingDeflateTests.cs`
 

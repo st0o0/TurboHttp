@@ -258,10 +258,10 @@ public sealed class ContentEncodingDeflateTests
         var original = "deflate in http/2"u8.ToArray();
         var compressed = DeflateCompress(original);
         var responseBytes = BuildHttp2Response(1, "deflate", compressed);
-        var decoder = new Http2Decoder();
+        var session = new Http2ProtocolSession();
 
-        Assert.True(decoder.TryDecode(responseBytes, out var result));
-        var body = await result.Responses[0].Response.Content.ReadAsByteArrayAsync();
+        Assert.NotEmpty(session.Process(responseBytes.AsMemory()));
+        var body = await session.Responses[0].Response.Content.ReadAsByteArrayAsync();
         Assert.Equal(original, body);
     }
 
@@ -272,10 +272,10 @@ public sealed class ContentEncodingDeflateTests
     {
         var original = "plain http2"u8.ToArray();
         var responseBytes = BuildHttp2Response(1, null, original);
-        var decoder = new Http2Decoder();
+        var session = new Http2ProtocolSession();
 
-        Assert.True(decoder.TryDecode(responseBytes, out var result));
-        var body = await result.Responses[0].Response.Content.ReadAsByteArrayAsync();
+        Assert.NotEmpty(session.Process(responseBytes.AsMemory()));
+        var body = await session.Responses[0].Response.Content.ReadAsByteArrayAsync();
         Assert.Equal(original, body);
     }
 
