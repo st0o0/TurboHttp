@@ -11,14 +11,7 @@ namespace TurboHttp.Tests;
 /// </summary>
 public static class Http2StageTestHelper
 {
-    /// <summary>
-    /// Decodes all complete frames from <paramref name="data"/> using a fresh
-    /// <see cref="Http2FrameDecoder"/>. Partial trailing bytes are discarded.
-    /// </summary>
-    public static IReadOnlyList<Http2Frame> DecodeFrames(ReadOnlyMemory<byte> data) =>
-        new Http2FrameDecoder().Decode(data);
-
-    /// <summary>
+   /// <summary>
     /// Validates that <paramref name="bytes"/> begins with a SETTINGS frame on stream 0
     /// (the mandatory server connection preface per RFC 9113 §3.4).
     /// Returns false if fewer than 9 bytes are available (need more data).

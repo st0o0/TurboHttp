@@ -26,6 +26,7 @@ public sealed class Http2FrameDecoder
         {
             var span = working.Span;
             var payloadLen = (span[0] << 16) | (span[1] << 8) | span[2];
+
             if (working.Length < 9 + payloadLen)
             {
                 break;
@@ -69,9 +70,17 @@ public sealed class Http2FrameDecoder
                 payload.ToArray(),
                 (flags & (byte)ContinuationFlags.EndHeaders) != 0),
 
-            FrameType.Ping => CreatePing(flags, payload),
+            FrameType.Ping => streamId != 0
+                ? throw new Http2Exception(
+                    "RFC 7540 §6.7: PING frame MUST be sent on stream 0.",
+                    Http2ErrorCode.ProtocolError)
+                : CreatePing(flags, payload),
 
-            FrameType.Settings => ParseSettings(payload, flags),
+            FrameType.Settings => streamId != 0
+                ? throw new Http2Exception(
+                    "RFC 7540 §6.5: SETTINGS frame MUST be sent on stream 0.",
+                    Http2ErrorCode.ProtocolError)
+                : ParseSettings(payload, flags),
 
             FrameType.WindowUpdate => CreateWindowUpdateFrame(streamId, payload),
 
@@ -81,12 +90,16 @@ public sealed class Http2FrameDecoder
                     $"RFC 7540 §6.4: RST_STREAM frame must be exactly 4 bytes; got {payload.Length}.",
                     Http2ErrorCode.FrameSizeError),
 
-            FrameType.GoAway => ParseGoAway(payload),
+            FrameType.GoAway => streamId != 0
+                ? throw new Http2Exception(
+                    "RFC 7540 §6.8: GOAWAY frame MUST be sent on stream 0.",
+                    Http2ErrorCode.ProtocolError)
+                : ParseGoAway(payload),
 
             FrameType.PushPromise => ParsePushPromise(streamId, flags, payload),
 
             // RFC 7540 §4.1 / RFC 9113 §5.5: Unknown frame types MUST be ignored.
-            _ => null
+            _ => new UnknownFrame((byte)type, streamId, payload.ToArray())
         };
     }
 
@@ -160,6 +173,14 @@ public sealed class Http2FrameDecoder
         {
             var key = (SettingsParameter)BinaryPrimitives.ReadUInt16BigEndian(span[i..]);
             var value = BinaryPrimitives.ReadUInt32BigEndian(span[(i + 2)..]);
+
+            if (key == SettingsParameter.MaxFrameSize && (value < 16384 || value > 16777215))
+            {
+                throw new Http2Exception(
+                    $"RFC 7540 §6.5.2: SETTINGS_MAX_FRAME_SIZE {value} is outside the valid range [16384, 16777215].",
+                    Http2ErrorCode.ProtocolError);
+            }
+
             list.Add((key, value));
         }
 

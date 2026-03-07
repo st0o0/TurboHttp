@@ -33,6 +33,13 @@ public sealed class Http2RequestEncoder
         ArgumentNullException.ThrowIfNull(request);
         ArgumentNullException.ThrowIfNull(request.RequestUri);
 
+        if (_nextStreamId < 0)
+        {
+            throw new Http2Exception(
+                "HTTP/2 stream ID space exhausted: all client stream IDs have been used.",
+                Http2ErrorCode.ProtocolError);
+        }
+
         var streamId = _nextStreamId;
         _nextStreamId += 2;
 
@@ -50,12 +57,32 @@ public sealed class Http2RequestEncoder
             var body = request.Content!.ReadAsByteArrayAsync().GetAwaiter().GetResult();
             if (body.Length > 0)
             {
-                frames.Add(new DataFrame(streamId, body, endStream: true));
+                var streamWindow = _streamSendWindows.TryGetValue(streamId, out var sw) ? sw : 65535L;
+                var effectiveWindow = Math.Max(0L, Math.Min(_connectionSendWindow, streamWindow));
+                var bytesToSend = (int)Math.Min((long)body.Length, effectiveWindow);
+
+                _connectionSendWindow -= bytesToSend;
+                _streamSendWindows[streamId] = streamWindow - bytesToSend;
+
+                if (bytesToSend == 0)
+                {
+                    frames.Add(new DataFrame(streamId, Array.Empty<byte>(), endStream: true));
+                }
+                else
+                {
+                    var offset = 0;
+                    while (offset < bytesToSend)
+                    {
+                        var chunkSize = Math.Min(bytesToSend - offset, _maxFrameSize);
+                        var isLast = offset + chunkSize >= bytesToSend;
+                        frames.Add(new DataFrame(streamId, body[offset..(offset + chunkSize)], endStream: isLast));
+                        offset += chunkSize;
+                    }
+                }
             }
             else
             {
-                // Empty body — set END_STREAM on the last HEADERS/CONTINUATION frame
-                AppendEndStream(frames, streamId);
+                frames.Add(new DataFrame(streamId, Array.Empty<byte>(), endStream: true));
             }
         }
 

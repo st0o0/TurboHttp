@@ -161,7 +161,7 @@ public sealed class Http2EncoderRfcTaggedTests
         using var owner = MemoryPool<byte>.Shared.Rent(8192);
         var buf = owner.Memory;
         var (_, n) = encoder.Encode(request, ref buf);
-        var data = buf.Span[..n];
+        var data = owner.Memory.Span[..n];
 
         var firstPayloadLen = (data[0] << 16) | (data[1] << 8) | data[2];
         var nextOffset = 9 + firstPayloadLen;
@@ -182,7 +182,7 @@ public sealed class Http2EncoderRfcTaggedTests
         using var owner = MemoryPool<byte>.Shared.Rent(8192);
         var buf = owner.Memory;
         var (_, n) = encoder.Encode(request, ref buf);
-        var data = buf.Span[..n];
+        var data = owner.Memory.Span[..n];
 
         // Walk all frames and record flags of last CONTINUATION frame
         var offset = 0;
@@ -220,7 +220,7 @@ public sealed class Http2EncoderRfcTaggedTests
         using var owner = MemoryPool<byte>.Shared.Rent(16384);
         var buf = owner.Memory;
         var (_, n) = encoder.Encode(request, ref buf);
-        var data = buf.Span[..n];
+        var data = owner.Memory.Span[..n];
 
         var contCount = 0;
         var offset = 0;
@@ -285,7 +285,7 @@ public sealed class Http2EncoderRfcTaggedTests
         using var owner = MemoryPool<byte>.Shared.Rent(4096);
         var buf = owner.Memory;
         var (streamId, n) = encoder.Encode(request, ref buf);
-        var data = buf.Span[..n];
+        var data = owner.Memory.Span[..n];
 
         var headersPayloadLen = (data[0] << 16) | (data[1] << 8) | data[2];
         var dataOffset = 9 + headersPayloadLen;
@@ -308,7 +308,7 @@ public sealed class Http2EncoderRfcTaggedTests
         using var owner = MemoryPool<byte>.Shared.Rent(65536);
         var buf = owner.Memory;
         var (_, n) = encoder.Encode(request, ref buf);
-        var data = buf.Span[..n];
+        var data = owner.Memory.Span[..n];
 
         // Skip HEADERS frame, count DATA frames
         var headersLen = (data[0] << 16) | (data[1] << 8) | data[2];
@@ -348,9 +348,10 @@ public sealed class Http2EncoderRfcTaggedTests
     {
         var encoder = new Http2RequestEncoder(useHuffman);
         using var owner = MemoryPool<byte>.Shared.Rent(4096);
-        var buffer = owner.Memory;
+        var original = owner.Memory;
+        var buffer = original;
         var (streamId, written) = encoder.Encode(request, ref buffer);
-        return (streamId, buffer.Span[..written].ToArray());
+        return (streamId, original.Span[..written].ToArray());
     }
 
     private static byte[] ExtractFirstHeaderBlock(ReadOnlySpan<byte> data)

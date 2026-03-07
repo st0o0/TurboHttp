@@ -10,7 +10,7 @@ namespace TurboHttp.IntegrationTests.Http2;
 /// reassembly integrity (SHA-256), large headers + large body combinations,
 /// and streaming decode behavior.
 /// </summary>
-[Collection("Http2Advanced")]
+[Collection("Http2")]
 public sealed class Http2LargePayloadTests
 {
     private readonly KestrelH2Fixture _fixture;

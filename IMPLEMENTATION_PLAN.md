@@ -906,7 +906,7 @@ by the decoder. Mix of frame inspection + response extraction.
 ---
 
 ### Phase 23 — Migrate `Http2MaxConcurrentStreamsTests.cs` — first half (~23 refs)
-- [ ] **Status**: pending
+- [x] **Status**: complete
 
 **File**: `src/TurboHttp.Tests/RFC9113/Http2MaxConcurrentStreamsTests.cs`
 
@@ -930,7 +930,7 @@ Split into two phases — first half covers tests up to ~line 330.
 ---
 
 ### Phase 24 — Migrate `Http2MaxConcurrentStreamsTests.cs` — second half (~23 refs)
-- [ ] **Status**: pending
+- [x] **Status**: complete
 
 **Prerequisite**: Phase 23 complete.
 

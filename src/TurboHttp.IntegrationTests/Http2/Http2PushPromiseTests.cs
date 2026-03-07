@@ -10,7 +10,7 @@ namespace TurboHttp.IntegrationTests.Http2;
 /// Kestrel does not send PUSH_PROMISE by default (server push is deprecated in RFC 9113),
 /// so these tests validate the decoder's PUSH_PROMISE handling using raw frame construction.
 /// </summary>
-[Collection("Http2Advanced")]
+[Collection("Http2")]
 public sealed class Http2PushPromiseTests
 {
     private readonly KestrelH2Fixture _fixture;

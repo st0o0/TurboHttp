@@ -9,7 +9,7 @@ namespace TurboHttp.IntegrationTests.Http2;
 /// Covers stream and connection window management, encoder pausing,
 /// WINDOW_UPDATE resumption, overflow detection, and large-body transfer.
 /// </summary>
-[Collection("Http2Advanced")]
+[Collection("Http2")]
 public sealed class Http2FlowControlTests
 {
     private readonly KestrelH2Fixture _fixture;

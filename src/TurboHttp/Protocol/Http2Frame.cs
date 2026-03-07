@@ -378,6 +378,36 @@ public sealed class WindowUpdateFrame : Http2Frame
     }
 }
 
+// ── UNKNOWN Frame ─────────────────────────────────────────────────────────────
+/// <summary>
+/// Represents an HTTP/2 frame with an unrecognized type.
+/// RFC 7540 §4.1 / RFC 9113 §5.5: Unknown frame types MUST be ignored.
+/// Preserved in the decoded output so callers can inspect or discard as needed.
+/// </summary>
+public sealed class UnknownFrame : Http2Frame
+{
+    public byte RawType { get; }
+    public override FrameType Type => (FrameType)RawType;
+    public byte[] Payload { get; }
+
+    public UnknownFrame(byte rawType, int streamId, byte[] payload) : base(streamId)
+    {
+        RawType = rawType;
+        Payload = payload;
+    }
+
+    public override int SerializedSize => FrameHeaderSize + Payload.Length;
+
+    public override int WriteTo(ref Span<byte> span)
+    {
+        WriteHeader(ref span, Payload.Length, Type, 0, StreamId);
+        span = span[FrameHeaderSize..];
+        Payload.CopyTo(span);
+        span = span[Payload.Length..];
+        return SerializedSize;
+    }
+}
+
 // ── PUSH_PROMISE Frame ────────────────────────────────────────────────────────
 public sealed class PushPromiseFrame : Http2Frame
 {

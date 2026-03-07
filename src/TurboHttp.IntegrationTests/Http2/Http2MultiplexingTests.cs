@@ -10,7 +10,7 @@ namespace TurboHttp.IntegrationTests.Http2;
 /// Covers concurrent streams, interleaved DATA frames, MAX_CONCURRENT_STREAMS
 /// negotiation, and stream reuse patterns.
 /// </summary>
-[Collection("Http2Advanced")]
+[Collection("Http2")]
 public sealed class Http2MultiplexingTests
 {
     private readonly KestrelH2Fixture _fixture;

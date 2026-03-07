@@ -118,7 +118,7 @@ public sealed class Http2EncoderStreamSettingsTests
         using var owner = MemoryPool<byte>.Shared.Rent(1 << 20);
         var buf = owner.Memory;
         var (_, n) = encoder.Encode(request, ref buf);
-        var data = buf.Span[..n];
+        var data = owner.Memory.Span[..n];
 
         // Sum all DATA frame payload bytes
         var headersLen = (data[0] << 16) | (data[1] << 8) | data[2];
@@ -159,7 +159,7 @@ public sealed class Http2EncoderStreamSettingsTests
         using var owner = MemoryPool<byte>.Shared.Rent(1 << 20);
         var buf = owner.Memory;
         var (_, n) = encoder.Encode(request, ref buf);
-        var data = buf.Span[..n];
+        var data = owner.Memory.Span[..n];
 
         var headersLen = (data[0] << 16) | (data[1] << 8) | data[2];
         var offset = 9 + headersLen;
@@ -195,7 +195,7 @@ public sealed class Http2EncoderStreamSettingsTests
         using var owner = MemoryPool<byte>.Shared.Rent(65536);
         var buf = owner.Memory;
         var (_, n) = encoder.Encode(request, ref buf);
-        var data = buf.Span[..n];
+        var data = owner.Memory.Span[..n];
 
         var headersLen = (data[0] << 16) | (data[1] << 8) | data[2];
         var offset = 9 + headersLen;
@@ -233,7 +233,7 @@ public sealed class Http2EncoderStreamSettingsTests
         using var owner = MemoryPool<byte>.Shared.Rent(65536);
         var buf = owner.Memory;
         var (_, n) = encoder.Encode(request, ref buf);
-        var data = buf.Span[..n];
+        var data = owner.Memory.Span[..n];
 
         var headersLen = (data[0] << 16) | (data[1] << 8) | data[2];
         var offset = 9 + headersLen;
@@ -270,7 +270,7 @@ public sealed class Http2EncoderStreamSettingsTests
         using var owner = MemoryPool<byte>.Shared.Rent(65536);
         var buf = owner.Memory;
         var (_, n) = encoder.Encode(request, ref buf);
-        var data = buf.Span[..n];
+        var data = owner.Memory.Span[..n];
 
         var headersLen = (data[0] << 16) | (data[1] << 8) | data[2];
         var offset = 9 + headersLen;
@@ -312,7 +312,7 @@ public sealed class Http2EncoderStreamSettingsTests
         using var owner = MemoryPool<byte>.Shared.Rent(4096);
         var buffer = owner.Memory;
         var (streamId, written) = encoder.Encode(request, ref buffer);
-        return (streamId, buffer.Span[..written].ToArray());
+        return (streamId, owner.Memory.Span[..written].ToArray());
     }
 
     private static byte[] ExtractFirstHeaderBlock(ReadOnlySpan<byte> data)

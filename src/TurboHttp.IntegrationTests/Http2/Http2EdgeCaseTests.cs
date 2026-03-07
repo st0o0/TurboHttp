@@ -11,7 +11,7 @@ namespace TurboHttp.IntegrationTests.Http2;
 /// unknown flags, GOAWAY mid-connection, PRIORITY frames, long URIs,
 /// and :authority with explicit port numbers.
 /// </summary>
-[Collection("Http2Advanced")]
+[Collection("Http2")]
 public sealed class Http2EdgeCaseTests
 {
     private readonly KestrelH2Fixture _fixture;

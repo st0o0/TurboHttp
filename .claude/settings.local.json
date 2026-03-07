@@ -22,7 +22,8 @@
       "Bash(find:*)",
       "Bash(git checkout:*)",
       "mcp__plugin_context-mode_context-mode__batch_execute",
-      "mcp__plugin_context-mode_context-mode__index"
+      "mcp__plugin_context-mode_context-mode__index",
+      "mcp__plugin_context-mode_context-mode__search"
     ]
   }
 }

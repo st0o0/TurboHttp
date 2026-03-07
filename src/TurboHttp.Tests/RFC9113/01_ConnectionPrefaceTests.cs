@@ -142,15 +142,15 @@ public sealed class Http2ConnectionPrefaceTests
         // Fewer than 9 bytes cannot contain a complete frame header, so preface is incomplete
 
         // 8 bytes — cannot determine frame type yet
-        var frames8 = Http2StageTestHelper.DecodeFrames(new byte[8].AsMemory());
+        var frames8 = new Http2FrameDecoder().Decode(new byte[8].AsMemory());
         Assert.Empty(frames8);
 
         // 1 byte
-        var frames1 = Http2StageTestHelper.DecodeFrames(new byte[1].AsMemory());
+        var frames1 = new Http2FrameDecoder().Decode(new byte[1].AsMemory());
         Assert.Empty(frames1);
 
         // 0 bytes
-        var frames0 = Http2StageTestHelper.DecodeFrames(ReadOnlyMemory<byte>.Empty);
+        var frames0 = new Http2FrameDecoder().Decode(ReadOnlyMemory<byte>.Empty);
         Assert.Empty(frames0);
     }
 
@@ -418,22 +418,22 @@ public sealed class Http2ConnectionPrefaceTests
                 frame =
                 [
                     0x00, 0x00, 0x05, // length=5
-                    0x02,             // PRIORITY
-                    0x00,             // flags=0
+                    0x02, // PRIORITY
+                    0x00, // flags=0
                     0x00, 0x00, 0x00, 0x01, // stream=1
                     0x00, 0x00, 0x00, 0x01, // stream dependency
-                    0x00              // weight
+                    0x00 // weight
                 ];
                 break;
             case FrameType.PushPromise:
                 frame =
                 [
                     0x00, 0x00, 0x05, // length=5
-                    0x05,             // PUSH_PROMISE
-                    0x04,             // END_HEADERS
+                    0x05, // PUSH_PROMISE
+                    0x04, // END_HEADERS
                     0x00, 0x00, 0x00, 0x01, // stream=1
                     0x00, 0x00, 0x00, 0x02, // promised stream=2
-                    0x00              // empty header block byte
+                    0x00 // empty header block byte
                 ];
                 break;
             default:
@@ -468,10 +468,10 @@ public sealed class Http2ConnectionPrefaceTests
         var frame = new byte[]
         {
             0x00, 0x00, 0x04, // length = 4
-            0x0A,             // type  = unknown
-            0x00,             // flags = none
+            0x0A, // type  = unknown
+            0x00, // flags = none
             0x00, 0x00, 0x00, 0x01, // stream = 1
-            0x00, 0x00, 0x00, 0x00  // 4 bytes payload
+            0x00, 0x00, 0x00, 0x00 // 4 bytes payload
         };
 
         // RFC 7540 §4.1 / RFC 9113 §5.5: Unknown frame types MUST be ignored.
@@ -489,9 +489,11 @@ public sealed class Http2ConnectionPrefaceTests
         BinaryPrimitives.WriteUInt32BigEndian(payload.AsSpan(4), (uint)Http2ErrorCode.NoError);
 
         var frame = new byte[9 + 8];
-        frame[0] = 0; frame[1] = 0; frame[2] = 8; // length=8
-        frame[3] = 0x07;                           // GOAWAY
-        frame[4] = 0x00;                           // flags=0
+        frame[0] = 0;
+        frame[1] = 0;
+        frame[2] = 8; // length=8
+        frame[3] = 0x07; // GOAWAY
+        frame[4] = 0x00; // flags=0
         // stream ID = 0 in header (bytes 5–8)
         payload.CopyTo(frame, 9);
 
@@ -507,9 +509,9 @@ public sealed class Http2ConnectionPrefaceTests
     {
         // A SETTINGS ACK frame with R-bit set in the stream word.
         var settingsFrame = new byte[9];
-        settingsFrame[3] = 0x04;                   // SETTINGS
+        settingsFrame[3] = 0x04; // SETTINGS
         settingsFrame[4] = (byte)SettingsFlags.Ack; // ACK
-        settingsFrame[5] = 0x80;                   // R-bit set in MSB
+        settingsFrame[5] = 0x80; // R-bit set in MSB
 
         // Http2FrameDecoder masks the R-bit and decodes the frame normally.
         // NOTE: RFC 7540 §4.1 says a set R-bit MUST be treated as PROTOCOL_ERROR,
@@ -530,14 +532,17 @@ public sealed class Http2ConnectionPrefaceTests
         fullFrame[2] = overSize & 0xFF;
         fullFrame[3] = 0x00; // DATA
         fullFrame[4] = 0x00;
-        fullFrame[5] = 0; fullFrame[6] = 0; fullFrame[7] = 0; fullFrame[8] = 1; // stream=1
+        fullFrame[5] = 0;
+        fullFrame[6] = 0;
+        fullFrame[7] = 0;
+        fullFrame[8] = 1; // stream=1
 
         // NOTE: RFC 7540 §4.3 requires FRAME_SIZE_ERROR for oversized frames,
         // but Http2FrameDecoder does not enforce MAX_FRAME_SIZE.
         // The DATA frame is parsed; processing fails because stream 1 is idle.
         var session = new Http2ProtocolSession();
         var ex = Assert.Throws<Http2Exception>(() => session.Process(fullFrame));
-        Assert.Equal(Http2ErrorCode.StreamClosed, ex.ErrorCode);
+        Assert.Equal(Http2ErrorCode.ProtocolError, ex.ErrorCode);
     }
 
     // =========================================================================
@@ -588,10 +593,15 @@ public sealed class Http2ConnectionPrefaceTests
         // Payload: pad_length(1) + data(2 bytes "hi") + padding(3 bytes) = 6 bytes
         var paddedPayload = new byte[] { 3, (byte)'h', (byte)'i', 0x00, 0x00, 0x00 };
         var dataFrame = new byte[9 + paddedPayload.Length];
-        dataFrame[0] = 0; dataFrame[1] = 0; dataFrame[2] = (byte)paddedPayload.Length;
+        dataFrame[0] = 0;
+        dataFrame[1] = 0;
+        dataFrame[2] = (byte)paddedPayload.Length;
         dataFrame[3] = 0x00; // DATA
         dataFrame[4] = 0x09; // END_STREAM(0x1) | PADDED(0x8)
-        dataFrame[5] = 0; dataFrame[6] = 0; dataFrame[7] = 0; dataFrame[8] = 1; // stream=1
+        dataFrame[5] = 0;
+        dataFrame[6] = 0;
+        dataFrame[7] = 0;
+        dataFrame[8] = 1; // stream=1
         paddedPayload.CopyTo(dataFrame, 9);
 
         var session = new Http2ProtocolSession();
@@ -710,10 +720,15 @@ public sealed class Http2ConnectionPrefaceTests
         // last 2 bytes remain zero (padding)
 
         var frame = new byte[9 + payload.Length];
-        frame[0] = 0; frame[1] = 0; frame[2] = (byte)payload.Length;
+        frame[0] = 0;
+        frame[1] = 0;
+        frame[2] = (byte)payload.Length;
         frame[3] = 0x01; // HEADERS
         frame[4] = 0x0D; // END_STREAM(0x1) | END_HEADERS(0x4) | PADDED(0x8)
-        frame[5] = 0; frame[6] = 0; frame[7] = 0; frame[8] = 1; // stream=1
+        frame[5] = 0;
+        frame[6] = 0;
+        frame[7] = 0;
+        frame[8] = 1; // stream=1
         payload.CopyTo(frame, 9);
 
         var session = new Http2ProtocolSession();
@@ -734,10 +749,15 @@ public sealed class Http2ConnectionPrefaceTests
         var payload = priorityBytes.Concat(headerBlock.ToArray()).ToArray();
 
         var frame = new byte[9 + payload.Length];
-        frame[0] = 0; frame[1] = 0; frame[2] = (byte)payload.Length;
+        frame[0] = 0;
+        frame[1] = 0;
+        frame[2] = (byte)payload.Length;
         frame[3] = 0x01; // HEADERS
         frame[4] = 0x25; // END_STREAM(0x1) | END_HEADERS(0x4) | PRIORITY(0x20)
-        frame[5] = 0; frame[6] = 0; frame[7] = 0; frame[8] = 1; // stream=1
+        frame[5] = 0;
+        frame[6] = 0;
+        frame[7] = 0;
+        frame[8] = 1; // stream=1
         payload.CopyTo(frame, 9);
 
         var session = new Http2ProtocolSession();

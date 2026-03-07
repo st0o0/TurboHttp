@@ -115,9 +115,7 @@ public sealed class Http2StreamLifecycleTests
     // SS-006..008: Reject invalid frame per state
     // =========================================================================
 
-    /// RFC 9113 §5.1 — DATA on idle stream (no HEADERS) is a connection error
-    /// Note: Http2ProtocolSession throws StreamClosed (vs ProtocolError in Http2Decoder).
-    /// RFC 9113 §5.1 specifies ProtocolError; current implementation uses StreamClosed.
+    /// RFC 9113 §5.1 — DATA on idle stream (no HEADERS) is a connection PROTOCOL_ERROR.
     [Fact(DisplayName = "RFC9113-5.1-SS-006: DATA on idle stream (no HEADERS) is a connection error")]
     public void Data_OnIdleStream_ThrowsConnectionError()
     {
@@ -125,7 +123,7 @@ public sealed class Http2StreamLifecycleTests
         // Send DATA on stream 1 without any preceding HEADERS.
         var data = MakeDataFrame(streamId: 1, endStream: false);
         var ex = Assert.Throws<Http2Exception>(() => session.Process(data));
-        Assert.Equal(Http2ErrorCode.StreamClosed, ex.ErrorCode);
+        Assert.Equal(Http2ErrorCode.ProtocolError, ex.ErrorCode);
         Assert.True(ex.IsConnectionError);
     }
 
@@ -416,8 +414,7 @@ public sealed class Http2StreamLifecycleTests
         Assert.True(ex.IsConnectionError);
     }
 
-    /// RFC 9113 §5.1 — DATA on a different idle stream than already-open streams is a connection error
-    /// Note: Http2ProtocolSession throws StreamClosed (vs ProtocolError in Http2Decoder) for DATA on idle stream.
+    /// RFC 9113 §5.1 — DATA on a different idle stream than already-open streams is a connection PROTOCOL_ERROR.
     [Fact(DisplayName = "RFC9113-5.1-SS-023: DATA on a different idle stream than already-open streams is a connection error")]
     public void Data_OnDifferentIdleStream_ThrowsConnectionError()
     {
@@ -429,7 +426,7 @@ public sealed class Http2StreamLifecycleTests
         // Send DATA on stream 3 which was never opened.
         var data = MakeDataFrame(streamId: 3, endStream: false);
         var ex = Assert.Throws<Http2Exception>(() => session.Process(data));
-        Assert.Equal(Http2ErrorCode.StreamClosed, ex.ErrorCode);
+        Assert.Equal(Http2ErrorCode.ProtocolError, ex.ErrorCode);
         Assert.True(ex.IsConnectionError);
     }
 
