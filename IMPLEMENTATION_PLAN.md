@@ -1077,7 +1077,7 @@ If any refs remain, identify and fix them before proceeding.
 ---
 
 ### Phase 31 — Replace `Http2Decoder` field in `Http2Connection.cs`
-- [ ] **Status**: pending
+- [x] **Status**: complete (2026-03-07, iter-07)
 
 **File**: `src/TurboHttp.IntegrationTests/Shared/Http2Connection.cs`
 

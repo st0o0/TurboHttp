@@ -13,7 +13,9 @@ public sealed class Http2Connection : IAsyncDisposable
 {
     private readonly TcpClient _tcp;
     private readonly NetworkStream _stream;
-    private readonly Http2Decoder _decoder;
+    private readonly Http2FrameDecoder _frameDecoder = new();
+    private readonly HpackDecoder _hpack = new();
+    private readonly Dictionary<int, int> _streamReceiveWindows = new();
     private readonly Http2RequestEncoder _encoder;
     private readonly byte[] _readBuffer;
 
@@ -27,7 +29,6 @@ public sealed class Http2Connection : IAsyncDisposable
     {
         _tcp = tcp;
         _stream = tcp.GetStream();
-        _decoder = new Http2Decoder();
         _encoder = encoder;
         _readBuffer = new byte[ReadBufferSize];
     }
@@ -263,9 +264,6 @@ public sealed class Http2Connection : IAsyncDisposable
         var frame = Http2FrameUtils.EncodeSettings(parameters);
         return _stream.WriteAsync(frame, ct).AsTask();
     }
-
-    /// <summary>Exposes the underlying decoder for window and state inspection by tests.</summary>
-    public Http2Decoder Decoder => _decoder;
 
     // ── Multi-stream API ──────────────────────────────────────────────────────
 
