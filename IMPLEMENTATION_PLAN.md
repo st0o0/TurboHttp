@@ -1352,7 +1352,7 @@ which was fixed in Phase 34.
 ---
 
 ### Phase 42 — Grep verification: zero `Http2Decoder` refs in entire solution
-- [ ] **Status**: pending
+- [x] **Status**: complete (2026-03-07, iter-07)
 
 **Prerequisite**: Phases 3–41 all complete.
 
