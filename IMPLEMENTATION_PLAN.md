@@ -1462,7 +1462,7 @@ attributes and RFC/stream tags. No tests exist for `Http20Engine`, the top-level
 ---
 
 ### Phase 47 — Extract `Http10EngineTests.cs` + add `DisplayName`
-- [ ] **Status**: pending
+- [x] **Status**: complete (2026-03-07, iter-02)
 
 **Prerequisite**: Phase 46 complete.
 
