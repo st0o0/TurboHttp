@@ -144,7 +144,7 @@ public sealed class Http2ConnectionTests
     {
         await using var conn = await Http2Connection.OpenAsync(_fixture.Port);
         // The decoder starts with a 65535-byte receive window.
-        var window = conn.Decoder.GetConnectionReceiveWindow();
+        var window = conn.GetConnectionReceiveWindow();
         Assert.Equal(65535, window);
     }
 

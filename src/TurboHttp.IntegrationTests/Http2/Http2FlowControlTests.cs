@@ -144,7 +144,7 @@ public sealed class Http2FlowControlTests
     {
         await using var conn = await Http2Connection.OpenAsync(_fixture.Port);
         // New (not yet open) stream should report default window of 65535.
-        var window = conn.Decoder.GetStreamReceiveWindow(999);
+        var window = conn.GetStreamReceiveWindow(999);
         Assert.Equal(65535, window);
     }
 

@@ -94,21 +94,21 @@ public sealed class Http2DataFrameTests
     public async Task Should_HaveInitialReceiveWindow_When_ConnectionOpened()
     {
         await using var conn = await Http2Connection.OpenAsync(_fixture.Port);
-        Assert.Equal(65535, conn.Decoder.GetConnectionReceiveWindow());
+        Assert.Equal(65535, conn.GetConnectionReceiveWindow());
     }
 
     [Fact(DisplayName = "IT-2-066: Flow control — receive window decrements as DATA frames arrive")]
     public async Task Should_DecrementReceiveWindow_When_DataFramesReceived()
     {
         await using var conn = await Http2Connection.OpenAsync(_fixture.Port);
-        var initialWindow = conn.Decoder.GetConnectionReceiveWindow();
+        var initialWindow = conn.GetConnectionReceiveWindow();
 
         // Receive a 4 KB response (fits in one DATA frame of 4096 bytes).
         var request = new HttpRequestMessage(HttpMethod.Get, Http2Helper.BuildUri(_fixture.Port, "/large/4"));
         var response = await conn.SendAndReceiveAsync(request);
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
 
-        var windowAfter = conn.Decoder.GetConnectionReceiveWindow();
+        var windowAfter = conn.GetConnectionReceiveWindow();
         Assert.True(windowAfter < initialWindow, "Receive window should have decreased after receiving DATA frames.");
     }
 
@@ -173,7 +173,7 @@ public sealed class Http2DataFrameTests
         await using var conn = await Http2Connection.OpenAsync(_fixture.Port);
         // Verify stream-level window starts at 65535 for a fresh stream.
         // After the response, the window should have decreased.
-        var initialStreamWindow = conn.Decoder.GetStreamReceiveWindow(1); // stream 1 not yet open
+        var initialStreamWindow = conn.GetStreamReceiveWindow(1); // stream 1 not yet open
         Assert.Equal(65535, initialStreamWindow);
 
         var request = new HttpRequestMessage(HttpMethod.Get, Http2Helper.BuildUri(_fixture.Port, "/large/4"));

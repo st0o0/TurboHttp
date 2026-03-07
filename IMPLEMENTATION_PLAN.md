@@ -1159,7 +1159,7 @@ Also add `private readonly Queue<byte[]> _pendingPingAcks = new();` field.
 ---
 
 ### Phase 33 — Implement HEADERS + DATA response building in `Http2Connection.cs`
-- [ ] **Status**: pending
+- [x] **Status**: complete (2026-03-07, iter-09)
 
 **Prerequisite**: Phase 32.
 
@@ -1185,7 +1185,7 @@ objects using the local `HpackDecoder`.
 ---
 
 ### Phase 34 — Remove `ReadDecodeResultAsync`, add `GetStreamReceiveWindow`
-- [ ] **Status**: pending
+- [x] **Status**: complete (2026-03-07, iter-09 — completed alongside Phase 33)
 
 **Prerequisite**: Phase 33.
 
