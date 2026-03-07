@@ -1219,7 +1219,7 @@ used in test code. `public Http2Decoder Decoder` is used in one test for
 ---
 
 ### Phase 35 — Create `Http2IntegrationSession` skeleton
-- [ ] **Status**: pending
+- [x] **Status**: complete (2026-03-07, iter-10)
 
 **Prerequisite**: Phase 34 complete (Http2Connection compiles).
 
