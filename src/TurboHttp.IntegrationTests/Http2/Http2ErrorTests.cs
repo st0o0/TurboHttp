@@ -24,30 +24,30 @@ public sealed class Http2ErrorTests
     [Fact(DisplayName = "IT-2-080: Decoder parses GOAWAY with PROTOCOL_ERROR from server")]
     public void Should_ParseGoAway_When_DecoderReceivesGoAwayWithProtocolError()
     {
-        var decoder = new Http2Decoder();
+        var session = new Http2IntegrationSession();
 
         // Build a GOAWAY frame: lastStreamId=0, PROTOCOL_ERROR
         var goAwayBytes = Http2FrameUtils.EncodeGoAway(0, Http2ErrorCode.ProtocolError, "test error");
 
-        var decoded = decoder.TryDecode(goAwayBytes.AsMemory(), out var result);
+        var frames = session.Process(goAwayBytes.AsMemory());
 
-        Assert.True(decoded);
-        Assert.NotNull(result.GoAway);
-        Assert.Equal(Http2ErrorCode.ProtocolError, result.GoAway!.ErrorCode);
+        Assert.NotEmpty(frames);
+        Assert.NotNull(session.GoAwayFrame);
+        Assert.Equal(Http2ErrorCode.ProtocolError, session.GoAwayFrame!.ErrorCode);
     }
 
     [Fact(DisplayName = "IT-2-081: Decoder parses GOAWAY with ENHANCE_YOUR_CALM from server")]
     public void Should_ParseGoAway_When_DecoderReceivesGoAwayWithEnhanceYourCalm()
     {
-        var decoder = new Http2Decoder();
+        var session = new Http2IntegrationSession();
 
         var goAwayBytes = Http2FrameUtils.EncodeGoAway(0, Http2ErrorCode.EnhanceYourCalm);
 
-        var decoded = decoder.TryDecode(goAwayBytes.AsMemory(), out var result);
+        var frames = session.Process(goAwayBytes.AsMemory());
 
-        Assert.True(decoded);
-        Assert.NotNull(result.GoAway);
-        Assert.Equal(Http2ErrorCode.EnhanceYourCalm, result.GoAway!.ErrorCode);
+        Assert.NotEmpty(frames);
+        Assert.NotNull(session.GoAwayFrame);
+        Assert.Equal(Http2ErrorCode.EnhanceYourCalm, session.GoAwayFrame!.ErrorCode);
     }
 
     [Fact(DisplayName = "IT-2-082: Client sends GOAWAY NO_ERROR — connection then closed cleanly")]
@@ -67,31 +67,31 @@ public sealed class Http2ErrorTests
     [Fact(DisplayName = "IT-2-083: Decoder parses RST_STREAM with CANCEL error code")]
     public void Should_ParseRstStream_When_DecoderReceivesRstStreamCancel()
     {
-        var decoder = new Http2Decoder();
+        var session = new Http2IntegrationSession();
 
         var rstBytes = Http2FrameUtils.EncodeRstStream(1, Http2ErrorCode.Cancel);
 
-        var decoded = decoder.TryDecode(rstBytes.AsMemory(), out var result);
+        var frames = session.Process(rstBytes.AsMemory());
 
-        Assert.True(decoded);
-        Assert.Single(result.RstStreams);
-        Assert.Equal(1, result.RstStreams[0].StreamId);
-        Assert.Equal(Http2ErrorCode.Cancel, result.RstStreams[0].Error);
+        Assert.NotEmpty(frames);
+        Assert.Single(session.RstStreams);
+        Assert.Equal(1, session.RstStreams[0].StreamId);
+        Assert.Equal(Http2ErrorCode.Cancel, session.RstStreams[0].Error);
     }
 
     [Fact(DisplayName = "IT-2-084: Decoder parses RST_STREAM with STREAM_CLOSED error code")]
     public void Should_ParseRstStream_When_DecoderReceivesRstStreamStreamClosed()
     {
-        var decoder = new Http2Decoder();
+        var session = new Http2IntegrationSession();
 
         var rstBytes = Http2FrameUtils.EncodeRstStream(3, Http2ErrorCode.StreamClosed);
 
-        var decoded = decoder.TryDecode(rstBytes.AsMemory(), out var result);
+        var frames = session.Process(rstBytes.AsMemory());
 
-        Assert.True(decoded);
-        Assert.Single(result.RstStreams);
-        Assert.Equal(3, result.RstStreams[0].StreamId);
-        Assert.Equal(Http2ErrorCode.StreamClosed, result.RstStreams[0].Error);
+        Assert.NotEmpty(frames);
+        Assert.Single(session.RstStreams);
+        Assert.Equal(3, session.RstStreams[0].StreamId);
+        Assert.Equal(Http2ErrorCode.StreamClosed, session.RstStreams[0].Error);
     }
 
     // ── Invalid Stream IDs ────────────────────────────────────────────────────
@@ -99,14 +99,14 @@ public sealed class Http2ErrorTests
     [Fact(DisplayName = "IT-2-085: DATA frame on stream ID 0 → decoder throws Http2Exception PROTOCOL_ERROR")]
     public void Should_ThrowProtocolError_When_DataFrameOnStream0()
     {
-        var decoder = new Http2Decoder();
+        var session = new Http2IntegrationSession();
 
         // Build a DATA frame with stream ID 0 (invalid per RFC 7540 §6.1).
         var frameBytes = new byte[9 + 4];
         Http2FrameTestWriter.WriteDataFrame(frameBytes, streamId: 0, "test"u8, endStream: false);
 
         var ex = Assert.Throws<Http2Exception>(() =>
-            decoder.TryDecode(frameBytes.AsMemory(), out _));
+            session.Process(frameBytes.AsMemory()));
 
         Assert.Equal(Http2ErrorCode.ProtocolError, ex.ErrorCode);
     }
@@ -115,7 +115,7 @@ public sealed class Http2ErrorTests
     public void Should_ThrowProtocolError_When_HeadersFrameHasEvenStreamId()
     {
         // The decoder rejects HEADERS on even stream IDs that were not pre-announced via PUSH_PROMISE.
-        var decoder = new Http2Decoder();
+        var session = new Http2IntegrationSession();
 
         // Build a minimal HEADERS frame with stream ID 2 (even — server-initiated, no PUSH_PROMISE).
         // We need a valid HPACK header block: at minimum an indexed :status header.
@@ -131,7 +131,7 @@ public sealed class Http2ErrorTests
             endHeaders: true);
 
         var ex = Assert.Throws<Http2Exception>(() =>
-            decoder.TryDecode(frameBytes.AsMemory(), out _));
+            session.Process(frameBytes.AsMemory()));
 
         Assert.Equal(Http2ErrorCode.ProtocolError, ex.ErrorCode);
     }
@@ -139,21 +139,21 @@ public sealed class Http2ErrorTests
     [Fact(DisplayName = "IT-2-087: HEADERS on previously closed stream → decoder throws STREAM_CLOSED (RFC 7540 §6.2)")]
     public void Should_ThrowStreamClosed_When_HeadersSentOnClosedStream()
     {
-        var decoder = new Http2Decoder();
+        var session = new Http2IntegrationSession();
 
         // First, create a closed stream by sending HEADERS with END_STREAM + END_HEADERS.
         // HPACK index 8 = :status 200.
         var headerBlock = new byte[] { 0x88 };
         var frame1 = new byte[9 + headerBlock.Length];
         Http2FrameTestWriter.WriteHeadersFrame(frame1, streamId: 1, headerBlock, endStream: true, endHeaders: true);
-        decoder.TryDecode(frame1.AsMemory(), out _); // closes stream 1
+        session.Process(frame1.AsMemory()); // closes stream 1
 
         // RFC 7540 §6.2: HEADERS on a closed stream is a connection error of type STREAM_CLOSED.
         var frame2 = new byte[9 + headerBlock.Length];
         Http2FrameTestWriter.WriteHeadersFrame(frame2, streamId: 1, headerBlock, endStream: true, endHeaders: true);
 
         var ex = Assert.Throws<Http2Exception>(() =>
-            decoder.TryDecode(frame2.AsMemory(), out _));
+            session.Process(frame2.AsMemory()));
 
         Assert.Equal(Http2ErrorCode.StreamClosed, ex.ErrorCode);
         Assert.True(ex.IsConnectionError);

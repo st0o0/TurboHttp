@@ -1282,7 +1282,7 @@ instances for isolated protocol-assertion tests (no real TCP connection).
 ---
 
 ### Phase 38 — Migrate `Http2ErrorTests.cs` — first half (~7 refs)
-- [ ] **Status**: pending
+- [x] **Status**: complete (2026-03-07, iter-03)
 
 **File**: `src/TurboHttp.IntegrationTests/Http2/Http2ErrorTests.cs`
 
