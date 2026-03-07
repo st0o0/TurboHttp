@@ -948,7 +948,7 @@ Split into two phases — first half covers tests up to ~line 330.
 ---
 
 ### Phase 25 — Migrate `Http2ResourceExhaustionTests.cs` (29 refs)
-- [ ] **Status**: pending
+- [x] **Status**: complete (2026-03-07, iter-01)
 
 **File**: `src/TurboHttp.Tests/RFC9113/Http2ResourceExhaustionTests.cs`
 

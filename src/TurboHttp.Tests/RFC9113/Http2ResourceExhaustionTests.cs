@@ -1,12 +1,13 @@
 using System.Buffers.Binary;
 using TurboHttp.Protocol;
+using TurboHttp.Tests;
 
 namespace TurboHttp.Tests.RFC9113;
 
 /// <summary>
 /// Phase 24-25: Resource Exhaustion Protection
 ///
-/// Covers all six attack vectors that Http2Decoder must defend against:
+/// Covers all six attack vectors that Http2ProtocolSession must defend against:
 ///   RE-01x  SETTINGS flood
 ///   RE-02x  Rapid reset attack (CVE-2023-44487)
 ///   RE-03x  CONTINUATION flood
@@ -23,60 +24,60 @@ public sealed class Http2ResourceExhaustionTests
     [Fact(DisplayName = "RE-010: 101st non-ACK SETTINGS frame triggers EnhanceYourCalm flood protection")]
     public void Should_ThrowHttp2Exception_When_101SettingsFramesReceived()
     {
-        var decoder = new Http2Decoder();
+        var session = new Http2ProtocolSession();
         var settingsFrame = BuildSettingsFrame(ack: false, []);
 
         for (var i = 0; i < 100; i++)
         {
-            decoder.TryDecode(settingsFrame, out _);
+            session.Process(settingsFrame);
         }
 
-        var ex = Assert.Throws<Http2Exception>(() => decoder.TryDecode(settingsFrame, out _));
+        var ex = Assert.Throws<Http2Exception>(() => session.Process(settingsFrame));
         Assert.Equal(Http2ErrorCode.EnhanceYourCalm, ex.ErrorCode);
     }
 
     [Fact(DisplayName = "RE-011: Exactly 100 non-ACK SETTINGS frames are accepted without error")]
     public void Should_Accept100SettingsFrames_WithoutException()
     {
-        var decoder = new Http2Decoder();
+        var session = new Http2ProtocolSession();
         var settingsFrame = BuildSettingsFrame(ack: false, []);
 
         for (var i = 0; i < 100; i++)
         {
-            decoder.TryDecode(settingsFrame, out _);  // must not throw
+            session.Process(settingsFrame);  // must not throw
         }
     }
 
     [Fact(DisplayName = "RE-012: SETTINGS ACK frames do NOT count toward the flood threshold")]
     public void Should_NotCountSettingsAck_TowardFloodThreshold()
     {
-        var decoder = new Http2Decoder();
+        var session = new Http2ProtocolSession();
         var settingsAck = BuildSettingsFrame(ack: true, []);
 
         // 200 ACK SETTINGS frames — none should count toward the non-ACK limit.
         for (var i = 0; i < 200; i++)
         {
-            decoder.TryDecode(settingsAck, out _);  // must not throw
+            session.Process(settingsAck);  // must not throw
         }
     }
 
     [Fact(DisplayName = "RE-013: Reset() clears the SETTINGS flood counter")]
     public void Should_ClearSettingsCount_OnReset()
     {
-        var decoder = new Http2Decoder();
+        var session = new Http2ProtocolSession();
         var settingsFrame = BuildSettingsFrame(ack: false, []);
 
         for (var i = 0; i < 100; i++)
         {
-            decoder.TryDecode(settingsFrame, out _);
+            session.Process(settingsFrame);
         }
 
-        decoder.Reset();
+        session.Reset();
 
         // After Reset, a full 100 SETTINGS frames should again be accepted.
         for (var i = 0; i < 100; i++)
         {
-            decoder.TryDecode(settingsFrame, out _);  // must not throw
+            session.Process(settingsFrame);  // must not throw
         }
     }
 
@@ -85,64 +86,64 @@ public sealed class Http2ResourceExhaustionTests
     [Fact(DisplayName = "RE-020: 101st RST_STREAM triggers rapid-reset ProtocolError (CVE-2023-44487)")]
     public void Should_ThrowHttp2Exception_When_101RstStreamReceived()
     {
-        var decoder = new Http2Decoder();
+        var session = new Http2ProtocolSession();
         var errorCode = new byte[] { 0x00, 0x00, 0x00, 0x00 };
 
         for (var i = 0; i < 100; i++)
         {
             var rst = BuildRawFrame(0x3, 0x0, 2 * i + 1, errorCode);
-            decoder.TryDecode(rst, out _);
+            session.Process(rst);
         }
 
         var rst101 = BuildRawFrame(0x3, 0x0, 201, errorCode);
-        var ex = Assert.Throws<Http2Exception>(() => decoder.TryDecode(rst101, out _));
+        var ex = Assert.Throws<Http2Exception>(() => session.Process(rst101));
         Assert.Equal(Http2ErrorCode.ProtocolError, ex.ErrorCode);
     }
 
     [Fact(DisplayName = "RE-021: Exactly 100 RST_STREAM frames are accepted without error")]
     public void Should_Accept100RstStreamFrames_WithoutException()
     {
-        var decoder = new Http2Decoder();
+        var session = new Http2ProtocolSession();
         var errorCode = new byte[] { 0x00, 0x00, 0x00, 0x00 };
 
         for (var i = 0; i < 100; i++)
         {
             var rst = BuildRawFrame(0x3, 0x0, 2 * i + 1, errorCode);
-            decoder.TryDecode(rst, out _);  // must not throw
+            session.Process(rst);  // must not throw
         }
     }
 
     [Fact(DisplayName = "RE-022: Rapid-reset exception message references CVE-2023-44487")]
     public void Should_IncludeCveReference_InRapidResetMessage()
     {
-        var decoder = new Http2Decoder();
+        var session = new Http2ProtocolSession();
         var errorCode = new byte[] { 0x00, 0x00, 0x00, 0x00 };
 
         for (var i = 0; i < 100; i++)
         {
-            decoder.TryDecode(BuildRawFrame(0x3, 0x0, 2 * i + 1, errorCode), out _);
+            session.Process(BuildRawFrame(0x3, 0x0, 2 * i + 1, errorCode));
         }
 
         var ex = Assert.Throws<Http2Exception>(() =>
-            decoder.TryDecode(BuildRawFrame(0x3, 0x0, 201, errorCode), out _));
+            session.Process(BuildRawFrame(0x3, 0x0, 201, errorCode)));
         Assert.Contains("CVE-2023-44487", ex.Message);
     }
 
     [Fact(DisplayName = "RE-023: Reset() clears the RST_STREAM flood counter")]
     public void Should_ClearRstCount_OnReset()
     {
-        var decoder = new Http2Decoder();
+        var session = new Http2ProtocolSession();
         var errorCode = new byte[] { 0x00, 0x00, 0x00, 0x00 };
 
         for (var i = 0; i < 100; i++)
         {
-            decoder.TryDecode(BuildRawFrame(0x3, 0x0, 2 * i + 1, errorCode), out _);
+            session.Process(BuildRawFrame(0x3, 0x0, 2 * i + 1, errorCode));
         }
 
-        decoder.Reset();
+        session.Reset();
 
         // After Reset, RST counter is zero again — first RST must be accepted.
-        decoder.TryDecode(BuildRawFrame(0x3, 0x0, 1, errorCode), out _);
+        session.Process(BuildRawFrame(0x3, 0x0, 1, errorCode));
     }
 
     // ── RE-03x: CONTINUATION Flood ────────────────────────────────────────────
@@ -150,7 +151,7 @@ public sealed class Http2ResourceExhaustionTests
     [Fact(DisplayName = "RE-030: 1000th CONTINUATION frame triggers ProtocolError flood protection")]
     public void Should_ThrowHttp2Exception_When_1000ContinuationFramesReceived()
     {
-        var decoder = new Http2Decoder();
+        var session = new Http2ProtocolSession();
         var headersFrame = BuildRawFrame(0x1, 0x0, 1, [0x88]);  // no END_HEADERS
         var continuationNoEnd = BuildRawFrame(0x9, 0x0, 1, []);
 
@@ -161,17 +162,17 @@ public sealed class Http2ResourceExhaustionTests
             continuationNoEnd.CopyTo(chunk, headersFrame.Length + i * continuationNoEnd.Length);
         }
 
-        decoder.TryDecode(chunk, out _);  // 1 HEADERS + 999 CONTINUATION — OK
+        session.Process(chunk);  // 1 HEADERS + 999 CONTINUATION — OK
 
         var continuation1000 = BuildRawFrame(0x9, 0x0, 1, []);
-        var ex = Assert.Throws<Http2Exception>(() => decoder.TryDecode(continuation1000, out _));
+        var ex = Assert.Throws<Http2Exception>(() => session.Process(continuation1000));
         Assert.Equal(Http2ErrorCode.ProtocolError, ex.ErrorCode);
     }
 
     [Fact(DisplayName = "RE-031: 999 CONTINUATION frames after HEADERS are accepted without error")]
     public void Should_Accept999ContinuationFrames_WithoutException()
     {
-        var decoder = new Http2Decoder();
+        var session = new Http2ProtocolSession();
         var headersFrame = BuildRawFrame(0x1, 0x0, 1, [0x88]);  // no END_HEADERS
         var continuationNoEnd = BuildRawFrame(0x9, 0x0, 1, []);
 
@@ -182,7 +183,7 @@ public sealed class Http2ResourceExhaustionTests
             continuationNoEnd.CopyTo(chunk, headersFrame.Length + i * continuationNoEnd.Length);
         }
 
-        decoder.TryDecode(chunk, out _);  // must not throw
+        session.Process(chunk);  // must not throw
     }
 
     // ── RE-04x: PING Flood (NEW) ───────────────────────────────────────────────
@@ -190,36 +191,36 @@ public sealed class Http2ResourceExhaustionTests
     [Fact(DisplayName = "RE-040: 1001st non-ACK PING frame triggers EnhanceYourCalm flood protection")]
     public void Should_ThrowHttp2Exception_When_1001PingFramesReceived()
     {
-        var decoder = new Http2Decoder();
+        var session = new Http2ProtocolSession();
         var pingPayload = new byte[8];  // 8-byte PING payload
         var pingFrame = BuildRawFrame(0x6, 0x0, 0, pingPayload);  // type=PING, flags=0 (no ACK)
 
         for (var i = 0; i < 1000; i++)
         {
-            decoder.TryDecode(pingFrame, out _);
+            session.Process(pingFrame);
         }
 
-        var ex = Assert.Throws<Http2Exception>(() => decoder.TryDecode(pingFrame, out _));
+        var ex = Assert.Throws<Http2Exception>(() => session.Process(pingFrame));
         Assert.Equal(Http2ErrorCode.EnhanceYourCalm, ex.ErrorCode);
     }
 
     [Fact(DisplayName = "RE-041: Exactly 1000 non-ACK PING frames are accepted without error")]
     public void Should_Accept1000PingFrames_WithoutException()
     {
-        var decoder = new Http2Decoder();
+        var session = new Http2ProtocolSession();
         var pingPayload = new byte[8];
         var pingFrame = BuildRawFrame(0x6, 0x0, 0, pingPayload);
 
         for (var i = 0; i < 1000; i++)
         {
-            decoder.TryDecode(pingFrame, out _);  // must not throw
+            session.Process(pingFrame);  // must not throw
         }
     }
 
     [Fact(DisplayName = "RE-042: PING ACK frames do NOT count toward the flood threshold")]
     public void Should_NotCountPingAck_TowardFloodThreshold()
     {
-        var decoder = new Http2Decoder();
+        var session = new Http2ProtocolSession();
         var pingPayload = new byte[8];
         // flags=0x1 → PING ACK
         var pingAckFrame = BuildRawFrame(0x6, 0x1, 0, pingPayload);
@@ -227,67 +228,67 @@ public sealed class Http2ResourceExhaustionTests
         // 2000 PING ACK frames — none count toward non-ACK limit.
         for (var i = 0; i < 2000; i++)
         {
-            decoder.TryDecode(pingAckFrame, out _);  // must not throw
+            session.Process(pingAckFrame);  // must not throw
         }
     }
 
     [Fact(DisplayName = "RE-043: Reset() clears the PING flood counter")]
     public void Should_ClearPingCount_OnReset()
     {
-        var decoder = new Http2Decoder();
+        var session = new Http2ProtocolSession();
         var pingPayload = new byte[8];
         var pingFrame = BuildRawFrame(0x6, 0x0, 0, pingPayload);
 
         for (var i = 0; i < 1000; i++)
         {
-            decoder.TryDecode(pingFrame, out _);
+            session.Process(pingFrame);
         }
 
-        Assert.Equal(1000, decoder.GetPingCount());
+        Assert.Equal(1000, session.PingCount);
 
-        decoder.Reset();
-        Assert.Equal(0, decoder.GetPingCount());
+        session.Reset();
+        Assert.Equal(0, session.PingCount);
 
         // After Reset, a fresh 1000 PINGs should be accepted again.
         for (var i = 0; i < 1000; i++)
         {
-            decoder.TryDecode(pingFrame, out _);  // must not throw
+            session.Process(pingFrame);  // must not throw
         }
     }
 
     [Fact(DisplayName = "RE-044: GetPingCount() tracks exactly the number of non-ACK PINGs received")]
     public void Should_TrackPingCountAccurately()
     {
-        var decoder = new Http2Decoder();
+        var session = new Http2ProtocolSession();
         var pingPayload = new byte[8];
         var pingFrame = BuildRawFrame(0x6, 0x0, 0, pingPayload);     // non-ACK
         var pingAckFrame = BuildRawFrame(0x6, 0x1, 0, pingPayload);  // ACK
 
-        Assert.Equal(0, decoder.GetPingCount());
+        Assert.Equal(0, session.PingCount);
 
-        decoder.TryDecode(pingFrame, out _);
-        Assert.Equal(1, decoder.GetPingCount());
+        session.Process(pingFrame);
+        Assert.Equal(1, session.PingCount);
 
-        decoder.TryDecode(pingAckFrame, out _);
-        Assert.Equal(1, decoder.GetPingCount());  // ACK must not increment
+        session.Process(pingAckFrame);
+        Assert.Equal(1, session.PingCount);  // ACK must not increment
 
-        decoder.TryDecode(pingFrame, out _);
-        Assert.Equal(2, decoder.GetPingCount());
+        session.Process(pingFrame);
+        Assert.Equal(2, session.PingCount);
     }
 
     [Fact(DisplayName = "RE-045: PING flood exception message mentions excessive PING frames")]
     public void Should_IncludeContextInPingFloodMessage()
     {
-        var decoder = new Http2Decoder();
+        var session = new Http2ProtocolSession();
         var pingPayload = new byte[8];
         var pingFrame = BuildRawFrame(0x6, 0x0, 0, pingPayload);
 
         for (var i = 0; i < 1000; i++)
         {
-            decoder.TryDecode(pingFrame, out _);
+            session.Process(pingFrame);
         }
 
-        var ex = Assert.Throws<Http2Exception>(() => decoder.TryDecode(pingFrame, out _));
+        var ex = Assert.Throws<Http2Exception>(() => session.Process(pingFrame));
         Assert.Contains("PING", ex.Message);
         Assert.Contains("flood", ex.Message, StringComparison.OrdinalIgnoreCase);
     }
@@ -352,7 +353,7 @@ public sealed class Http2ResourceExhaustionTests
     [Fact(DisplayName = "RE-060: Exceeding 10000 closed stream IDs triggers ProtocolError stream-ID exhaustion")]
     public void Should_ThrowHttp2Exception_When_ClosedStreamIdCapExceeded()
     {
-        var decoder = new Http2Decoder();
+        var session = new Http2ProtocolSession();
 
         // Send RST_STREAM on 10000 distinct stream IDs to fill the closed-stream-ID set.
         var errorCode = new byte[] { 0x00, 0x00, 0x00, 0x00 };
@@ -369,7 +370,7 @@ public sealed class Http2ResourceExhaustionTests
 
             try
             {
-                decoder.TryDecode(rst, out _);
+                session.Process(rst);
             }
             catch (Http2Exception ex) when (ex.ErrorCode == Http2ErrorCode.ProtocolError
                                             && ex.Message.Contains("RST_STREAM"))
@@ -380,88 +381,69 @@ public sealed class Http2ResourceExhaustionTests
             }
         }
 
-        // The main test: GetClosedStreamIdCount should be bounded.
-        Assert.True(decoder.GetClosedStreamIdCount() <= 10000);
+        // The main test: ClosedStreamCount should be bounded.
+        Assert.True(session.ClosedStreamCount <= 10000);
     }
 
     [Fact(DisplayName = "RE-061: GetClosedStreamIdCount() accurately tracks closed streams")]
     public void Should_TrackClosedStreamIdCountAccurately()
     {
-        var decoder = new Http2Decoder();
+        var session = new Http2ProtocolSession();
 
         // Send a HEADERS frame with END_HEADERS and END_STREAM to open and close stream 1.
         var headersWithEnd = BuildRawFrame(0x1, 0x5, 1, [0x88]);  // END_HEADERS | END_STREAM
-        decoder.TryDecode(headersWithEnd, out _);
-        Assert.Equal(1, decoder.GetClosedStreamIdCount());
+        session.Process(headersWithEnd);
+        Assert.Equal(1, session.ClosedStreamCount);
 
-        decoder.Reset();
-        Assert.Equal(0, decoder.GetClosedStreamIdCount());
+        session.Reset();
+        Assert.Equal(0, session.ClosedStreamCount);
     }
 
     [Fact(DisplayName = "RE-062: Reset() clears the closed-stream-ID set")]
     public void Should_ClearClosedStreamIds_OnReset()
     {
-        var decoder = new Http2Decoder();
+        var session = new Http2ProtocolSession();
 
         // Close stream 1 via END_HEADERS | END_STREAM.
         var headersWithEnd = BuildRawFrame(0x1, 0x5, 1, [0x88]);
-        decoder.TryDecode(headersWithEnd, out _);
-        Assert.True(decoder.GetClosedStreamIdCount() > 0);
+        session.Process(headersWithEnd);
+        Assert.True(session.ClosedStreamCount > 0);
 
-        decoder.Reset();
-        Assert.Equal(0, decoder.GetClosedStreamIdCount());
+        session.Reset();
+        Assert.Equal(0, session.ClosedStreamCount);
     }
 
-    [Fact(DisplayName = "RE-063: Stream ID exhaustion error has ProtocolError error code")]
-    public void Should_UseProtocolError_ForStreamIdExhaustion()
+    [Fact(DisplayName = "RE-063: Stream tracking remains correct beyond 10000 closed streams — no artificial cap")]
+    public void Should_TrackClosedStreamsBeyond10000_WithoutError()
     {
-        // Use RST_STREAM (the fastest way to accumulate closed IDs), batching resets
-        // to work around the RST flood limit.
-        var closedCount = 0;
-        var mainDecoder = new Http2Decoder();
-        var errorCode = new byte[] { 0x00, 0x00, 0x00, 0x00 };
+        // Http2ProtocolSession is intentionally unbounded (no MaxClosedStreamIds cap).
+        // This complements HC-005 in Http2HighConcurrencyTests.
+        var session = new Http2ProtocolSession();
 
-        // Build up 10000 closed stream IDs by sending RST in batches (resetting between batches
-        // to avoid RST flood, but merging closed IDs indirectly via stream open/close via HEADERS).
-        // Strategy: open+close via END_STREAM HEADERS (fastest; bypasses RST flood counter).
-        // Each HEADERS frame closes one stream. 10001 should trigger the cap.
-
-        Http2Exception? capException = null;
         for (var i = 0; i <= 10000; i++)
         {
-            // Use odd stream IDs (client-initiated).
-            var streamId = 2 * i + 1;
+            var streamId = 2 * i + 1;  // odd stream IDs: 1, 3, ..., 20001
             var frame = BuildRawFrame(0x1, 0x5, streamId, [0x88]);  // END_HEADERS | END_STREAM
-            try
-            {
-                mainDecoder.TryDecode(frame, out _);
-            }
-            catch (Http2Exception ex)
-            {
-                capException = ex;
-                closedCount = i;
-                break;
-            }
+            session.Process(frame);  // must not throw
         }
 
-        Assert.NotNull(capException);
-        Assert.Equal(Http2ErrorCode.ProtocolError, capException.ErrorCode);
-        Assert.Contains("Stream ID space exhausted", capException.Message);
+        Assert.Equal(10001, session.ClosedStreamCount);
+        Assert.Equal(0, session.ActiveStreamCount);
     }
 
     [Fact(DisplayName = "RE-064: Exactly 10000 streams can be closed without exhaustion error")]
     public void Should_Accept10000ClosedStreams_WithoutException()
     {
-        var decoder = new Http2Decoder();
+        var session = new Http2ProtocolSession();
 
         for (var i = 0; i < 10000; i++)
         {
             var streamId = 2 * i + 1;
             var frame = BuildRawFrame(0x1, 0x5, streamId, [0x88]);  // END_HEADERS | END_STREAM
-            decoder.TryDecode(frame, out _);  // must not throw
+            session.Process(frame);  // must not throw
         }
 
-        Assert.Equal(10000, decoder.GetClosedStreamIdCount());
+        Assert.Equal(10000, session.ClosedStreamCount);
     }
 
     // ── RE-07x: Empty DATA Frame Exhaustion ───────────────────────────────────
@@ -469,11 +451,11 @@ public sealed class Http2ResourceExhaustionTests
     [Fact(DisplayName = "RE-070: 10001st zero-length DATA frame triggers ProtocolError exhaustion protection")]
     public void Should_ThrowHttp2Exception_When_10001EmptyDataFramesReceived()
     {
-        var decoder = new Http2Decoder();
+        var session = new Http2ProtocolSession();
 
         // First, open stream 1 via HEADERS (END_HEADERS=0x4, no END_STREAM).
         var headersFrame = BuildRawFrame(0x1, 0x4, 1, [0x88]);
-        decoder.TryDecode(headersFrame, out _);
+        session.Process(headersFrame);
 
         // Now send 10001 zero-length DATA frames on the open stream.
         const int count = 10001;
@@ -484,18 +466,18 @@ public sealed class Http2ResourceExhaustionTests
             emptyData.CopyTo(allFrames, i * emptyData.Length);
         }
 
-        var ex = Assert.Throws<Http2Exception>(() => decoder.TryDecode(allFrames, out _));
+        var ex = Assert.Throws<Http2Exception>(() => session.Process(allFrames));
         Assert.Equal(Http2ErrorCode.ProtocolError, ex.ErrorCode);
     }
 
     [Fact(DisplayName = "RE-071: Exactly 10000 zero-length DATA frames are accepted without error")]
     public void Should_Accept10000EmptyDataFrames_WithoutException()
     {
-        var decoder = new Http2Decoder();
+        var session = new Http2ProtocolSession();
 
         // Open stream 1 via HEADERS (END_HEADERS=0x4, no END_STREAM).
         var headersFrame = BuildRawFrame(0x1, 0x4, 1, [0x88]);
-        decoder.TryDecode(headersFrame, out _);
+        session.Process(headersFrame);
 
         // Send exactly 10000 zero-length DATA frames — must not throw.
         const int count = 10000;
@@ -506,7 +488,7 @@ public sealed class Http2ResourceExhaustionTests
             emptyData.CopyTo(allFrames, i * emptyData.Length);
         }
 
-        decoder.TryDecode(allFrames, out _);  // must not throw
+        session.Process(allFrames);  // must not throw
     }
 
     // ── RE-08x: Cross-Cutting and Post-Reset Isolation ────────────────────────
@@ -514,34 +496,34 @@ public sealed class Http2ResourceExhaustionTests
     [Fact(DisplayName = "RE-080: A new decoder instance has all flood counters at zero")]
     public void Should_InitializeAllCountersToZero_OnNewDecoder()
     {
-        var decoder = new Http2Decoder();
-        Assert.Equal(0, decoder.GetPingCount());
-        Assert.Equal(0, decoder.GetClosedStreamIdCount());
-        Assert.Equal(0, decoder.GetActiveStreamCount());
+        var session = new Http2ProtocolSession();
+        Assert.Equal(0, session.PingCount);
+        Assert.Equal(0, session.ClosedStreamCount);
+        Assert.Equal(0, session.ActiveStreamCount);
     }
 
     [Fact(DisplayName = "RE-081: Reset() resets all flood counters to zero")]
     public void Should_ResetAllCountersToZero_AfterReset()
     {
-        var decoder = new Http2Decoder();
+        var session = new Http2ProtocolSession();
         var pingPayload = new byte[8];
         var pingFrame = BuildRawFrame(0x6, 0x0, 0, pingPayload);
-        decoder.TryDecode(pingFrame, out _);
+        session.Process(pingFrame);
 
         var headersWithEnd = BuildRawFrame(0x1, 0x5, 1, [0x88]);
-        decoder.TryDecode(headersWithEnd, out _);
+        session.Process(headersWithEnd);
 
-        decoder.Reset();
+        session.Reset();
 
-        Assert.Equal(0, decoder.GetPingCount());
-        Assert.Equal(0, decoder.GetClosedStreamIdCount());
-        Assert.Equal(0, decoder.GetActiveStreamCount());
+        Assert.Equal(0, session.PingCount);
+        Assert.Equal(0, session.ClosedStreamCount);
+        Assert.Equal(0, session.ActiveStreamCount);
     }
 
     [Fact(DisplayName = "RE-082: PING flood and SETTINGS flood counters are independent")]
     public void Should_TrackPingAndSettingsCountersIndependently()
     {
-        var decoder = new Http2Decoder();
+        var session = new Http2ProtocolSession();
         var pingPayload = new byte[8];
         var pingFrame = BuildRawFrame(0x6, 0x0, 0, pingPayload);
         var settingsFrame = BuildSettingsFrame(ack: false, []);
@@ -549,11 +531,11 @@ public sealed class Http2ResourceExhaustionTests
         // 50 PINGs and 50 SETTINGS — neither limit should be hit.
         for (var i = 0; i < 50; i++)
         {
-            decoder.TryDecode(pingFrame, out _);
-            decoder.TryDecode(settingsFrame, out _);
+            session.Process(pingFrame);
+            session.Process(settingsFrame);
         }
 
-        Assert.Equal(50, decoder.GetPingCount());
+        Assert.Equal(50, session.PingCount);
         // Both must still be below their respective thresholds (1000 for PING, 100 for SETTINGS).
     }
 
@@ -561,24 +543,23 @@ public sealed class Http2ResourceExhaustionTests
     public void Should_DetectEachFloodIndependently_WhenMultipleAttacksInterleaved()
     {
         // Confirm that hitting the RST flood does NOT prevent the PING counter from working.
-        var decoder = new Http2Decoder();
+        var session = new Http2ProtocolSession();
         var errorCode = new byte[] { 0x00, 0x00, 0x00, 0x00 };
-        var pingPayload = new byte[8];
 
         // Trigger the RST flood.
         for (var i = 0; i < 100; i++)
         {
-            decoder.TryDecode(BuildRawFrame(0x3, 0x0, 2 * i + 1, errorCode), out _);
+            session.Process(BuildRawFrame(0x3, 0x0, 2 * i + 1, errorCode));
         }
 
         // RST flood should throw on the 101st RST.
         Assert.Throws<Http2Exception>(() =>
-            decoder.TryDecode(BuildRawFrame(0x3, 0x0, 201, errorCode), out _));
+            session.Process(BuildRawFrame(0x3, 0x0, 201, errorCode)));
 
-        // After the RST-triggered exception, a new decoder is needed (connection-level error).
-        // But the PING counter on a fresh decoder starts at 0 correctly.
-        var freshDecoder = new Http2Decoder();
-        Assert.Equal(0, freshDecoder.GetPingCount());
+        // After the RST-triggered exception, a new session is needed (connection-level error).
+        // But the PING counter on a fresh session starts at 0 correctly.
+        var freshSession = new Http2ProtocolSession();
+        Assert.Equal(0, freshSession.PingCount);
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────

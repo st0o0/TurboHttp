@@ -38,6 +38,7 @@ public sealed class Http2ProtocolSession
     private int _continuationCount;
     private int _rstStreamCount;
     private int _settingsCount;
+    private int _emptyDataFrameCount;
     private bool _hasNewSettings;
     private readonly List<byte[]> _settingsAcksToSend = new();
 
@@ -121,6 +122,7 @@ public sealed class Http2ProtocolSession
         _continuationCount = 0;
         _rstStreamCount = 0;
         _settingsCount = 0;
+        _emptyDataFrameCount = 0;
         _hasNewSettings = false;
         _settingsAcksToSend.Clear();
         _frameDecoder.Reset();
@@ -327,6 +329,18 @@ public sealed class Http2ProtocolSession
                 Http2ErrorCode.StreamClosed, Http2ErrorScope.Stream, streamId);
         }
 
+        // Security: empty DATA frame exhaustion protection.
+        if (frame.Data.Length == 0)
+        {
+            _emptyDataFrameCount++;
+            if (_emptyDataFrameCount > 10000)
+            {
+                throw new Http2Exception(
+                    "RFC 7540 security: Excessive empty DATA frames — possible resource exhaustion attack.",
+                    Http2ErrorCode.ProtocolError);
+            }
+        }
+
         // RFC 7540 §6.9.1: Check flow-control windows before consuming data.
         if (frame.Data.Length > 0)
         {
@@ -478,6 +492,13 @@ public sealed class Http2ProtocolSession
         if (!frame.IsAck)
         {
             _pingCount++;
+            if (_pingCount > 1000)
+            {
+                throw new Http2Exception(
+                    "RFC 7540 security: Excessive PING frames — possible PING flood attack.",
+                    Http2ErrorCode.EnhanceYourCalm);
+            }
+
             _pingRequests.Add(frame.Data);
         }
     }
