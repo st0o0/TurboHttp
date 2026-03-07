@@ -324,12 +324,12 @@ public sealed class ContentEncodingGzipTests
         var compressed = GzipCompress(original);
 
         var responseBytes = BuildHttp2Response(1, "gzip", compressed);
-        var decoder = new Http2Decoder();
+        var session = new Http2ProtocolSession();
 
-        Assert.True(decoder.TryDecode(responseBytes, out var result));
-        Assert.Single(result.Responses);
+        Assert.NotEmpty(session.Process(responseBytes.AsMemory()));
+        Assert.Single(session.Responses);
 
-        var body = await result.Responses[0].Response.Content.ReadAsByteArrayAsync();
+        var body = await session.Responses[0].Response.Content.ReadAsByteArrayAsync();
         Assert.Equal(original, body);
     }
 
@@ -339,10 +339,10 @@ public sealed class ContentEncodingGzipTests
         var original = "test"u8.ToArray();
         var compressed = GzipCompress(original);
         var responseBytes = BuildHttp2Response(1, "gzip", compressed);
-        var decoder = new Http2Decoder();
+        var session = new Http2ProtocolSession();
 
-        Assert.True(decoder.TryDecode(responseBytes, out var result));
-        var response = result.Responses[0].Response;
+        Assert.NotEmpty(session.Process(responseBytes.AsMemory()));
+        var response = session.Responses[0].Response;
 
         Assert.Empty(response.Content.Headers.ContentEncoding);
     }
@@ -353,10 +353,10 @@ public sealed class ContentEncodingGzipTests
         var original = "hello http2 gzip"u8.ToArray();
         var compressed = GzipCompress(original);
         var responseBytes = BuildHttp2Response(1, "gzip", compressed);
-        var decoder = new Http2Decoder();
+        var session = new Http2ProtocolSession();
 
-        Assert.True(decoder.TryDecode(responseBytes, out var result));
-        var response = result.Responses[0].Response;
+        Assert.NotEmpty(session.Process(responseBytes.AsMemory()));
+        var response = session.Responses[0].Response;
 
         Assert.Equal(original.Length, response.Content.Headers.ContentLength);
     }
@@ -373,10 +373,10 @@ public sealed class ContentEncodingGzipTests
 
         var compressed = output.ToArray();
         var responseBytes = BuildHttp2Response(1, "br", compressed);
-        var decoder = new Http2Decoder();
+        var session = new Http2ProtocolSession();
 
-        Assert.True(decoder.TryDecode(responseBytes, out var result));
-        var body = await result.Responses[0].Response.Content.ReadAsByteArrayAsync();
+        Assert.NotEmpty(session.Process(responseBytes.AsMemory()));
+        var body = await session.Responses[0].Response.Content.ReadAsByteArrayAsync();
         Assert.Equal(original, body);
     }
 }

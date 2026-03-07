@@ -377,14 +377,37 @@ public sealed class Http2ProtocolSession
             if (_pendingResponses.TryGetValue(streamId, out var completePending))
             {
                 var previousContent = completePending.Response.Content;
-                var bodyContent = new ByteArrayContent(completePending.Body.ToArray());
-                // Preserve content headers stored on the initial placeholder Content.
+                var rawBody = completePending.Body.ToArray();
+
+                // RFC 9110 §8.4: Apply content-encoding decompression.
+                var contentEncoding = previousContent.Headers.ContentEncoding
+                    .FirstOrDefault(e => !string.IsNullOrWhiteSpace(e) &&
+                        !e.Equals("identity", StringComparison.OrdinalIgnoreCase));
+                var decompressed = contentEncoding != null;
+                var bodyBytes = decompressed
+                    ? ContentEncodingDecoder.Decompress(rawBody, contentEncoding)
+                    : rawBody;
+
+                var bodyContent = new ByteArrayContent(bodyBytes);
+                // Preserve content headers; strip Content-Encoding and update Content-Length after decompression.
                 foreach (var h in previousContent.Headers)
                 {
-                    if (!h.Key.Equals("Content-Length", StringComparison.OrdinalIgnoreCase))
+                    if (h.Key.Equals("Content-Length", StringComparison.OrdinalIgnoreCase))
                     {
-                        bodyContent.Headers.TryAddWithoutValidation(h.Key, h.Value);
+                        continue;
                     }
+
+                    if (decompressed && h.Key.Equals("Content-Encoding", StringComparison.OrdinalIgnoreCase))
+                    {
+                        continue;
+                    }
+
+                    bodyContent.Headers.TryAddWithoutValidation(h.Key, h.Value);
+                }
+
+                if (decompressed)
+                {
+                    bodyContent.Headers.ContentLength = bodyBytes.Length;
                 }
 
                 completePending.Response.Content = bodyContent;

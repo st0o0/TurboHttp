@@ -984,7 +984,7 @@ either a result or a thrown `Http2Exception`.
 ---
 
 ### Phase 27 — Migrate `RFC9110/01_ContentEncodingGzipTests.cs` (4 refs)
-- [ ] **Status**: pending
+- [x] **Status**: complete (2026-03-07, iter-03)
 
 **File**: `src/TurboHttp.Tests/RFC9110/01_ContentEncodingGzipTests.cs`
 
