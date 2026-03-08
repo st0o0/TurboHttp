@@ -1,13 +1,21 @@
-﻿using System.Buffers;
+using System.Buffers;
 using System.Threading.Channels;
 using Akka.Streams;
 using Akka.Streams.Stage;
 
 namespace TurboHttp.StreamTests;
 
-public sealed class FakeConnectionStage : GraphStage<FlowShape<(IMemoryOwner<byte>, int), (IMemoryOwner<byte>, int)>>
+/// <summary>
+/// Fake TCP flow for engine round-trip tests.
+/// Captures all outbound bytes from the engine in <see cref="Captured"/>.
+/// On each inbound push, calls the response factory and emits response bytes downstream.
+/// Use <see cref="Echo"/> for a variant that reflects inbound bytes back unchanged.
+/// </summary>
+public sealed class FakeTcpFlow : GraphStage<FlowShape<(IMemoryOwner<byte>, int), (IMemoryOwner<byte>, int)>>
 {
-    public Channel<(IMemoryOwner<byte>, int)> OutboundChannel { get; } =
+    private readonly Func<byte[], byte[]>? _responseFactory;
+
+    public Channel<(IMemoryOwner<byte>, int)> Captured { get; } =
         Channel.CreateUnbounded<(IMemoryOwner<byte>, int)>();
 
     public Inlet<(IMemoryOwner<byte>, int)> In { get; } = new("fake-tcp.in");
@@ -15,8 +23,18 @@ public sealed class FakeConnectionStage : GraphStage<FlowShape<(IMemoryOwner<byt
 
     public override FlowShape<(IMemoryOwner<byte>, int), (IMemoryOwner<byte>, int)> Shape { get; }
 
-    public FakeConnectionStage()
+    public FakeTcpFlow(Func<byte[]> responseFactory)
     {
+        _responseFactory = _ => responseFactory();
+        Shape = new FlowShape<(IMemoryOwner<byte>, int), (IMemoryOwner<byte>, int)>(In, Out);
+    }
+
+    /// <summary>Creates a FakeTcpFlow that reflects inbound bytes back as-is.</summary>
+    public static FakeTcpFlow Echo() => new FakeTcpFlow(echo: true);
+
+    private FakeTcpFlow(bool echo)
+    {
+        _responseFactory = echo ? inbound => inbound : null;
         Shape = new FlowShape<(IMemoryOwner<byte>, int), (IMemoryOwner<byte>, int)>(In, Out);
     }
 
@@ -24,11 +42,11 @@ public sealed class FakeConnectionStage : GraphStage<FlowShape<(IMemoryOwner<byt
 
     private sealed class Logic : GraphStageLogic
     {
-        private readonly FakeConnectionStage _stage;
+        private readonly FakeTcpFlow _stage;
         private readonly Queue<(IMemoryOwner<byte>, int)> _buffer = new();
         private bool _downstreamWaiting;
 
-        public Logic(FakeConnectionStage stage) : base(stage.Shape)
+        public Logic(FakeTcpFlow stage) : base(stage.Shape)
         {
             _stage = stage;
 
@@ -39,16 +57,20 @@ public sealed class FakeConnectionStage : GraphStage<FlowShape<(IMemoryOwner<byt
 
                     var copy = new byte[length];
                     owner.Memory.Span[..length].CopyTo(copy);
-                    stage.OutboundChannel.Writer.TryWrite((new SimpleMemoryOwner(copy), length));
+                    stage.Captured.Writer.TryWrite((new SimpleMemoryOwner(copy), length));
+                    owner.Dispose();
+
+                    var responseBytes = _stage._responseFactory!(copy);
+                    IMemoryOwner<byte> responseOwner = new SimpleMemoryOwner(responseBytes);
 
                     if (_downstreamWaiting)
                     {
                         _downstreamWaiting = false;
-                        Push(stage.Out, (owner, length));
+                        Push(stage.Out, (responseOwner, responseBytes.Length));
                     }
                     else
                     {
-                        _buffer.Enqueue((owner, length));
+                        _buffer.Enqueue((responseOwner, responseBytes.Length));
                     }
 
                     Pull(stage.In);

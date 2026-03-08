@@ -13,16 +13,6 @@ using TurboHttp.Streams;
 
 namespace TurboHttp.StreamTests;
 
-internal sealed class SimpleMemoryOwner : IMemoryOwner<byte>
-{
-    public Memory<byte> Memory { get; }
-    public SimpleMemoryOwner(byte[] data) => Memory = data;
-
-    public void Dispose()
-    {
-    }
-}
-
 public sealed class
     EngineFakeConnectionStage : GraphStage<FlowShape<(IMemoryOwner<byte>, int), (IMemoryOwner<byte>, int)>>
 {

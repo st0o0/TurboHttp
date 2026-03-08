@@ -14,7 +14,7 @@ independently buildable.  RFC-tagged `DisplayName` attributes tie each test to a
 ---
 
 ### Phase 0 — Delete old files + create shared helpers
-- [ ] **Status**: pending
+- [x] **Status**: done
 
 **What to do**:
 1. Delete `src/TurboHttp.StreamTests/EngineTests.cs`
