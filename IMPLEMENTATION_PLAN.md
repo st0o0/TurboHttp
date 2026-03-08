@@ -70,7 +70,7 @@ independently buildable.  RFC-tagged `DisplayName` attributes tie each test to a
 ---
 
 ### Phase 2 — `Http10DecoderStageTests.cs` (RFC 1945 response decoding)
-- [ ] **Status**: pending
+- [x] **Status**: done
 
 **Prerequisite**: Phase 1 complete.
 
