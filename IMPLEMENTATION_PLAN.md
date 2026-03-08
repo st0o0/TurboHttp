@@ -44,7 +44,7 @@ independently buildable.  RFC-tagged `DisplayName` attributes tie each test to a
 ---
 
 ### Phase 1 — `Http10EncoderStageTests.cs` (RFC 1945 request wire format)
-- [ ] **Status**: pending
+- [x] **Status**: done
 
 **Prerequisite**: Phase 0 complete.
 
