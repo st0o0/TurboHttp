@@ -1,9 +1,8 @@
 using System.Net;
-using System.Net.Http;
 using System.Text;
 using TurboHttp.Streams;
 
-namespace TurboHttp.StreamTests;
+namespace TurboHttp.StreamTests.Http10;
 
 public sealed class Http10EngineTests : EngineTestBase
 {

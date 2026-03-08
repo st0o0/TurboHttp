@@ -2,7 +2,7 @@ using System.Net;
 using System.Text;
 using TurboHttp.Streams;
 
-namespace TurboHttp.StreamTests;
+namespace TurboHttp.StreamTests.Http11;
 
 public sealed class Http11EngineTests : EngineTestBase
 {

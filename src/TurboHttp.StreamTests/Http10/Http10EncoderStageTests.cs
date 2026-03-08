@@ -1,11 +1,10 @@
 using System.Buffers;
 using System.Net;
-using System.Net.Http;
 using System.Text;
 using Akka.Streams.Dsl;
 using TurboHttp.Streams;
 
-namespace TurboHttp.StreamTests;
+namespace TurboHttp.StreamTests.Http10;
 
 public sealed class Http10EncoderStageTests : StreamTestBase
 {

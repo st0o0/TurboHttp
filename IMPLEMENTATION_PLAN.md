@@ -120,7 +120,7 @@ independently buildable.  RFC-tagged `DisplayName` attributes tie each test to a
 ---
 
 ### Phase 4 — `Http11EncoderStageTests.cs` (RFC 9112 request wire format)
-- [ ] **Status**: pending
+- [x] **Status**: done
 
 **Prerequisite**: Phase 3 complete.
 

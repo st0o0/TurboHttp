@@ -260,7 +260,7 @@ public abstract class EngineTestBase : TestKit
         await tcs.Task.WaitAsync(TimeSpan.FromSeconds(5));
 
         var outboundBytes = new List<byte>();
-        bool skippedPreface = false;
+        var skippedPreface = false;
         while (fake.OutboundChannel.Reader.TryRead(out var chunk))
         {
             var bytes = chunk.Item1.Memory.Span[..chunk.Item2].ToArray();
@@ -273,7 +273,7 @@ public abstract class EngineTestBase : TestKit
             outboundBytes.AddRange(bytes);
         }
 
-        IReadOnlyList<Http2Frame> frames = outboundBytes.Count > 0
+        var frames = outboundBytes.Count > 0
             ? new Http2FrameDecoder().Decode(outboundBytes.ToArray().AsMemory())
             : Array.Empty<Http2Frame>();
 
@@ -306,7 +306,7 @@ public abstract class EngineTestBase : TestKit
         // Skip the first outbound chunk (client preface: PRI magic + client SETTINGS).
         // Collect and parse all subsequent outbound bytes as H2 frames.
         var outboundBytes = new List<byte>();
-        bool skippedPreface = false;
+        var skippedPreface = false;
         while (fake.OutboundChannel.Reader.TryRead(out var chunk))
         {
             var bytes = chunk.Item1.Memory.Span[..chunk.Item2].ToArray();
@@ -319,7 +319,7 @@ public abstract class EngineTestBase : TestKit
             outboundBytes.AddRange(bytes);
         }
 
-        IReadOnlyList<Http2Frame> frames = outboundBytes.Count > 0
+        var frames = outboundBytes.Count > 0
             ? new Http2FrameDecoder().Decode(outboundBytes.ToArray().AsMemory())
             : Array.Empty<Http2Frame>();
 

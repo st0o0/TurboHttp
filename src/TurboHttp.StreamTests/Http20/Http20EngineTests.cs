@@ -7,7 +7,7 @@ using Akka.Streams.Dsl;
 using TurboHttp.Protocol;
 using TurboHttp.Streams;
 
-namespace TurboHttp.StreamTests;
+namespace TurboHttp.StreamTests.Http20;
 
 public sealed class Http20EngineTests : EngineTestBase
 {
