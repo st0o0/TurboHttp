@@ -190,7 +190,7 @@ independently buildable.  RFC-tagged `DisplayName` attributes tie each test to a
 ---
 
 ### Phase 7 — `PrependPrefaceStageTests.cs` (RFC 9113 §3.5)
-- [ ] **Status**: pending
+- [x] **Status**: done
 
 **Prerequisite**: Phase 6 complete.
 

@@ -275,7 +275,7 @@ public abstract class EngineTestBase : TestKit
 
         var frames = outboundBytes.Count > 0
             ? new Http2FrameDecoder().Decode(outboundBytes.ToArray().AsMemory())
-            : Array.Empty<Http2Frame>();
+            : [];
 
         return (results, frames);
     }
@@ -321,7 +321,7 @@ public abstract class EngineTestBase : TestKit
 
         var frames = outboundBytes.Count > 0
             ? new Http2FrameDecoder().Decode(outboundBytes.ToArray().AsMemory())
-            : Array.Empty<Http2Frame>();
+            : [];
 
         return (response, frames);
     }

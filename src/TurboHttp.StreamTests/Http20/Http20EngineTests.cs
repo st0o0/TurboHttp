@@ -39,7 +39,7 @@ public sealed class Http20EngineTests : EngineTestBase
 
     // ── ST-20-001 ──────────────────────────────────────────────────────────────
 
-    [Fact(DisplayName = "ST-20-001: Simple GET returns 200")]
+    [Fact(DisplayName = "RFC-9113-§8.1: ST-20-001: Simple GET returns 200")]
     public async Task Simple_GET_Returns_200()
     {
         var request = new HttpRequestMessage(HttpMethod.Get, "https://example.com/")
@@ -56,7 +56,7 @@ public sealed class Http20EngineTests : EngineTestBase
 
     // ── ST-20-002 ──────────────────────────────────────────────────────────────
 
-    [Fact(DisplayName = "ST-20-002: Request encodes HPACK pseudo-headers")]
+    [Fact(DisplayName = "RFC-9113-§8.3: ST-20-002: Request encodes HPACK pseudo-headers")]
     public async Task Request_Encodes_HPACK_Pseudo_Headers()
     {
         var request = new HttpRequestMessage(HttpMethod.Get, "https://example.com/path?q=1")
@@ -83,7 +83,7 @@ public sealed class Http20EngineTests : EngineTestBase
 
     // ── ST-20-003 ──────────────────────────────────────────────────────────────
 
-    [Fact(DisplayName = "ST-20-003: POST with body sends DATA frame after HEADERS")]
+    [Fact(DisplayName = "RFC-9113-§8.1: ST-20-003: POST with body sends DATA frame after HEADERS")]
     public async Task POST_With_Body_Sends_DATA_Frame_After_HEADERS()
     {
         var request = new HttpRequestMessage(HttpMethod.Post, "https://example.com/submit")
@@ -114,7 +114,7 @@ public sealed class Http20EngineTests : EngineTestBase
 
     // ── ST-20-004 ──────────────────────────────────────────────────────────────
 
-    [Fact(DisplayName = "ST-20-004: Response with body is decoded")]
+    [Fact(DisplayName = "RFC-9113-§8.1: ST-20-004: Response with body is decoded")]
     public async Task Response_With_Body_Is_Decoded()
     {
         var request = new HttpRequestMessage(HttpMethod.Get, "https://example.com/")
@@ -133,7 +133,7 @@ public sealed class Http20EngineTests : EngineTestBase
 
     // ── ST-20-005 ──────────────────────────────────────────────────────────────
 
-    [Fact(DisplayName = "ST-20-005: Content-Encoding: gzip response is decompressed")]
+    [Fact(DisplayName = "RFC-9110-§8.4: ST-20-005: Content-Encoding gzip response is decompressed")]
     public async Task Gzip_Response_Is_Decompressed()
     {
         const string originalBody = "hello compressed world";
@@ -175,7 +175,7 @@ public sealed class Http20EngineTests : EngineTestBase
 
     // ── ST-20-006 ──────────────────────────────────────────────────────────────
 
-    [Fact(DisplayName = "ST-20-006: Multiple concurrent streams processed in order")]
+    [Fact(DisplayName = "RFC-9113-§5.1.1: ST-20-006: Multiple concurrent streams processed in order")]
     public async Task Multiple_Streams_Processed_In_Order()
     {
         var requests = new[]
@@ -207,7 +207,7 @@ public sealed class Http20EngineTests : EngineTestBase
 
     // ── ST-20-007 ──────────────────────────────────────────────────────────────
 
-    [Fact(DisplayName = "ST-20-007: SETTINGS frame from server is ACKed")]
+    [Fact(DisplayName = "RFC-9113-§6.5: ST-20-007: SETTINGS frame from server is ACKed")]
     public async Task Server_Settings_Is_Acked()
     {
         var request = new HttpRequestMessage(HttpMethod.Get, "https://example.com/")
@@ -225,7 +225,7 @@ public sealed class Http20EngineTests : EngineTestBase
 
     // ── ST-20-008 ──────────────────────────────────────────────────────────────
 
-    [Fact(DisplayName = "ST-20-008: Connection preface is sent first")]
+    [Fact(DisplayName = "RFC-9113-§3.4: ST-20-008: Connection preface is sent first")]
     public async Task Connection_Preface_Is_Sent_First()
     {
         var request = new HttpRequestMessage(HttpMethod.Get, "https://example.com/")

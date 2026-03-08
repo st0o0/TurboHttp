@@ -62,9 +62,7 @@ public sealed class Http10DecoderStageTests : StreamTestBase
     public async Task ST_10_DEC_005_Fragmented_Reassembled()
     {
         // Body split: first chunk has partial body ("he"), second chunk has remainder ("llo")
-        var response = await DecodeAsync(
-            "HTTP/1.0 200 OK\r\nContent-Length: 5\r\n\r\nhe",
-            "llo");
+        var response = await DecodeAsync("HTTP/1.0 200 OK\r\nContent-Length: 5\r\n\r\nhe", "llo");
 
         var body = await response.Content.ReadAsByteArrayAsync();
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);

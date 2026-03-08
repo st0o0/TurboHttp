@@ -54,10 +54,9 @@ public sealed class Http11DecoderStageTests : StreamTestBase
     [Fact(DisplayName = "RFC-9112-§4: Two pipelined responses decoded as two messages")]
     public async Task ST_11_DEC_004_Pipelined_Responses_Decoded()
     {
-        var source = Source.From(new[]
-        {
+        var source = Source.From([
             Chunk("HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\nHTTP/1.1 201 Created\r\nContent-Length: 0\r\n\r\n")
-        });
+        ]);
 
         var responses = await source
             .Via(Flow.FromGraph(new Stages.Http11DecoderStage()))
