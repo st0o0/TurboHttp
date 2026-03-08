@@ -212,7 +212,7 @@ independently buildable.  RFC-tagged `DisplayName` attributes tie each test to a
 ---
 
 ### Phase 8 — `Http2FrameEncoderStageTests.cs` (RFC 9113 frame serialization)
-- [ ] **Status**: pending
+- [x] **Status**: done
 
 **Prerequisite**: Phase 7 complete.
 

@@ -14,11 +14,11 @@ public sealed class Http2ProtocolSession
     private readonly Http2FrameDecoder _frameDecoder = new();
     private readonly Dictionary<int, Http2StreamLifecycleState> _streamStates = new();
     private readonly HashSet<int> _closedStreamIds = [];
-    private readonly List<(int StreamId, HttpResponseMessage Response)> _responses = new();
-    private readonly List<IReadOnlyList<(SettingsParameter, uint)>> _settings = new();
-    private readonly List<byte[]> _pingRequests = new();
-    private readonly List<(int StreamId, Http2ErrorCode Error)> _rstStreams = new();
-    private readonly List<(int StreamId, int Increment)> _windowUpdates = new();
+    private readonly List<(int StreamId, HttpResponseMessage Response)> _responses = [];
+    private readonly List<IReadOnlyList<(SettingsParameter, uint)>> _settings = [];
+    private readonly List<byte[]> _pingRequests = [];
+    private readonly List<(int StreamId, Http2ErrorCode Error)> _rstStreams = [];
+    private readonly List<(int StreamId, int Increment)> _windowUpdates = [];
     private readonly HashSet<int> _promisedStreamIds = [];
     private readonly Dictionary<int, (HttpResponseMessage Response, List<byte> Body)> _pendingResponses = new();
     private int _connectionReceiveWindow = 65535;
@@ -40,7 +40,7 @@ public sealed class Http2ProtocolSession
     private int _settingsCount;
     private int _emptyDataFrameCount;
     private bool _hasNewSettings;
-    private readonly List<byte[]> _settingsAcksToSend = new();
+    private readonly List<byte[]> _settingsAcksToSend = [];
 
     public bool IsGoingAway => _goAwayFrame is not null;
     public GoAwayFrame? GoAwayFrame => _goAwayFrame;

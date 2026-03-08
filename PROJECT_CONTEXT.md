@@ -67,21 +67,21 @@ D:/GIT/Akka.Streams.Http/
 
 ```
 ┌─────────────────────────────────────────────┐
-│             Protocol Layer                   │
+│             Protocol Layer                  │
 │  Http10/Http11/Http2 Encoders + Decoders    │
 │  HPACK (HpackEncoder/Decoder + Huffman)     │
 │  Pure functions / stateful, no I/O          │
 └─────────────────────┬───────────────────────┘
                       │
 ┌─────────────────────▼───────────────────────┐
-│               I/O Layer                      │
+│               I/O Layer                     │
 │  Akka.NET Actors + System.Threading.Channels│
 │  TcpConnectionManagerActor                  │
 │  TcpClientRunner (per-connection)           │
 └─────────────────────┬───────────────────────┘
                       │
 ┌─────────────────────▼───────────────────────┐
-│              Network (TCP)                   │
+│              Network (TCP)                  │
 │  Servus.Akka TcpStream abstraction          │
 └─────────────────────────────────────────────┘
 ```
