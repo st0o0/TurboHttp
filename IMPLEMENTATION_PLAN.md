@@ -143,7 +143,7 @@ independently buildable.  RFC-tagged `DisplayName` attributes tie each test to a
 ---
 
 ### Phase 5 — `Http11DecoderStageTests.cs` (RFC 9112 response decoding)
-- [ ] **Status**: pending
+- [x] **Status**: done
 
 **Prerequisite**: Phase 4 complete.
 
