@@ -167,7 +167,7 @@ independently buildable.  RFC-tagged `DisplayName` attributes tie each test to a
 ---
 
 ### Phase 6 — `Http11EngineTests.cs` (BidiFlow round-trips)
-- [ ] **Status**: pending
+- [x] **Status**: done
 
 **Prerequisite**: Phase 5 complete.
 
