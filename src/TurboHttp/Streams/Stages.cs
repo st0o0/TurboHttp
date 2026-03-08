@@ -706,7 +706,12 @@ public class Stages
         private readonly Inlet<(IMemoryOwner<byte>, int)> _inlet = new("http20.tcp.in");
         private readonly Outlet<Http2Frame> _outlet = new("http20.frame.out");
 
-        public override FlowShape<(IMemoryOwner<byte>, int), Http2Frame> Shape => new(_inlet, _outlet);
+        public override FlowShape<(IMemoryOwner<byte>, int), Http2Frame> Shape { get; }
+
+        public Http2FrameDecoderStage()
+        {
+            Shape = new FlowShape<(IMemoryOwner<byte>, int), Http2Frame>(_inlet, _outlet);
+        }
 
         protected override GraphStageLogic CreateLogic(Attributes inheritedAttributes)
         {
@@ -723,23 +728,28 @@ public class Stages
 
             public Logic(Http2FrameDecoderStage stage) : base(stage.Shape)
             {
-                SetHandler(stage._inlet, onPush: () =>
-                {
-                    var (owner, length) = Grab(stage._inlet);
-
-                    try
+                SetHandler(stage._inlet,
+                    onPush: () =>
                     {
-                        Append(owner.Memory.Span[..length]);
-                    }
-                    finally
-                    {
-                        owner.Dispose();
-                    }
+                        var (owner, length) = Grab(stage._inlet);
 
-                    TryParse(stage);
-                });
+                        try
+                        {
+                            Append(owner.Memory.Span[..length]);
+                        }
+                        finally
+                        {
+                            owner.Dispose();
+                        }
 
-                SetHandler(stage._outlet, onPull: () => Pull(stage._inlet));
+                        TryParse(stage);
+                    },
+                    onUpstreamFinish: CompleteStage,
+                    onUpstreamFailure: FailStage);
+
+                SetHandler(stage._outlet,
+                    onPull: () => Pull(stage._inlet),
+                    onDownstreamFinish: _ => CompleteStage());
             }
 
             private void Append(ReadOnlySpan<byte> data)
@@ -770,11 +780,13 @@ public class Stages
 
             private void TryParse(Http2FrameDecoderStage stage)
             {
+                var frames = new List<Http2Frame>();
+
                 while (true)
                 {
                     if (_count < 9)
                     {
-                        return;
+                        break;
                     }
 
                     var span = _buffer.Span[.._count];
@@ -783,7 +795,7 @@ public class Stages
 
                     if (_count < 9 + length)
                     {
-                        return;
+                        break;
                     }
 
                     var type = (FrameType)span[3];
@@ -795,9 +807,16 @@ public class Stages
 
                     ShiftBuffer(9 + length);
 
-                    var frame = CreateFrame(type, flags, streamId, payload);
+                    frames.Add(CreateFrame(type, flags, streamId, payload));
+                }
 
-                    Emit(stage._outlet, frame);
+                if (frames.Count > 0)
+                {
+                    EmitMultiple(stage._outlet, frames);
+                }
+                else
+                {
+                    Pull(stage._inlet);
                 }
             }
 

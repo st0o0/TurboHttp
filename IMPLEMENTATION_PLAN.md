@@ -234,7 +234,7 @@ independently buildable.  RFC-tagged `DisplayName` attributes tie each test to a
 ---
 
 ### Phase 9 — `Http2FrameDecoderStageTests.cs` (RFC 9113 fragmentation)
-- [ ] **Status**: pending
+- [x] **Status**: done
 
 **Prerequisite**: Phase 8 complete.
 
