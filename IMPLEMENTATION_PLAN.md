@@ -173,7 +173,7 @@ needing to call anything explicitly.
 
 **File:** `src/TurboHttp/IO/TcpOptionsFactory.cs`  (new file in the IO namespace)
 
-- [ ] **TASK-TCP-01** — `TcpOptionsFactory`
+- [x] **TASK-TCP-01** — `TcpOptionsFactory`
 
   Pure static class. Converts a request URI + user config into the correct `TcpOptions`
   (or `TlsOptions`) instance.
@@ -207,25 +207,25 @@ needing to call anything explicitly.
      ```
   5. **Plain TCP** — all other schemes → `TcpOptions` with the same scalar fields
 
-- [ ] **TASK-TCP-02** — Unit tests for `TcpOptionsFactory`
+- [x] **TASK-TCP-02** — Unit tests for `TcpOptionsFactory`
 
   **File:** `src/TurboHttp.Tests/IO/TcpOptionsFactoryTests.cs`
 
-  - [ ] **TCP-001** "http://example.com"       → TcpOptions, Host="example.com", Port=80
-  - [ ] **TCP-002** "https://example.com"      → TlsOptions, Host="example.com", Port=443
-  - [ ] **TCP-003** "http://example.com:8080"  → TcpOptions, Port=8080
-  - [ ] **TCP-004** "https://example.com:8443" → TlsOptions, Port=8443
-  - [ ] **TCP-005** "http://1.2.3.4"           → TcpOptions, AddressFamily=InterNetwork
-  - [ ] **TCP-006** "http://[::1]"             → TcpOptions, AddressFamily=InterNetworkV6
-  - [ ] **TCP-007** "http://hostname"          → TcpOptions, AddressFamily=Unspecified
-  - [ ] **TCP-008** clientOptions.ConnectTimeout=30s       → result.ConnectTimeout == 30s
-  - [ ] **TCP-009** clientOptions.ReconnectInterval=2s     → result.ReconnectInterval == 2s
-  - [ ] **TCP-010** clientOptions.MaxReconnectAttempts=3   → result.MaxReconnectAttempts == 3
-  - [ ] **TCP-011** clientOptions.MaxFrameSize=256*1024    → result.MaxFrameSize == 256*1024
-  - [ ] **TCP-012** "https" + ServerCertificateValidationCallback set → callback on TlsOptions
-  - [ ] **TCP-013** "http"  + ServerCertificateValidationCallback set → TcpOptions (callback ignored — plain TCP)
-  - [ ] **TCP-014** TlsOptions.TargetHost == Host  (SNI set automatically)
-  - [ ] **TCP-015** "wss://example.com" → TlsOptions (same as https)
+  - [x] **TCP-001** "http://example.com"       → TcpOptions, Host="example.com", Port=80
+  - [x] **TCP-002** "https://example.com"      → TlsOptions, Host="example.com", Port=443
+  - [x] **TCP-003** "http://example.com:8080"  → TcpOptions, Port=8080
+  - [x] **TCP-004** "https://example.com:8443" → TlsOptions, Port=8443
+  - [x] **TCP-005** "http://1.2.3.4"           → TcpOptions, AddressFamily=InterNetwork
+  - [x] **TCP-006** "http://[::1]"             → TcpOptions, AddressFamily=InterNetworkV6
+  - [x] **TCP-007** "http://hostname"          → TcpOptions, AddressFamily=Unspecified
+  - [x] **TCP-008** clientOptions.ConnectTimeout=30s       → result.ConnectTimeout == 30s
+  - [x] **TCP-009** clientOptions.ReconnectInterval=2s     → result.ReconnectInterval == 2s
+  - [x] **TCP-010** clientOptions.MaxReconnectAttempts=3   → result.MaxReconnectAttempts == 3
+  - [x] **TCP-011** clientOptions.MaxFrameSize=256*1024    → result.MaxFrameSize == 256*1024
+  - [x] **TCP-012** "https" + ServerCertificateValidationCallback set → callback on TlsOptions
+  - [x] **TCP-013** "http"  + ServerCertificateValidationCallback set → TcpOptions (callback ignored — plain TCP)
+  - [x] **TCP-014** TlsOptions.TargetHost == Host  (SNI set automatically)
+  - [x] **TCP-015** "wss://example.com" → TlsOptions (same as https)
 
 ---
 
