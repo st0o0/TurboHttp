@@ -368,7 +368,7 @@ independently buildable.  RFC-tagged `DisplayName` attributes tie each test to a
 ---
 
 ### Phase 15 — `HostConnectionPoolTests.cs` — basic queue + version isolation (ST-POOL-001..004)
-- [ ] **Status**: pending
+- [x] **Status**: done
 
 **File**: `src/TurboHttp.StreamTests/Pool/HostConnectionPoolTests.cs`
 
