@@ -257,7 +257,7 @@ independently buildable.  RFC-tagged `DisplayName` attributes tie each test to a
 ---
 
 ### Phase 10 — `Request2Http2FrameStageTests.cs` (pseudo-headers + HPACK)
-- [ ] **Status**: pending
+- [x] **Status**: done
 
 **Prerequisite**: Phase 9 complete.
 
