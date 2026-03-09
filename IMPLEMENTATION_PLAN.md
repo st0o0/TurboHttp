@@ -267,7 +267,7 @@ needing to call anything explicitly.
 
 **File:** `src/TurboHttp/Streams/HostRoutingStage.cs`
 
-- [ ] **TASK-HRS-01** — Inject `TurboClientOptions` into `HostRoutingStage`
+- [x] **TASK-HRS-01** — Inject `TurboClientOptions` into `HostRoutingStage`
 
   `HostRoutingStage` currently builds `TcpOptions` inline with only host/port/AddressFamily.
   It has no access to user config (timeout, reconnect, TLS callbacks).
@@ -285,7 +285,7 @@ needing to call anything explicitly.
   3. Pool cache key: extend from `"{host}:{port}"` to `"{scheme}:{host}:{port}"` so that
      `http://a.test:80` and `https://a.test:80` (different TLS) get separate pools.
 
-- [ ] **TASK-HRS-02** — Unit tests for `HostRoutingStage` options merging
+- [x] **TASK-HRS-02** — Unit tests for `HostRoutingStage` options merging
 
   **File:** `src/TurboHttp.StreamTests/Streams/HostRoutingStageOptionsTests.cs`
 
@@ -294,12 +294,12 @@ needing to call anything explicitly.
   Hook via `TestClientManagerProxy` (from TEMP.md WS-2 TASK-INF-04) or by reading
   `connectionStage.Options` from the stage after materialization.
 
-  - [ ] **HRS-001** http URI → pool created with TcpOptions (not TlsOptions)
-  - [ ] **HRS-002** https URI → pool created with TlsOptions
-  - [ ] **HRS-003** clientOptions.ConnectTimeout=20s → resulting TcpOptions.ConnectTimeout == 20s
-  - [ ] **HRS-004** Two requests to same host:port:scheme → same pool reused (no second creation)
-  - [ ] **HRS-005** Two requests to different host → two separate pools
-  - [ ] **HRS-006** http://a.test and https://a.test → two separate pools (different scheme)
+  - [x] **HRS-001** http URI → pool created with TcpOptions (not TlsOptions)
+  - [x] **HRS-002** https URI → pool created with TlsOptions
+  - [x] **HRS-003** clientOptions.ConnectTimeout=20s → resulting TcpOptions.ConnectTimeout == 20s
+  - [x] **HRS-004** Two requests to same host:port:scheme → same pool reused (no second creation)
+  - [x] **HRS-005** Two requests to different host → two separate pools
+  - [x] **HRS-006** http://a.test and https://a.test → two separate pools (different scheme)
 
 ---
 

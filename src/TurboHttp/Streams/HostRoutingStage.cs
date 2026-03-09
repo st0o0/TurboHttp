@@ -1,122 +1,106 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Net.Http;
-using System.Net.Sockets;
 using Akka.Streams;
 using Akka.Streams.Stage;
+using TurboHttp.Client;
 using TurboHttp.IO;
 
 namespace TurboHttp.Streams;
 
 public sealed class HostRoutingStage : GraphStage<FlowShape<HttpRequestMessage, HttpResponseMessage>>
+{
+    private readonly Inlet<HttpRequestMessage> _inlet = new("host.pool.in");
+    private readonly Outlet<HttpResponseMessage> _outlet = new("host.pool.out");
+    private readonly TurboClientOptions _clientOptions;
+
+    public override FlowShape<HttpRequestMessage, HttpResponseMessage> Shape { get; }
+
+    internal Func<TcpOptions, Akka.Actor.ActorSystem, Action<HttpResponseMessage>, IHostConnectionPool>? PoolFactory;
+
+    public HostRoutingStage(TurboClientOptions clientOptions)
     {
-        private readonly Inlet<HttpRequestMessage> _inlet = new("host.pool.in");
-        private readonly Outlet<HttpResponseMessage> _outlet = new("host.pool.out");
+        _clientOptions = clientOptions;
+        Shape = new FlowShape<HttpRequestMessage, HttpResponseMessage>(_inlet, _outlet);
+    }
 
-        public override FlowShape<HttpRequestMessage, HttpResponseMessage> Shape { get; }
+    protected override GraphStageLogic CreateLogic(Attributes inheritedAttributes)
+        => new Logic(this);
 
-        public HostRoutingStage()
+    private sealed class Logic : GraphStageLogic
+    {
+        private readonly HostRoutingStage _stage;
+        private readonly Dictionary<string, IHostConnectionPool> _pools = new();
+        private readonly Queue<HttpResponseMessage> _responseBuffer = new();
+        private bool _downstreamWaiting;
+
+        private Action<HttpResponseMessage>? _onResponse;
+
+        public Logic(HostRoutingStage stage) : base(stage.Shape)
         {
-            Shape = new FlowShape<HttpRequestMessage, HttpResponseMessage>(_inlet, _outlet);
-        }
+            _stage = stage;
 
-        protected override GraphStageLogic CreateLogic(Attributes inheritedAttributes)
-            => new Logic(this);
-
-        private sealed class Logic : GraphStageLogic
-        {
-            private readonly HostRoutingStage _stage;
-            private readonly Dictionary<string, HostConnectionPool> _pools = new();
-            private readonly Queue<HttpResponseMessage> _responseBuffer = new();
-            private bool _downstreamWaiting;
-
-            private Action<HttpResponseMessage>? _onResponse;
-
-            public Logic(HostRoutingStage stage) : base(stage.Shape)
-            {
-                _stage = stage;
-
-                SetHandler(stage._inlet,
-                    onPush: () =>
-                    {
-                        var request = Grab(stage._inlet);
-                        var uri = request.RequestUri!;
-                        int port;
-                        if (uri.Port is -1)
-                        {
-                            port = uri.Scheme == "https" ? 443 : 80;
-                        }
-                        else
-                        {
-                            port = uri.Port;
-                        }
-
-                        var pool = GetOrCreatePool(new TcpOptions
-                        {
-                            Host = uri.Host,
-                            Port = port,
-                            AddressFamily = uri.HostNameType switch
-                            {
-                                UriHostNameType.IPv4 => AddressFamily.InterNetwork,
-                                UriHostNameType.IPv6 => AddressFamily.InterNetworkV6,
-                                _ => AddressFamily.Unspecified
-                            }
-                        });
-
-                        pool.Send(request);
-                        Pull(stage._inlet);
-                    });
-
-                SetHandler(stage._outlet,
-                    onPull: () =>
-                    {
-                        if (_responseBuffer.TryDequeue(out var response))
-                        {
-                            Push(stage._outlet, response);
-                        }
-                        else
-                        {
-                            _downstreamWaiting = true;
-                        }
-                    });
-            }
-
-            public override void PreStart()
-            {
-                _onResponse = GetAsyncCallback<HttpResponseMessage>(response =>
+            SetHandler(stage._inlet,
+                onPush: () =>
                 {
-                    if (_downstreamWaiting)
+                    var request = Grab(stage._inlet);
+                    var uri = request.RequestUri!;
+                    var options = TcpOptionsFactory.Build(uri, _stage._clientOptions);
+
+                    var pool = GetOrCreatePool(uri.Scheme, options);
+
+                    pool.Send(request);
+                    Pull(stage._inlet);
+                });
+
+            SetHandler(stage._outlet,
+                onPull: () =>
+                {
+                    if (_responseBuffer.TryDequeue(out var response))
                     {
-                        _downstreamWaiting = false;
-                        Push(_stage._outlet, response);
+                        Push(stage._outlet, response);
                     }
                     else
                     {
-                        _responseBuffer.Enqueue(response);
+                        _downstreamWaiting = true;
                     }
                 });
+        }
 
-                Pull(_stage._inlet);
-            }
-
-            private HostConnectionPool GetOrCreatePool(TcpOptions options)
+        public override void PreStart()
+        {
+            _onResponse = GetAsyncCallback<HttpResponseMessage>(response =>
             {
-                var host = options.Host;
-                var port = options.Port;
-
-                var key = $"{host}:{port}";
-
-                if (_pools.TryGetValue(key, out var pool))
+                if (_downstreamWaiting)
                 {
-                    return pool;
+                    _downstreamWaiting = false;
+                    Push(_stage._outlet, response);
                 }
+                else
+                {
+                    _responseBuffer.Enqueue(response);
+                }
+            });
 
-                var system = (Materializer as ActorMaterializer)!.System;
+            Pull(_stage._inlet);
+        }
 
-                var newPool = new HostConnectionPool(options, system, _onResponse!);
+        private IHostConnectionPool GetOrCreatePool(string scheme, TcpOptions options)
+        {
+            var key = $"{scheme}:{options.Host}:{options.Port}";
 
-                _pools[key] = newPool;
-                return newPool;
+            if (_pools.TryGetValue(key, out var pool))
+            {
+                return pool;
             }
+
+            var system = (Materializer as ActorMaterializer)!.System;
+
+            var factory = _stage.PoolFactory ?? ((opts, sys, cb) => new HostConnectionPool(opts, sys, cb));
+            var newPool = factory(options, system, _onResponse!);
+
+            _pools[key] = newPool;
+            return newPool;
         }
     }
+}
