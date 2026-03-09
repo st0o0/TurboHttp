@@ -365,7 +365,7 @@ The stream manager owns the graph lifecycle. It creates the channels, materialis
 pipeline once on construction, and exposes the raw `ChannelWriter`/`ChannelReader` ends
 for callers to use directly.
 
-- [ ] **TASK-MGR-01** — `TurboClientStreamManager`
+- [x] **TASK-MGR-01** — `TurboClientStreamManager`
 
   ```csharp
   public sealed class TurboClientStreamManager
@@ -408,14 +408,14 @@ for callers to use directly.
   throwing. Writing to `Requests` and reading from `Responses` works end-to-end in an
   integration test.
 
-- [ ] **TASK-MGR-02** — Unit tests for `TurboClientStreamManager` channels
+- [x] **TASK-MGR-02** — Unit tests for `TurboClientStreamManager` channels
 
   **File:** `src/TurboHttp.StreamTests/Client/TurboClientStreamManagerTests.cs`
 
-  - [ ] **MGR-001** Manager creates without throwing; Requests + Responses are non-null
-  - [ ] **MGR-002** Writing a request to Requests channel → request appears enriched downstream (via a fake stage probe)
-  - [ ] **MGR-003** Writing a response into the internal sink callback → readable from Responses channel
-  - [ ] **MGR-004** Manager handles backpressure: Requests channel blocks when internal queue is full (bounded channel test)
+  - [x] **MGR-001** Manager creates without throwing; Requests + Responses are non-null
+  - [x] **MGR-002** Writing a request to Requests channel → request appears enriched downstream (via a fake stage probe)
+  - [x] **MGR-003** Writing a response into the internal sink callback → readable from Responses channel
+  - [x] **MGR-004** Manager handles backpressure: Requests channel blocks when internal queue is full (bounded channel test)
 
 ---
 
