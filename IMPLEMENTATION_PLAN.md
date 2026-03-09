@@ -348,7 +348,7 @@ independently buildable.  RFC-tagged `DisplayName` attributes tie each test to a
 ---
 
 ### Phase 14 — `EngineRoutingTests.cs` — concurrency + edge cases (ST-ENG-004..006)
-- [ ] **Status**: pending
+- [x] **Status**: done
 
 **Prerequisite**: Phase 13 complete.
 
