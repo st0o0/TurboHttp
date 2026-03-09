@@ -97,7 +97,7 @@ needing to call anything explicitly.
 
   **Acceptance:** `new TurboClientOptions()` compiles with no required parameters.
 
-- [ ] **TASK-ENR-02** — `RequestEnricherStage`
+- [x] **TASK-ENR-02** — `RequestEnricherStage`
 
   **File:** `src/TurboHttp/Streams/Stages/RequestEnricherStage.cs`
 
@@ -143,29 +143,29 @@ needing to call anything explicitly.
   Stage is a pure pass-through: it mutates the element and pushes it forward, one-for-one.
   No buffering, no async.
 
-- [ ] **TASK-ENR-03** — Unit tests for `RequestEnricherStage`
+- [x] **TASK-ENR-03** — Unit tests for `RequestEnricherStage`
 
   **File:** `src/TurboHttp.StreamTests/Streams/RequestEnricherStageTests.cs`
 
   Use `Source.From(requests).Via(new RequestEnricherStage(...)).RunWith(Sink.Seq(), mat)`.
   No real TCP needed — pure stream logic test using `AkkaSpec` / `TestKit`.
 
-  - [ ] **ENR-001** Null URI + BaseAddress → RequestUri becomes BaseAddress root
-  - [ ] **ENR-002** Relative URI "/ping" + BaseAddress "http://a.test" → "http://a.test/ping"
-  - [ ] **ENR-003** Absolute URI → RequestUri unchanged even when BaseAddress is set
-  - [ ] **ENR-004** Null URI, null BaseAddress → stage fails with InvalidOperationException
-  - [ ] **ENR-005** Relative URI, null BaseAddress → stage fails with InvalidOperationException
-  - [ ] **ENR-006** request.Version == 1.1 (default), defaultVersion == 2.0 → version becomes 2.0
-  - [ ] **ENR-007** request.Version == 1.1 (default), defaultVersion == 1.1 → version unchanged
-  - [ ] **ENR-008** request.Version explicitly set to 1.0 → unchanged regardless of defaultVersion
-  - [ ] **ENR-009** request.Version explicitly set to 2.0 → unchanged regardless of defaultVersion
-  - [ ] **ENR-010** DefaultRequestHeaders has X-Foo:bar → merged into request
-  - [ ] **ENR-011** Request already has X-Foo:existing → not overridden; existing value kept
-  - [ ] **ENR-012** DefaultRequestHeaders has two headers → both merged
-  - [ ] **ENR-013** DefaultRequestHeaders empty → no headers added; request unchanged
-  - [ ] **ENR-014** Same header name, different casing in request vs defaults → treated as same; not doubled
-  - [ ] **ENR-015** DefaultRequestHeaders has multiple values for one name → all values added as one entry
-  - [ ] **ENR-016** 3 requests in sequence → all 3 enriched independently, order preserved
+  - [x] **ENR-001** Null URI + BaseAddress → RequestUri becomes BaseAddress root
+  - [x] **ENR-002** Relative URI "/ping" + BaseAddress "http://a.test" → "http://a.test/ping"
+  - [x] **ENR-003** Absolute URI → RequestUri unchanged even when BaseAddress is set
+  - [x] **ENR-004** Null URI, null BaseAddress → stage fails with InvalidOperationException
+  - [x] **ENR-005** Relative URI, null BaseAddress → stage fails with InvalidOperationException
+  - [x] **ENR-006** request.Version == 1.1 (default), defaultVersion == 2.0 → version becomes 2.0
+  - [x] **ENR-007** request.Version == 1.1 (default), defaultVersion == 1.1 → version unchanged
+  - [x] **ENR-008** request.Version explicitly set to 1.0 → unchanged regardless of defaultVersion
+  - [x] **ENR-009** request.Version explicitly set to 2.0 → unchanged regardless of defaultVersion
+  - [x] **ENR-010** DefaultRequestHeaders has X-Foo:bar → merged into request
+  - [x] **ENR-011** Request already has X-Foo:existing → not overridden; existing value kept
+  - [x] **ENR-012** DefaultRequestHeaders has two headers → both merged
+  - [x] **ENR-013** DefaultRequestHeaders empty → no headers added; request unchanged
+  - [x] **ENR-014** Same header name, different casing in request vs defaults → treated as same; not doubled
+  - [x] **ENR-015** DefaultRequestHeaders has multiple values for one name → all values added as one entry
+  - [x] **ENR-016** 3 requests in sequence → all 3 enriched independently, order preserved
 
 ---
 
