@@ -304,7 +304,7 @@ independently buildable.  RFC-tagged `DisplayName` attributes tie each test to a
 ---
 
 ### Phase 12 — `Http20EngineTests.cs` — multi-stream + SETTINGS ACK (ST-20-ENG-005..008)
-- [ ] **Status**: pending
+- [x] **Status**: done
 
 **Prerequisite**: Phase 11 complete.
 
