@@ -1,4 +1,5 @@
 ﻿using System.Buffers;
+using System.Collections.Generic;
 using System.Drawing;
 using System.Net.Http;
 using System.Security.Cryptography;
@@ -18,18 +19,26 @@ public class Http11Engine : IHttpProtocolEngine
     {
         return BidiFlow.FromGraph(GraphDsl.Create(b =>
         {
-            var requestEncoder = b.Add(new Http11EncoderStage());
-            var responseDecoder = b.Add(new Http11DecoderStage());
+            var encoder = b.Add(new Http11EncoderStage());
+            var decoder = b.Add(new Http11DecoderStage());
+            var correlation = b.Add(new CorrelationStage());
+
+            var requestBCast = b.Add(new Broadcast<HttpRequestMessage>(2));
+
+            b.From(requestBCast.Out(0)).To(encoder.Inlet);
+            b.From(requestBCast.Out(1)).To(correlation.In0);
+
+            b.From(decoder.Outlet).To(correlation.In1);
 
             return new BidiShape<
                 HttpRequestMessage,
                 (IMemoryOwner<byte>, int),
                 (IMemoryOwner<byte>, int),
                 HttpResponseMessage>(
-                requestEncoder.Inlet,
-                requestEncoder.Outlet,
-                responseDecoder.Inlet,
-                responseDecoder.Outlet);
+                requestBCast.In,
+                encoder.Outlet,
+                decoder.Inlet,
+                correlation.Out);
         }));
     }
 }
@@ -136,6 +145,83 @@ internal sealed class ExtractOptionsStage : GraphStage<FanOutShape<HttpRequest, 
                         Pull(stage.Shape.In);
                     }
                 }, onDownstreamFinish: _ => CompleteStage());
+        }
+    }
+}
+
+internal sealed class
+    CorrelationStage : GraphStage<FanInShape<HttpRequestMessage, HttpResponseMessage, HttpResponseMessage>>
+{
+    private readonly Inlet<HttpRequestMessage> _requestIn = new("correlation.request.in");
+    private readonly Inlet<HttpResponseMessage> _responseIn = new("correlation.response.in");
+    private readonly Outlet<HttpResponseMessage> _out = new("correlation.out");
+
+    public override FanInShape<HttpRequestMessage, HttpResponseMessage, HttpResponseMessage> Shape { get; }
+
+    public CorrelationStage()
+    {
+        Shape = new FanInShape<HttpRequestMessage, HttpResponseMessage, HttpResponseMessage>(
+            _out, _requestIn, _responseIn);
+    }
+
+    protected override GraphStageLogic CreateLogic(Attributes inheritedAttributes)
+        => new Logic(this);
+
+    private sealed class Logic : GraphStageLogic
+    {
+        private readonly Queue<HttpRequestMessage> _pending = new();
+
+        private readonly Queue<HttpResponseMessage> _waiting = new();
+
+        public Logic(CorrelationStage stage) : base(stage.Shape)
+        {
+            SetHandler(stage._requestIn,
+                onPush: () =>
+                {
+                    _pending.Enqueue(Grab(stage._requestIn));
+                    TryCorrelateAndEmit(stage);
+                    Pull(stage._requestIn);
+                },
+                onUpstreamFinish: () =>
+                {
+                    if (_pending.Count == 0 && _waiting.Count == 0)
+                    {
+                        CompleteStage();
+                    }
+                });
+
+            SetHandler(stage._responseIn,
+                onPush: () =>
+                {
+                    _waiting.Enqueue(Grab(stage._responseIn));
+                    TryCorrelateAndEmit(stage);
+                },
+                onUpstreamFinish: () =>
+                {
+                    if (_pending.Count == 0 && _waiting.Count == 0)
+                    {
+                        CompleteStage();
+                    }
+                });
+
+            SetHandler(stage._out,
+                onPull: () =>
+                {
+                    if (!HasBeenPulled(stage._responseIn))
+                    {
+                        Pull(stage._responseIn);
+                    }
+                });
+        }
+
+        private void TryCorrelateAndEmit(CorrelationStage stage)
+        {
+            while (_pending.Count > 0 && _waiting.Count > 0 && IsAvailable(stage._out))
+            {
+                var response = _waiting.Dequeue();
+                response.RequestMessage = _pending.Dequeue();
+                Push(stage._out, response);
+            }
         }
     }
 }

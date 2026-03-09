@@ -44,38 +44,40 @@ public sealed class Http2RequestEncoder(bool useHuffman = false, int maxFrameSiz
         var frames = new List<Http2Frame>();
         EncodeHeaders(frames, streamId, headerBlock, hasBody);
 
-        if (hasBody)
+        if (!hasBody)
         {
-            var body = request.Content!.ReadAsByteArrayAsync().GetAwaiter().GetResult();
-            if (body.Length > 0)
-            {
-                var streamWindow = _streamSendWindows.GetValueOrDefault(streamId, 65535L);
-                var effectiveWindow = Math.Max(0L, Math.Min(_connectionSendWindow, streamWindow));
-                var bytesToSend = (int)Math.Min(body.Length, effectiveWindow);
+            return (streamId, frames);
+        }
 
-                _connectionSendWindow -= bytesToSend;
-                _streamSendWindows[streamId] = streamWindow - bytesToSend;
+        var body = request.Content!.ReadAsByteArrayAsync().GetAwaiter().GetResult();
+        if (body.Length > 0)
+        {
+            var streamWindow = _streamSendWindows.GetValueOrDefault(streamId, 65535L);
+            var effectiveWindow = Math.Max(0L, Math.Min(_connectionSendWindow, streamWindow));
+            var bytesToSend = (int)Math.Min(body.Length, effectiveWindow);
 
-                if (bytesToSend == 0)
-                {
-                    frames.Add(new DataFrame(streamId, Array.Empty<byte>(), endStream: true));
-                }
-                else
-                {
-                    var offset = 0;
-                    while (offset < bytesToSend)
-                    {
-                        var chunkSize = Math.Min(bytesToSend - offset, _maxFrameSize);
-                        var isLast = offset + chunkSize >= bytesToSend;
-                        frames.Add(new DataFrame(streamId, body[offset..(offset + chunkSize)], endStream: isLast));
-                        offset += chunkSize;
-                    }
-                }
-            }
-            else
+            _connectionSendWindow -= bytesToSend;
+            _streamSendWindows[streamId] = streamWindow - bytesToSend;
+
+            if (bytesToSend == 0)
             {
                 frames.Add(new DataFrame(streamId, Array.Empty<byte>(), endStream: true));
             }
+            else
+            {
+                var offset = 0;
+                while (offset < bytesToSend)
+                {
+                    var chunkSize = Math.Min(bytesToSend - offset, _maxFrameSize);
+                    var isLast = offset + chunkSize >= bytesToSend;
+                    frames.Add(new DataFrame(streamId, body.AsMemory()[offset..(offset + chunkSize)], endStream: isLast));
+                    offset += chunkSize;
+                }
+            }
+        }
+        else
+        {
+            frames.Add(new DataFrame(streamId, Array.Empty<byte>(), endStream: true));
         }
 
         return (streamId, frames);
@@ -85,7 +87,7 @@ public sealed class Http2RequestEncoder(bool useHuffman = false, int maxFrameSiz
     /// TEST ONLY: Encodes a request and returns serialized bytes with total size.
     /// Used by integration tests that need to compare frame sizes for compression verification.
     /// </summary>
-    public (int StreamId, int BytesWritten) EncodeToBytes(HttpRequestMessage request)
+    internal (int StreamId, int BytesWritten) EncodeToBytes(HttpRequestMessage request)
     {
         ArgumentNullException.ThrowIfNull(request);
 
@@ -98,7 +100,7 @@ public sealed class Http2RequestEncoder(bool useHuffman = false, int maxFrameSiz
     /// TEST ONLY: Encodes a request into a buffer and returns stream ID and bytes written.
     /// Span-based API for compatibility with test code that needs buffer control.
     /// </summary>
-    public (int StreamId, int BytesWritten) Encode(HttpRequestMessage request, ref Memory<byte> buffer)
+    internal (int StreamId, int BytesWritten) Encode(HttpRequestMessage request, ref Memory<byte> buffer)
     {
         ArgumentNullException.ThrowIfNull(request);
 

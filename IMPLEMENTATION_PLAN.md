@@ -308,7 +308,7 @@ needing to call anything explicitly.
 `SendAsync` needs to match each `HttpResponseMessage` back to the `HttpRequestMessage`
 that caused it. This requires `response.RequestMessage` to be set inside the stream.
 
-- [ ] **TASK-REQ-01** — Audit current decoder stages
+- [x] **TASK-REQ-01** — Audit current decoder stages
 
   **File:** Check `Http11DecoderStage`, `Http20StreamStage`.
 
@@ -317,7 +317,7 @@ that caused it. This requires `response.RequestMessage` to be set inside the str
   - If yes → skip TASK-REQ-02.
   - If no (expected) → implement TASK-REQ-02.
 
-- [ ] **TASK-REQ-02** — Correlation in `Http11Engine` (if needed)
+- [x] **TASK-REQ-02** — Correlation in `Http11Engine` (if needed)
 
   **File:** `src/TurboHttp/Streams/Http11Engine.cs`
 
@@ -346,14 +346,14 @@ that caused it. This requires `response.RequestMessage` to be set inside the str
   For HTTP/2, correlation already exists via stream IDs inside `Http20StreamStage` —
   verify separately (TASK-REQ-01).
 
-- [ ] **TASK-REQ-03** — Unit tests for HTTP/1.1 correlation
+- [x] **TASK-REQ-03** — Unit tests for HTTP/1.1 correlation
 
-  **File:** `src/TurboHttp.StreamTests/Streams/Http11ResponseCorrelationTests.cs`
+  **File:** `src/TurboHttp.StreamTests/Http11/Http11ResponseCorrelationTests.cs`
 
-  - [ ] **REQ-001** Single request/response pair → response.RequestMessage == request
-  - [ ] **REQ-002** 5 sequential requests → each response.RequestMessage matches the correct request in order
-  - [ ] **REQ-003** response.RequestMessage is the exact same object instance (reference equality)
-  - [ ] **REQ-004** Http11Engine flow with fake TCP (EngineFakeConnectionStage) — correlation preserved
+  - [x] **REQ-001** Single request/response pair → response.RequestMessage == request
+  - [x] **REQ-002** 5 sequential requests → each response.RequestMessage matches the correct request in order
+  - [x] **REQ-003** response.RequestMessage is the exact same object instance (reference equality)
+  - [x] **REQ-004** Http11Engine flow with fake TCP (EngineFakeConnectionStage) — correlation preserved
 
 ---
 

@@ -14,18 +14,26 @@ public class Http10Engine : IHttpProtocolEngine
     {
         return BidiFlow.FromGraph(GraphDsl.Create(b =>
         {
-            var requestEncoder = b.Add(new Http10EncoderStage());
-            var responseDecoder = b.Add(new Http10DecoderStage());
+            var encoder = b.Add(new Http10EncoderStage());
+            var decoder = b.Add(new Http10DecoderStage());
+            var correlation = b.Add(new CorrelationStage());
+
+            var requestBCast = b.Add(new Broadcast<HttpRequestMessage>(2));
+
+            b.From(requestBCast).To(encoder.Inlet);
+            b.From(requestBCast).To(correlation.In0);
+
+            b.From(decoder.Outlet).To(correlation.In1);
 
             return new BidiShape<
                 HttpRequestMessage,
                 (IMemoryOwner<byte>, int),
                 (IMemoryOwner<byte>, int),
                 HttpResponseMessage>(
-                requestEncoder.Inlet,
-                requestEncoder.Outlet,
-                responseDecoder.Inlet,
-                responseDecoder.Outlet);
+                requestBCast.In,
+                encoder.Outlet,
+                decoder.Inlet,
+                correlation.Out);
         }));
     }
 }
