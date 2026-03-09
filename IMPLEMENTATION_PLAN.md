@@ -390,7 +390,7 @@ independently buildable.  RFC-tagged `DisplayName` attributes tie each test to a
 ---
 
 ### Phase 16 — `HostConnectionPoolTests.cs` — connection isolation + backpressure (ST-POOL-005..008)
-- [ ] **Status**: pending
+- [x] **Status**: done
 
 **Prerequisite**: Phase 15 complete.
 
