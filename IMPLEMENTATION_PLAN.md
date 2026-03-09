@@ -325,7 +325,7 @@ independently buildable.  RFC-tagged `DisplayName` attributes tie each test to a
 ---
 
 ### Phase 13 — `EngineRoutingTests.cs` — version routing (ST-ENG-001..003)
-- [ ] **Status**: pending
+- [x] **Status**: done
 
 **File**: `src/TurboHttp.StreamTests/Engine/EngineRoutingTests.cs`
 
