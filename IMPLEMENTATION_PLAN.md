@@ -280,7 +280,7 @@ independently buildable.  RFC-tagged `DisplayName` attributes tie each test to a
 ---
 
 ### Phase 11 — `Http20EngineTests.cs` — single stream (ST-20-ENG-001..004)
-- [ ] **Status**: pending
+- [x] **Status**: done
 
 **Prerequisite**: Phase 10 complete.
 
