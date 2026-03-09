@@ -233,7 +233,7 @@ needing to call anything explicitly.
 
 **File:** `src/TurboHttp/IO/ClientManager.cs`
 
-- [ ] **TASK-CLT-01** — Detect `TlsOptions` and create the right provider
+- [x] **TASK-CLT-01** — Detect `TlsOptions` and create the right provider
 
   Current code always does `new TcpClientProvider(msg.Options)`.
   Change the `Handle(CreateTcpRunner)` method:
@@ -248,13 +248,13 @@ needing to call anything explicitly.
 
   **Acceptance:** Compile. Existing tests pass.
 
-- [ ] **TASK-CLT-02** — Unit tests for provider selection
+- [x] **TASK-CLT-02** — Unit tests for provider selection
 
   **File:** `src/TurboHttp.Tests/IO/ClientManagerProviderSelectionTests.cs`
 
-  - [ ] **CLT-001** TcpOptions passed → no StreamProvider → would create TcpClientProvider
-  - [ ] **CLT-002** TlsOptions passed → no StreamProvider → would create TlsClientProvider
-  - [ ] **CLT-003** StreamProvider explicitly set → that provider used regardless of Options type
+  - [x] **CLT-001** TcpOptions passed → no StreamProvider → would create TcpClientProvider
+  - [x] **CLT-002** TlsOptions passed → no StreamProvider → would create TlsClientProvider
+  - [x] **CLT-003** StreamProvider explicitly set → that provider used regardless of Options type
 
   > Since `TcpClientProvider.GetStream()` opens a real socket, test via the
   > `StreamProvider` injection path: pass a mock `IClientProvider` and assert the mock's

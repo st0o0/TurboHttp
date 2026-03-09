@@ -17,7 +17,11 @@ public sealed class ClientManager : ReceiveActor
 
     private void Handle(CreateTcpRunner msg)
     {
-        var provider = msg.StreamProvider ?? new TcpClientProvider(msg.Options);
+        var provider = msg.StreamProvider ?? msg.Options switch
+        {
+            TlsOptions tls => (IClientProvider)new TlsClientProvider(tls),
+            TcpOptions tcp =>                   new TcpClientProvider(tcp)
+        };
         var host = msg.Options.Host;
         var port = msg.Options.Port;
         var name = $"tcp-runner-{host.Replace(".", "-")}-{port}-{Guid.NewGuid()}";
