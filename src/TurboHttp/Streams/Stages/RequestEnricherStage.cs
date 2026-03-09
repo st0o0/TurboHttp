@@ -10,21 +10,21 @@ namespace TurboHttp.Streams.Stages;
 internal sealed class RequestEnricherStage
     : GraphStage<FlowShape<HttpRequestMessage, HttpRequestMessage>>
 {
-    private readonly Uri?               _baseAddress;
-    private readonly Version            _defaultVersion;
+    private readonly Uri? _baseAddress;
+    private readonly Version _defaultVersion;
     private readonly HttpRequestHeaders _defaultHeaders;
 
-    private readonly Inlet<HttpRequestMessage>  _inlet  = new("enricher.in");
+    private readonly Inlet<HttpRequestMessage> _inlet = new("enricher.in");
     private readonly Outlet<HttpRequestMessage> _outlet = new("enricher.out");
 
     public override FlowShape<HttpRequestMessage, HttpRequestMessage> Shape { get; }
 
     public RequestEnricherStage(
-        Uri?               baseAddress,
-        Version            defaultVersion,
+        Uri? baseAddress,
+        Version defaultVersion,
         HttpRequestHeaders defaultHeaders)
     {
-        _baseAddress    = baseAddress;
+        _baseAddress = baseAddress;
         _defaultVersion = defaultVersion;
         _defaultHeaders = defaultHeaders;
 

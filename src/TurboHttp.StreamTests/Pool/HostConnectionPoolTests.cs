@@ -133,7 +133,7 @@ public sealed class HostConnectionPoolTests : EngineTestBase
 
     // ── tests ─────────────────────────────────────────────────────────────
 
-    [Fact(DisplayName = "ST-POOL-001: HTTP/1.0 request through pool returns correct status and version")]
+    [Fact(Timeout = 10_000, DisplayName = "ST-POOL-001: HTTP/1.0 request through pool returns correct status and version")]
     public async Task Http10_Request_Through_Pool_Returns_Correct_Status_And_Version()
     {
         var tcs = new TaskCompletionSource<HttpResponseMessage>();
@@ -151,7 +151,7 @@ public sealed class HostConnectionPoolTests : EngineTestBase
         Assert.Equal(HttpVersion.Version10, response.Version);
     }
 
-    [Fact(DisplayName = "ST-POOL-002: HTTP/1.1 request through pool returns correct status and version")]
+    [Fact(Timeout = 10_000, DisplayName = "ST-POOL-002: HTTP/1.1 request through pool returns correct status and version")]
     public async Task Http11_Request_Through_Pool_Returns_Correct_Status_And_Version()
     {
         var tcs = new TaskCompletionSource<HttpResponseMessage>();
@@ -169,7 +169,7 @@ public sealed class HostConnectionPoolTests : EngineTestBase
         Assert.Equal(HttpVersion.Version11, response.Version);
     }
 
-    [Fact(DisplayName = "ST-POOL-003: HTTP/2.0 request through pool returns correct status and version")]
+    [Fact(Timeout = 10_000, DisplayName = "ST-POOL-003: HTTP/2.0 request through pool returns correct status and version")]
     public async Task Http20_Request_Through_Pool_Returns_Correct_Status_And_Version()
     {
         var tcs = new TaskCompletionSource<HttpResponseMessage>();
@@ -187,7 +187,7 @@ public sealed class HostConnectionPoolTests : EngineTestBase
         Assert.Equal(HttpVersion.Version20, response.Version);
     }
 
-    [Fact(DisplayName = "ST-POOL-004: Mixed-version batch via pool: each response version matches request")]
+    [Fact(Timeout = 10_000, DisplayName = "ST-POOL-004: Mixed-version batch via pool: each response version matches request")]
     public async Task Mixed_Version_Batch_Via_Pool_Each_Response_Version_Matches_Request()
     {
         var results = new List<HttpResponseMessage>();
@@ -224,7 +224,7 @@ public sealed class HostConnectionPoolTests : EngineTestBase
         Assert.Contains(results, r => r.Version == HttpVersion.Version20);
     }
 
-    [Fact(DisplayName = "ST-POOL-005: HTTP/1.0 bytes only reach HTTP/1.0 fake connection")]
+    [Fact(Timeout = 10_000, DisplayName = "ST-POOL-005: HTTP/1.0 bytes only reach HTTP/1.0 fake connection")]
     public async Task Http10_Bytes_Only_Reach_Http10_Fake_Connection()
     {
         var tcs = new TaskCompletionSource<HttpResponseMessage>();
@@ -243,7 +243,7 @@ public sealed class HostConnectionPoolTests : EngineTestBase
         Assert.Equal(0, counts.Http20);
     }
 
-    [Fact(DisplayName = "ST-POOL-006: HTTP/1.1 bytes only reach HTTP/1.1 fake connection")]
+    [Fact(Timeout = 10_000, DisplayName = "ST-POOL-006: HTTP/1.1 bytes only reach HTTP/1.1 fake connection")]
     public async Task Http11_Bytes_Only_Reach_Http11_Fake_Connection()
     {
         var tcs = new TaskCompletionSource<HttpResponseMessage>();
@@ -262,7 +262,7 @@ public sealed class HostConnectionPoolTests : EngineTestBase
         Assert.Equal(0, counts.Http20);
     }
 
-    [Fact(DisplayName = "ST-POOL-007: HTTP/2.0 bytes only reach HTTP/2.0 fake connection")]
+    [Fact(Timeout = 10_000, DisplayName = "ST-POOL-007: HTTP/2.0 bytes only reach HTTP/2.0 fake connection")]
     public async Task Http20_Bytes_Only_Reach_Http20_Fake_Connection()
     {
         var tcs = new TaskCompletionSource<HttpResponseMessage>();
@@ -281,7 +281,7 @@ public sealed class HostConnectionPoolTests : EngineTestBase
         Assert.Equal(1, counts.Http20);
     }
 
-    [Fact(DisplayName = "ST-POOL-008: Backpressure: queue of 256 requests does not deadlock")]
+    [Fact(Timeout = 10_000, DisplayName = "ST-POOL-008: Backpressure: queue of 256 requests does not deadlock")]
     public async Task Backpressure_Queue_Of_256_Requests_Does_Not_Deadlock()
     {
         var results = new List<HttpResponseMessage>();

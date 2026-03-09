@@ -1,7 +1,10 @@
 using System;
+using System.Buffers;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Net.Http;
+using System.Threading;
 
 namespace TurboHttp.Protocol;
 
@@ -14,26 +17,23 @@ public sealed class Http2RequestEncoder(bool useHuffman = false, int maxFrameSiz
 {
     private readonly HpackEncoder _hpack = new(useHuffman);
     private int _maxFrameSize = maxFrameSize;
-    private int _nextStreamId = 1;
     private long _connectionSendWindow = 65535; // Tracks connection-level flow control (for RFC 7540 compliance)
     private readonly Dictionary<int, long> _streamSendWindows = new();
+    private int _nextStreamId = 1; // Client stream IDs: odd numbers starting at 1
 
     /// <summary>
     /// Encodes a request to HTTP/2 frames. Returns the stream ID and frame list.
     /// Thread-safety: not thread-safe (one stream at a time per connection).
     /// </summary>
-    public (int StreamId, IReadOnlyList<Http2Frame> Frames) Encode(HttpRequestMessage request)
+    public (int StreamId, IReadOnlyList<Http2Frame> Frames) Encode(HttpRequestMessage request, int streamId)
     {
         ArgumentNullException.ThrowIfNull(request);
         ArgumentNullException.ThrowIfNull(request.RequestUri);
 
-        if (_nextStreamId < 0)
+        if (streamId < 0)
         {
             throw new Http2Exception("HTTP/2 stream ID space exhausted: all client stream IDs have been used.");
         }
-
-        var streamId = _nextStreamId;
-        _nextStreamId += 2;
 
         var headers = BuildHeaderList(request);
         ValidatePseudoHeaders(headers);
@@ -49,7 +49,9 @@ public sealed class Http2RequestEncoder(bool useHuffman = false, int maxFrameSiz
             return (streamId, frames);
         }
 
-        var body = request.Content!.ReadAsByteArrayAsync().GetAwaiter().GetResult();
+        using var ms = new MemoryStream();
+        request.Content!.CopyTo(ms, null, new CancellationToken(false));
+        var body = ms.ToArray();
         if (body.Length > 0)
         {
             var streamWindow = _streamSendWindows.GetValueOrDefault(streamId, 65535L);
@@ -70,7 +72,8 @@ public sealed class Http2RequestEncoder(bool useHuffman = false, int maxFrameSiz
                 {
                     var chunkSize = Math.Min(bytesToSend - offset, _maxFrameSize);
                     var isLast = offset + chunkSize >= bytesToSend;
-                    frames.Add(new DataFrame(streamId, body.AsMemory()[offset..(offset + chunkSize)], endStream: isLast));
+                    frames.Add(
+                        new DataFrame(streamId, body.AsMemory()[offset..(offset + chunkSize)], endStream: isLast));
                     offset += chunkSize;
                 }
             }
@@ -91,9 +94,10 @@ public sealed class Http2RequestEncoder(bool useHuffman = false, int maxFrameSiz
     {
         ArgumentNullException.ThrowIfNull(request);
 
-        var (streamId, frames) = Encode(request);
+        var streamId = AllocateStreamId();
+        var (sid, frames) = Encode(request, streamId);
         var totalSize = frames.Sum(f => f.SerializedSize);
-        return (streamId, totalSize);
+        return (sid, totalSize);
     }
 
     /// <summary>
@@ -104,7 +108,8 @@ public sealed class Http2RequestEncoder(bool useHuffman = false, int maxFrameSiz
     {
         ArgumentNullException.ThrowIfNull(request);
 
-        var (streamId, frames) = Encode(request);
+        var streamId = AllocateStreamId();
+        var (_, frames) = Encode(request, streamId);
         var totalWritten = 0;
 
         foreach (var frame in frames)
@@ -138,8 +143,7 @@ public sealed class Http2RequestEncoder(bool useHuffman = false, int maxFrameSiz
         return _hpack.Encode(headers).ToArray();
     }
 
-    private void EncodeHeaders(
-        List<Http2Frame> frames, int streamId, byte[] headerBlock, bool hasBody)
+    private void EncodeHeaders(List<Http2Frame> frames, int streamId, byte[] headerBlock, bool hasBody)
     {
         if (headerBlock.Length <= _maxFrameSize)
         {
@@ -365,6 +369,74 @@ public sealed class Http2RequestEncoder(bool useHuffman = false, int maxFrameSiz
                 _maxFrameSize = (int)val;
             }
         }
+    }
+
+    private void CopyBodyToFrames(Stream bodyStream, int streamId, List<Http2Frame> frames)
+    {
+        var pool = MemoryPool<byte>.Shared;
+        using var owner = pool.Rent(_maxFrameSize);
+        var buffer = owner.Memory;
+
+        var isEndOfStream = false;
+
+        while (!isEndOfStream)
+        {
+            var streamWindow = _streamSendWindows.GetValueOrDefault(streamId, 65535L);
+            var effectiveWindow = Math.Max(0L, Math.Min(_connectionSendWindow, streamWindow));
+            if (effectiveWindow <= 0)
+            {
+                frames.Add(new DataFrame(streamId, ReadOnlyMemory<byte>.Empty, endStream: true));
+                return;
+            }
+
+            var toRead = (int)Math.Min(buffer.Length, effectiveWindow);
+            var read = bodyStream.Read(buffer.Span[..toRead]);
+
+            if (read == 0)
+            {
+                isEndOfStream = true;
+                if (frames.Count == 0 || frames[^1] is not DataFrame)
+                {
+                    frames.Add(new DataFrame(streamId, ReadOnlyMemory<byte>.Empty, endStream: true));
+                }
+                else
+                {
+                    var lastFrame = (DataFrame)frames[^1];
+                    frames[^1] = new DataFrame(lastFrame.StreamId, lastFrame.Data, endStream: true);
+                }
+
+                continue;
+            }
+
+            _connectionSendWindow -= read;
+            _streamSendWindows[streamId] = streamWindow - read;
+
+            var remaining = read;
+            var offset = 0;
+
+            while (remaining > 0)
+            {
+                var chunkSize = Math.Min(remaining, _maxFrameSize);
+                var slice = buffer.Slice(offset, chunkSize);
+
+                frames.Add(new DataFrame(streamId, slice, endStream: false));
+
+                offset += chunkSize;
+                remaining -= chunkSize;
+            }
+        }
+    }
+
+
+    /// <summary>
+    /// Allocates the next client stream ID (odd numbers: 1, 3, 5, ...).
+    /// Used by test-only overloads that do not receive an explicit stream ID.
+    /// </summary>
+    private int AllocateStreamId()
+    {
+        var id = _nextStreamId;
+        _nextStreamId += 2;
+        return id;
     }
 
     // Forbidden connection-specific headers per RFC 9113 §8.2.2

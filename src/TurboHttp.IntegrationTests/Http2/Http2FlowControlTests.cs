@@ -110,7 +110,7 @@ public sealed class Http2FlowControlTests
         Assert.True(bytesWritten2 > 0);
     }
 
-    [Fact(DisplayName = "IT-2A-033: Connection WINDOW_UPDATE resumes large body transfer over real connection")]
+    [Fact(Timeout = 10_000, DisplayName = "IT-2A-033: Connection WINDOW_UPDATE resumes large body transfer over real connection")]
     public async Task Should_ReceiveLargeBody_When_ConnectionWindowUpdatedByServer()
     {
         // This test verifies the Http2Connection auto-WINDOW_UPDATE mechanism for large bodies.
@@ -123,7 +123,7 @@ public sealed class Http2FlowControlTests
         Assert.Equal(128 * 1024, body.Length);
     }
 
-    [Fact(DisplayName = "IT-2A-034: Mixed stream + connection flow control — both windows respected")]
+    [Fact(Timeout = 10_000, DisplayName = "IT-2A-034: Mixed stream + connection flow control — both windows respected")]
     public async Task Should_HandleBothFlowControlWindows_When_LargeBodiesUsed()
     {
         await using var conn = await Http2Connection.OpenAsync(_fixture.Port);
@@ -139,7 +139,7 @@ public sealed class Http2FlowControlTests
         }
     }
 
-    [Fact(DisplayName = "IT-2A-035: Default stream window is 65535 bytes")]
+    [Fact(Timeout = 10_000, DisplayName = "IT-2A-035: Default stream window is 65535 bytes")]
     public async Task Should_HaveDefaultStreamWindow_When_NewStreamCreated()
     {
         await using var conn = await Http2Connection.OpenAsync(_fixture.Port);
@@ -198,7 +198,7 @@ public sealed class Http2FlowControlTests
         Assert.Equal(Http2ErrorCode.ProtocolError, ex.ErrorCode);
     }
 
-    [Fact(DisplayName = "IT-2A-039: 64 KB body fits in initial connection window — delivered without WINDOW_UPDATE")]
+    [Fact(Timeout = 10_000, DisplayName = "IT-2A-039: 64 KB body fits in initial connection window — delivered without WINDOW_UPDATE")]
     public async Task Should_DeliverBody_When_64KbBodyFitsInInitialWindow()
     {
         // 64 KB = 65536 bytes, slightly above the 65535-byte initial window.
@@ -212,7 +212,7 @@ public sealed class Http2FlowControlTests
         Assert.Equal(64 * 1024, body.Length);
     }
 
-    [Fact(DisplayName = "IT-2A-040: 128 KB body requires WINDOW_UPDATE mid-transfer — fully received")]
+    [Fact(Timeout = 10_000, DisplayName = "IT-2A-040: 128 KB body requires WINDOW_UPDATE mid-transfer — fully received")]
     public async Task Should_ReceiveFullBody_When_128KbBodyRequiresMultipleWindowUpdates()
     {
         await using var conn = await Http2Connection.OpenAsync(_fixture.Port);

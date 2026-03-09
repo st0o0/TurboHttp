@@ -18,7 +18,7 @@ public sealed class Http20EncoderStageTests : StreamTestBase
         return bytes;
     }
 
-    [Fact(DisplayName = "RFC-9113-§4.1: HEADERS frame has 9-byte header + HPACK payload")]
+    [Fact(Timeout = 10_000, DisplayName = "RFC-9113-§4.1: HEADERS frame has 9-byte header + HPACK payload")]
     public async Task ST_20_FENC_001_Headers_Frame_Has_9Byte_Header_And_Payload()
     {
         var hpackBlock = new byte[] { 0x82, 0x84, 0x86, 0x41 };
@@ -31,7 +31,7 @@ public sealed class Http20EncoderStageTests : StreamTestBase
         Assert.Equal(hpackBlock.Length, bytes.Length - 9); // payload is exactly the HPACK block
     }
 
-    [Fact(DisplayName = "RFC-9113-§4.1: DATA frame has 9-byte header + body payload")]
+    [Fact(Timeout = 10_000, DisplayName = "RFC-9113-§4.1: DATA frame has 9-byte header + body payload")]
     public async Task ST_20_FENC_002_Data_Frame_Has_9Byte_Header_And_Body()
     {
         var body = new byte[] { 0x01, 0x02, 0x03, 0x04, 0x05 };
@@ -44,7 +44,7 @@ public sealed class Http20EncoderStageTests : StreamTestBase
         Assert.Equal(body, bytes[9..]); // body payload follows the 9-byte header
     }
 
-    [Fact(DisplayName = "RFC-9113-§4.1: Stream ID field is encoded big-endian in bytes 5–8")]
+    [Fact(Timeout = 10_000, DisplayName = "RFC-9113-§4.1: Stream ID field is encoded big-endian in bytes 5–8")]
     public async Task ST_20_FENC_003_StreamId_Encoded_BigEndian_In_Bytes5To8()
     {
         var frame = new DataFrame(streamId: 1, data: new byte[] { 0xFF }, endStream: false);
@@ -57,7 +57,7 @@ public sealed class Http20EncoderStageTests : StreamTestBase
         Assert.Equal(0x01, bytes[8]); // stream ID 1 encoded big-endian
     }
 
-    [Fact(DisplayName = "RFC-9113-§4.2: Payload length field matches actual payload size")]
+    [Fact(Timeout = 10_000, DisplayName = "RFC-9113-§4.2: Payload length field matches actual payload size")]
     public async Task ST_20_FENC_004_Payload_Length_Field_Matches_Actual_Payload_Size()
     {
         var body = new byte[] { 0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF };

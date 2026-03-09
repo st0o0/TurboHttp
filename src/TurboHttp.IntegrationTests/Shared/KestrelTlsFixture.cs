@@ -1,31 +1,37 @@
+using System.Security.Cryptography;
+using System.Security.Cryptography.X509Certificates;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Hosting.Server;
 using Microsoft.AspNetCore.Hosting.Server.Features;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Server.Kestrel.Core;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using System.Security.Cryptography;
 
 namespace TurboHttp.IntegrationTests.Shared;
 
-/// <summary>
-/// Shared Kestrel fixture for HTTP/1.0 and HTTP/1.1 integration tests.
-/// Starts a real in-process Kestrel server on a random port and registers
-/// all routes used by Phase 12 and Phase 13 tests.
-/// </summary>
-public sealed class KestrelFixture : IAsyncLifetime
+public sealed class KestrelTlsFixture : IAsyncLifetime
 {
     private WebApplication? _app;
 
-    /// <summary>The TCP port Kestrel is listening on after <see cref="InitializeAsync"/>.</summary>
     public int Port { get; private set; }
 
     public async Task InitializeAsync()
     {
         var builder = WebApplication.CreateBuilder();
-        builder.WebHost.UseUrls("http://127.0.0.1:0");
         builder.Logging.ClearProviders();
+
+        var cert = CreateSelfSignedCertificate();
+
+        builder.WebHost.ConfigureKestrel(options =>
+        {
+            options.ListenLocalhost(0, listenOptions =>
+            {
+                listenOptions.UseHttps(cert);
+                listenOptions.Protocols = HttpProtocols.Http1;
+            });
+        });
 
         var app = builder.Build();
 
@@ -47,6 +53,32 @@ public sealed class KestrelFixture : IAsyncLifetime
             await _app.StopAsync();
             await _app.DisposeAsync();
         }
+    }
+
+    private static X509Certificate2 CreateSelfSignedCertificate()
+    {
+        using var rsa = RSA.Create(2048);
+
+        var req = new CertificateRequest(
+            "CN=localhost",
+            rsa,
+            HashAlgorithmName.SHA256,
+            RSASignaturePadding.Pkcs1);
+
+        req.CertificateExtensions.Add(
+            new X509BasicConstraintsExtension(false, false, 0, false));
+
+        req.CertificateExtensions.Add(
+            new X509KeyUsageExtension(X509KeyUsageFlags.DigitalSignature, false));
+
+        req.CertificateExtensions.Add(
+            new X509SubjectKeyIdentifierExtension(req.PublicKey, false));
+
+        var cert = req.CreateSelfSigned(
+            DateTimeOffset.UtcNow.AddDays(-1),
+            DateTimeOffset.UtcNow.AddYears(1));
+
+        return new X509Certificate2(cert.Export(X509ContentType.Pfx));
     }
 
     private static void RegisterRoutes(WebApplication app)
@@ -269,7 +301,7 @@ public sealed class KestrelFixture : IAsyncLifetime
             ctx.Response.ContentType = "text/plain";
             var body = "checksum-body"u8.ToArray();
             var md5 = Convert.ToBase64String(MD5.HashData(body));
-            ctx.Response.Headers["Content-MD5"] = md5;
+            ctx.Response.Headers.ContentMD5 = md5;
             await ctx.Response.StartAsync();
             await ctx.Response.Body.WriteAsync(body);
         });
@@ -279,7 +311,7 @@ public sealed class KestrelFixture : IAsyncLifetime
         // GET /close → returns Connection: close header
         app.MapGet("/close", async ctx =>
         {
-            ctx.Response.Headers["Connection"] = "close";
+            ctx.Response.Headers.Connection = "close";
             ctx.Response.ContentType = "text/plain";
             var body = "closing"u8.ToArray();
             ctx.Response.ContentLength = body.Length;
@@ -292,14 +324,14 @@ public sealed class KestrelFixture : IAsyncLifetime
         app.MapGet("/etag", async ctx =>
         {
             const string etag = "\"v1\"";
-            if (ctx.Request.Headers["If-None-Match"] == etag)
+            if (ctx.Request.Headers.IfNoneMatch == etag)
             {
                 ctx.Response.StatusCode = 304;
-                ctx.Response.Headers["ETag"] = etag;
+                ctx.Response.Headers.ETag = etag;
                 return;
             }
 
-            ctx.Response.Headers["ETag"] = etag;
+            ctx.Response.Headers.ETag = etag;
             ctx.Response.ContentType = "text/plain";
             var body = "etag-resource"u8.ToArray();
             ctx.Response.ContentLength = body.Length;
@@ -309,10 +341,10 @@ public sealed class KestrelFixture : IAsyncLifetime
         // GET /cache → response with Cache-Control, Last-Modified, Expires headers
         app.MapGet("/cache", async ctx =>
         {
-            ctx.Response.Headers["Cache-Control"] = "max-age=3600, public";
+            ctx.Response.Headers.CacheControl = "max-age=3600, public";
             ctx.Response.Headers.LastModified = DateTimeOffset.UtcNow.AddHours(-1).ToString("R");
-            ctx.Response.Headers["Expires"] = DateTimeOffset.UtcNow.AddHours(1).ToString("R");
-            ctx.Response.Headers["Pragma"] = "no-cache";
+            ctx.Response.Headers.Expires = DateTimeOffset.UtcNow.AddHours(1).ToString("R");
+            ctx.Response.Headers.Pragma = "no-cache";
             ctx.Response.ContentType = "text/plain";
             var body = "cached-resource"u8.ToArray();
             ctx.Response.ContentLength = body.Length;

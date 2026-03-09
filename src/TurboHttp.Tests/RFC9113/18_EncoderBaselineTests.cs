@@ -25,26 +25,11 @@ public sealed class Http2EncoderBaselineTests
     }
 
     [Fact]
-    public void EncodeRequest_IncrementsStreamId()
-    {
-        var encoder = new Http2RequestEncoder(useHuffman: false);
-        var req = CreateGetRequest("example.com", "/");
-
-        var (id1, _) = encoder.Encode(req);
-        var (id2, _) = encoder.Encode(req);
-        var (id3, _) = encoder.Encode(req);
-
-        Assert.Equal(1, id1);
-        Assert.Equal(3, id2);
-        Assert.Equal(5, id3);
-    }
-
-    [Fact]
     public void EncodeRequest_Get_ProducesHeadersFrame()
     {
         var request = CreateGetRequest("example.com", "/index.html");
 
-        var (_, data) = Encode(request);
+        var data = Encode(request);
 
         Assert.True(data.Length > 9);
         Assert.Equal((byte)FrameType.Headers, data[3]);
@@ -55,7 +40,7 @@ public sealed class Http2EncoderBaselineTests
     {
         var request = CreateGetRequest("example.com", "/");
 
-        var (_, data) = Encode(request);
+        var data = Encode(request);
 
         var flags = (Headers)data[4];
         Assert.True(flags.HasFlag(Headers.EndStream));
@@ -74,7 +59,7 @@ public sealed class Http2EncoderBaselineTests
             }
         };
 
-        var (_, data) = Encode(request);
+        var data = Encode(request);
 
         var headerBlock = ExtractFirstHeaderBlock(data);
         var decoded = new HpackDecoder().Decode(headerBlock);
@@ -93,7 +78,7 @@ public sealed class Http2EncoderBaselineTests
     {
         var request = CreateGetRequest("example.com", "/v1/data", 443, isHttps: true);
 
-        var (_, data) = Encode(request);
+        var data = Encode(request);
 
         var headerBlock = ExtractFirstHeaderBlock(data);
         var dict = new HpackDecoder().Decode(headerBlock)
@@ -110,7 +95,7 @@ public sealed class Http2EncoderBaselineTests
     {
         var request = CreateGetRequest("example.com", "/", 8080);
 
-        var (_, data) = Encode(request);
+        var data = Encode(request);
 
         var dict = new HpackDecoder().Decode(ExtractFirstHeaderBlock(data))
             .ToDictionary(h => h.Name, h => h.Value);
@@ -123,7 +108,7 @@ public sealed class Http2EncoderBaselineTests
     {
         var request = CreatePostRequest("example.com", "/api", "{\"key\":\"value\"}");
 
-        var (_, data) = Encode(request);
+        var data = Encode(request);
 
         var headersPayloadLen = (data[0] << 16) | (data[1] << 8) | data[2];
         var dataFrameOffset = 9 + headersPayloadLen;
@@ -137,7 +122,7 @@ public sealed class Http2EncoderBaselineTests
     {
         var request = CreatePostRequest("example.com", "/api", "{}");
 
-        var (_, data) = Encode(request);
+        var data = Encode(request);
 
         var flags = (Headers)data[4];
         Assert.False(flags.HasFlag(Headers.EndStream));
@@ -149,7 +134,7 @@ public sealed class Http2EncoderBaselineTests
     {
         var request = CreatePostRequest("example.com", "/api", "{\"x\":1}");
 
-        var (_, data) = Encode(request);
+        var data = Encode(request);
 
         var headersPayloadLen = (data[0] << 16) | (data[1] << 8) | data[2];
         var dataFrameOffset = 9 + headersPayloadLen;
@@ -164,7 +149,7 @@ public sealed class Http2EncoderBaselineTests
         const string json = "{\"name\":\"test\"}";
         var request = CreatePostRequest("example.com", "/users", json);
 
-        var (_, data) = Encode(request);
+        var data = Encode(request);
 
         var dict = new HpackDecoder().Decode(ExtractFirstHeaderBlock(data))
             .ToDictionary(h => h.Name, h => h.Value);
@@ -177,7 +162,7 @@ public sealed class Http2EncoderBaselineTests
     {
         var request = CreatePostRequest("example.com", "/api", "");
 
-        var (_, data) = Encode(request);
+        var data = Encode(request);
 
         var headersPayloadLen = (data[0] << 16) | (data[1] << 8) | data[2];
         var dataFrameOffset = 9 + headersPayloadLen;
@@ -288,7 +273,7 @@ public sealed class Http2EncoderBaselineTests
         encoder.ApplyServerSettings([(SettingsParameter.InitialWindowSize, 65535u)]);
 
         var request = CreateGetRequest("example.com", "/");
-        var (_, frames) = encoder.Encode(request);
+        var (_, frames) = encoder.Encode(request, 1);
         Assert.NotEmpty(frames);
     }
 
@@ -307,7 +292,7 @@ public sealed class Http2EncoderBaselineTests
             }
         };
 
-        var (_, frames) = encoder.Encode(request);
+        var (_, frames) = encoder.Encode(request, 1);
 
         // Serialize frames to check structure
         var totalSize = frames.Sum(f => f.SerializedSize);
@@ -347,10 +332,10 @@ public sealed class Http2EncoderBaselineTests
         return request;
     }
 
-    private static (int StreamId, byte[] Data) Encode(HttpRequestMessage request, bool useHuffman = false)
+    private static byte[] Encode(HttpRequestMessage request, bool useHuffman = false)
     {
         var encoder = new Http2RequestEncoder(useHuffman);
-        var (streamId, frames) = encoder.Encode(request);
+        var (streamId, frames) = encoder.Encode(request, 1);
 
         // Serialize all frames to bytes
         var totalSize = frames.Sum(f => f.SerializedSize);
@@ -364,7 +349,7 @@ public sealed class Http2EncoderBaselineTests
             offset += frameBytes.Length;
         }
 
-        return (streamId, buffer);
+        return buffer;
     }
 
     private static byte[] ExtractFirstHeaderBlock(ReadOnlySpan<byte> data)

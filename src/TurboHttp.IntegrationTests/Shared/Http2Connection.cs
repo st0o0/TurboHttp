@@ -14,6 +14,7 @@ public sealed class Http2Connection : IAsyncDisposable
     private readonly TcpClient _tcp;
     private readonly NetworkStream _stream;
     private readonly Http2FrameDecoder _frameDecoder = new();
+    private int _streamId;
     private readonly HpackDecoder _hpack = new();
     private readonly Dictionary<int, int> _streamReceiveWindows = new();
     private readonly Http2RequestEncoder _encoder;
@@ -71,7 +72,8 @@ public sealed class Http2Connection : IAsyncDisposable
     /// </summary>
     public async Task<int> SendRequestAsync(HttpRequestMessage request, CancellationToken ct = default)
     {
-        var (streamId, frames) = _encoder.Encode(request);
+        var (streamId, frames) = _encoder.Encode(request, _streamId);
+        _streamId += 2;
 
         var buffer = new byte[EncodeBufferSize];
         var offset = 0;
@@ -81,8 +83,10 @@ public sealed class Http2Connection : IAsyncDisposable
             var frameBytes = frame.Serialize();
             if (offset + frameBytes.Length > buffer.Length)
             {
-                throw new InvalidOperationException($"Frame buffer exhausted: {offset} + {frameBytes.Length} > {buffer.Length}");
+                throw new InvalidOperationException(
+                    $"Frame buffer exhausted: {offset} + {frameBytes.Length} > {buffer.Length}");
             }
+
             frameBytes.CopyTo(buffer, offset);
             offset += frameBytes.Length;
         }
@@ -428,7 +432,7 @@ public sealed class Http2Connection : IAsyncDisposable
         _pendingHeaders.Remove(streamId);
 
         var hasContentHeaders = allHeaders != null &&
-            allHeaders.Any(h => !h.Name.StartsWith(':') && IsContentHeader(h.Name));
+                                allHeaders.Any(h => !h.Name.StartsWith(':') && IsContentHeader(h.Name));
 
         if (bodyBytes.Length > 0 || hasContentHeaders)
         {
@@ -504,6 +508,7 @@ public sealed class Http2Connection : IAsyncDisposable
                 {
                     _encoder.UpdateStreamWindow(wu.StreamId, wu.Increment);
                 }
+
                 break;
             case RstStreamFrame rst:
                 throw new Http2Exception(

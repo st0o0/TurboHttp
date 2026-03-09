@@ -50,7 +50,7 @@ public sealed class Http2ErrorTests
         Assert.Equal(Http2ErrorCode.EnhanceYourCalm, session.GoAwayFrame!.ErrorCode);
     }
 
-    [Fact(DisplayName = "IT-2-082: Client sends GOAWAY NO_ERROR — connection then closed cleanly")]
+    [Fact(Timeout = 10_000, DisplayName = "IT-2-082: Client sends GOAWAY NO_ERROR — connection then closed cleanly")]
     public async Task Should_CloseCleanly_When_ClientSendsGoAwayNoError()
     {
         await using var conn = await Http2Connection.OpenAsync(_fixture.Port);

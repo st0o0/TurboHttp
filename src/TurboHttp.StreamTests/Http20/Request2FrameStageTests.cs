@@ -17,9 +17,16 @@ public sealed class Request2FrameStageTests : StreamTestBase
         };
     }
 
-    private async Task<IReadOnlyList<Http2Frame>> EncodeAsync(Http2RequestEncoder encoder, params HttpRequestMessage[] requests)
+    private async Task<IReadOnlyList<Http2Frame>> EncodeAsync(Http2RequestEncoder encoder,
+        params HttpRequestMessage[] requests)
     {
-        var source = Source.From(requests);
+        var streamId = 1;
+        var source = Source.From<(HttpRequestMessage, int)>(requests.Select(x =>
+        {
+            var t = streamId;
+            streamId += 2;
+            return (x, t);
+        }));
         return await source
             .Via(Flow.FromGraph(new Request2FrameStage(encoder)))
             .RunWith(Sink.Seq<Http2Frame>(), Materializer);
@@ -28,7 +35,7 @@ public sealed class Request2FrameStageTests : StreamTestBase
     private static List<HpackHeader> DecodeHpack(ReadOnlyMemory<byte> headerBlock)
         => new HpackDecoder().Decode(headerBlock.Span);
 
-    [Fact(DisplayName = "RFC-9113-§8.3.1: Emits HEADERS frame with :method pseudo-header")]
+    [Fact(Timeout = 10_000, DisplayName = "RFC-9113-§8.3.1: Emits HEADERS frame with :method pseudo-header")]
     public async Task ST_20_REQ_001_Headers_Frame_Contains_Method_PseudoHeader()
     {
         var encoder = new Http2RequestEncoder();
@@ -40,7 +47,7 @@ public sealed class Request2FrameStageTests : StreamTestBase
         Assert.Contains(headers, h => h.Name == ":method");
     }
 
-    [Fact(DisplayName = "RFC-9113-§8.3.1: Emits :path, :scheme, :authority pseudo-headers")]
+    [Fact(Timeout = 10_000, DisplayName = "RFC-9113-§8.3.1: Emits :path, :scheme, :authority pseudo-headers")]
     public async Task ST_20_REQ_002_Headers_Frame_Contains_All_Four_Pseudo_Headers()
     {
         var encoder = new Http2RequestEncoder();
@@ -56,7 +63,7 @@ public sealed class Request2FrameStageTests : StreamTestBase
         Assert.Contains(":authority", names);
     }
 
-    [Fact(DisplayName = "RFC-9113-§8.1: Stream IDs are odd and strictly ascending (1, 3, 5…)")]
+    [Fact(Timeout = 10_000, DisplayName = "RFC-9113-§8.1: Stream IDs are odd and strictly ascending (1, 3, 5…)")]
     public async Task ST_20_REQ_003_StreamIds_Are_Odd_And_Ascending()
     {
         var encoder = new Http2RequestEncoder();
@@ -70,7 +77,7 @@ public sealed class Request2FrameStageTests : StreamTestBase
         Assert.Equal(3, headersFrames[1].StreamId);
     }
 
-    [Fact(DisplayName = "RFC-9113-§8.1: POST request emits HEADERS then DATA frame")]
+    [Fact(Timeout = 10_000, DisplayName = "RFC-9113-§8.1: POST request emits HEADERS then DATA frame")]
     public async Task ST_20_REQ_004_Post_Request_Emits_Headers_Then_Data_Frame()
     {
         var encoder = new Http2RequestEncoder();
@@ -81,7 +88,7 @@ public sealed class Request2FrameStageTests : StreamTestBase
         Assert.IsType<DataFrame>(frames[1]);
     }
 
-    [Fact(DisplayName = "RFC-9113-§8.3.1: GET request has END_STREAM flag set on HEADERS frame")]
+    [Fact(Timeout = 10_000, DisplayName = "RFC-9113-§8.3.1: GET request has END_STREAM flag set on HEADERS frame")]
     public async Task ST_20_REQ_005_Get_Request_Has_EndStream_On_Headers_Frame()
     {
         var encoder = new Http2RequestEncoder();

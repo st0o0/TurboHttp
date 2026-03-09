@@ -1,12 +1,5 @@
-using System;
-using System.Collections.Generic;
 using System.Net;
-using System.Net.Http;
-using System.Threading;
-using System.Threading.Tasks;
-using Akka.Actor;
 using TurboHttp.Client;
-using TurboHttp.IO;
 using TurboHttp.Streams;
 
 namespace TurboHttp.StreamTests.Client;
@@ -60,7 +53,7 @@ public sealed class TurboHttpClientSendAsyncTests : StreamTestBase
 
     // ── tests ──────────────────────────────────────────────────────────────────
 
-    [Fact(DisplayName = "CLI-001: Single request → single response returned")]
+    [Fact(Timeout = 10_000, DisplayName = "CLI-001: Single request → single response returned")]
     public async Task CLI_001_SingleRequest_ReturnsResponse()
     {
         var client = BuildClient();
@@ -72,7 +65,7 @@ public sealed class TurboHttpClientSendAsyncTests : StreamTestBase
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
     }
 
-    [Fact(DisplayName = "CLI-002: BaseAddress applied before request enters pipeline — URI is absolute at pool")]
+    [Fact(Timeout = 10_000, DisplayName = "CLI-002: BaseAddress applied before request enters pipeline — URI is absolute at pool")]
     public async Task CLI_002_BaseAddress_Applied_UriIsAbsoluteAtPool()
     {
         var options = new TurboClientOptions { BaseAddress = new Uri("http://test.host/") };
@@ -88,7 +81,7 @@ public sealed class TurboHttpClientSendAsyncTests : StreamTestBase
         Assert.Equal("http://test.host/resource", captured[0].RequestUri!.ToString());
     }
 
-    [Fact(DisplayName = "CLI-003: DefaultRequestVersion applied → captured request has correct version")]
+    [Fact(Timeout = 10_000, DisplayName = "CLI-003: DefaultRequestVersion applied → captured request has correct version")]
     public async Task CLI_003_DefaultRequestVersion_Applied()
     {
         var options = new TurboClientOptions
@@ -108,7 +101,7 @@ public sealed class TurboHttpClientSendAsyncTests : StreamTestBase
         Assert.Equal(HttpVersion.Version10, captured[0].Version);
     }
 
-    [Fact(DisplayName = "CLI-004: DefaultRequestHeaders merged → header present in captured request")]
+    [Fact(Timeout = 10_000, DisplayName = "CLI-004: DefaultRequestHeaders merged → header present in captured request")]
     public async Task CLI_004_DefaultRequestHeaders_Merged()
     {
         var client = BuildClient();
@@ -124,7 +117,7 @@ public sealed class TurboHttpClientSendAsyncTests : StreamTestBase
         Assert.Contains("value-1", captured[0].Headers.GetValues("X-Default"));
     }
 
-    [Fact(DisplayName = "CLI-005: Explicit headers on request not overridden by DefaultRequestHeaders")]
+    [Fact(Timeout = 10_000, DisplayName = "CLI-005: Explicit headers on request not overridden by DefaultRequestHeaders")]
     public async Task CLI_005_ExplicitHeaders_NotOverridden()
     {
         var client = BuildClient();
@@ -143,7 +136,7 @@ public sealed class TurboHttpClientSendAsyncTests : StreamTestBase
         Assert.DoesNotContain("default-value", values);
     }
 
-    [Fact(DisplayName = "CLI-006: Timeout expires before response → TimeoutException thrown")]
+    [Fact(Timeout = 10_000, DisplayName = "CLI-006: Timeout expires before response → TimeoutException thrown")]
     public async Task CLI_006_Timeout_ThrowsTimeoutException()
     {
         var client = BuildClient();
@@ -156,7 +149,7 @@ public sealed class TurboHttpClientSendAsyncTests : StreamTestBase
             () => client.SendAsync(request, CancellationToken.None));
     }
 
-    [Fact(DisplayName = "CLI-007: CancellationToken cancelled → TaskCanceledException thrown")]
+    [Fact(Timeout = 10_000, DisplayName = "CLI-007: CancellationToken cancelled → TaskCanceledException thrown")]
     public async Task CLI_007_CancellationToken_Cancelled_ThrowsTaskCanceledException()
     {
         var client = BuildClient();
@@ -171,7 +164,7 @@ public sealed class TurboHttpClientSendAsyncTests : StreamTestBase
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => sendTask);
     }
 
-    [Fact(DisplayName = "CLI-008: 5 sequential requests all complete in order")]
+    [Fact(Timeout = 10_000, DisplayName = "CLI-008: 5 sequential requests all complete in order")]
     public async Task CLI_008_FiveSequentialRequests_AllComplete()
     {
         var client = BuildClient();
@@ -189,7 +182,7 @@ public sealed class TurboHttpClientSendAsyncTests : StreamTestBase
         Assert.All(responses, r => Assert.Equal(HttpStatusCode.OK, r.StatusCode));
     }
 
-    [Fact(DisplayName = "CLI-009: 10 concurrent requests all complete")]
+    [Fact(Timeout = 10_000, DisplayName = "CLI-009: 10 concurrent requests all complete")]
     public async Task CLI_009_TenConcurrentRequests_AllComplete()
     {
         var client = BuildClient();
@@ -208,7 +201,7 @@ public sealed class TurboHttpClientSendAsyncTests : StreamTestBase
         Assert.All(responses, r => Assert.Equal(HttpStatusCode.OK, r.StatusCode));
     }
 
-    [Fact(DisplayName = "CLI-010: CancelPendingRequests → all in-flight SendAsync tasks throw OperationCanceledException")]
+    [Fact(Timeout = 10_000, DisplayName = "CLI-010: CancelPendingRequests → all in-flight SendAsync tasks throw OperationCanceledException")]
     public async Task CLI_010_CancelPendingRequests_InFlightTasksCancelled()
     {
         var client = BuildClient();
@@ -225,7 +218,7 @@ public sealed class TurboHttpClientSendAsyncTests : StreamTestBase
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => sendTask);
     }
 
-    [Fact(DisplayName = "CLI-011: After CancelPendingRequests(), new SendAsync works normally")]
+    [Fact(Timeout = 10_000, DisplayName = "CLI-011: After CancelPendingRequests(), new SendAsync works normally")]
     public async Task CLI_011_AfterCancelPendingRequests_NewSendAsyncWorks()
     {
         var client = BuildClient();

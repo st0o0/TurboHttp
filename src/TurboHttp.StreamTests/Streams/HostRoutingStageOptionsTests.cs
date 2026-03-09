@@ -1,9 +1,3 @@
-using System;
-using System.Collections.Generic;
-using System.Net.Http;
-using System.Threading.Tasks;
-using Akka;
-using Akka.Actor;
 using Akka.Streams.Dsl;
 using TurboHttp.Client;
 using TurboHttp.IO;
@@ -35,7 +29,7 @@ public sealed class HostRoutingStageOptionsTests : StreamTestBase
 
     // ── tests ──────────────────────────────────────────────────────────────────
 
-    [Fact(DisplayName = "HRS-001: http URI → pool created with TcpOptions (not TlsOptions)")]
+    [Fact(Timeout = 10_000, DisplayName = "HRS-001: http URI → pool created with TcpOptions (not TlsOptions)")]
     public async Task HRS_001_HttpUri_CreatesTcpOptions()
     {
         var capturedOptions = new List<TcpOptions>();
@@ -57,7 +51,7 @@ public sealed class HostRoutingStageOptionsTests : StreamTestBase
         Assert.Equal(typeof(TcpOptions), capturedOptions[0].GetType());
     }
 
-    [Fact(DisplayName = "HRS-002: https URI → pool created with TlsOptions")]
+    [Fact(Timeout = 10_000, DisplayName = "HRS-002: https URI → pool created with TlsOptions")]
     public async Task HRS_002_HttpsUri_CreatesTlsOptions()
     {
         var capturedOptions = new List<TcpOptions>();
@@ -77,7 +71,7 @@ public sealed class HostRoutingStageOptionsTests : StreamTestBase
         Assert.IsType<TlsOptions>(capturedOptions[0]);
     }
 
-    [Fact(DisplayName = "HRS-003: clientOptions.ConnectTimeout=20s → resulting TcpOptions.ConnectTimeout == 20s")]
+    [Fact(Timeout = 10_000, DisplayName = "HRS-003: clientOptions.ConnectTimeout=20s → resulting TcpOptions.ConnectTimeout == 20s")]
     public async Task HRS_003_ClientOptionsConnectTimeoutPropagated()
     {
         var capturedOptions = new List<TcpOptions>();
@@ -98,7 +92,7 @@ public sealed class HostRoutingStageOptionsTests : StreamTestBase
         Assert.Equal(timeout, capturedOptions[0].ConnectTimeout);
     }
 
-    [Fact(DisplayName = "HRS-004: Two requests to same host:port:scheme → same pool reused (no second creation)")]
+    [Fact(Timeout = 10_000, DisplayName = "HRS-004: Two requests to same host:port:scheme → same pool reused (no second creation)")]
     public async Task HRS_004_SameHostPortScheme_ReusesPool()
     {
         var capturedOptions = new List<TcpOptions>();
@@ -118,7 +112,7 @@ public sealed class HostRoutingStageOptionsTests : StreamTestBase
         Assert.Single(capturedOptions);
     }
 
-    [Fact(DisplayName = "HRS-005: Two requests to different host → two separate pools")]
+    [Fact(Timeout = 10_000, DisplayName = "HRS-005: Two requests to different host → two separate pools")]
     public async Task HRS_005_DifferentHosts_CreatesSeparatePools()
     {
         var capturedOptions = new List<TcpOptions>();
@@ -138,7 +132,7 @@ public sealed class HostRoutingStageOptionsTests : StreamTestBase
         Assert.Equal(2, capturedOptions.Count);
     }
 
-    [Fact(DisplayName = "HRS-006: http://a.test and https://a.test → two separate pools (different scheme)")]
+    [Fact(Timeout = 10_000, DisplayName = "HRS-006: http://a.test and https://a.test → two separate pools (different scheme)")]
     public async Task HRS_006_SameHostDifferentScheme_CreatesSeparatePools()
     {
         var capturedOptions = new List<TcpOptions>();

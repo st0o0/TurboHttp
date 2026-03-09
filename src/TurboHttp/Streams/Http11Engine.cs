@@ -1,13 +1,8 @@
 ﻿using System.Buffers;
-using System.Collections.Generic;
-using System.Drawing;
 using System.Net.Http;
-using System.Security.Cryptography;
 using Akka;
 using Akka.Streams;
 using Akka.Streams.Dsl;
-using Akka.Streams.Stage;
-using TurboHttp.IO;
 using TurboHttp.Streams.Stages;
 
 namespace TurboHttp.Streams;
@@ -21,7 +16,7 @@ public class Http11Engine : IHttpProtocolEngine
         {
             var encoder = b.Add(new Http11EncoderStage());
             var decoder = b.Add(new Http11DecoderStage());
-            var correlation = b.Add(new CorrelationStage());
+            var correlation = b.Add(new CorrelationHttp1XStage());
 
             var requestBCast = b.Add(new Broadcast<HttpRequestMessage>(2));
 
@@ -77,151 +72,5 @@ public class Http11EngineTest
                 responseDecoder.Inlet,
                 responseDecoder.Outlet);
         }));
-    }
-}
-
-internal sealed class ExtractOptionsStage : GraphStage<FanOutShape<HttpRequest, IConnectionItem, HttpRequestMessage>>
-{
-    private readonly Outlet<IConnectionItem> _outletOptions = new("");
-    private readonly Outlet<HttpRequestMessage> _outletRequest = new("");
-    private readonly Inlet<HttpRequest> _inletRequest = new("");
-    public override FanOutShape<HttpRequest, IConnectionItem, HttpRequestMessage> Shape { get; }
-
-    public ExtractOptionsStage()
-    {
-        Shape = new FanOutShape<HttpRequest, IConnectionItem, HttpRequestMessage>(_inletRequest, _outletOptions,
-            _outletRequest);
-    }
-
-    protected override GraphStageLogic CreateLogic(Attributes inheritedAttributes)
-        => new Logic(this);
-
-    private sealed class Logic : GraphStageLogic
-    {
-        private bool _initialSent;
-        private HttpRequest? _pending;
-
-        public Logic(ExtractOptionsStage stage) : base(stage.Shape)
-        {
-            SetHandler(stage.Shape.In,
-                onPush: () =>
-                {
-                    var request = Grab(stage.Shape.In);
-
-                    if (!_initialSent)
-                    {
-                        var options = new TcpOptions { Host = string.Empty, Port = 0 };
-                        _pending = request;
-                        _initialSent = true;
-                        Push(stage.Shape.Out0, new InitialInput(options));
-                    }
-                    else
-                    {
-                        Push(stage.Shape.Out1, request.RequestMessage);
-                    }
-                },
-                onUpstreamFinish: CompleteStage,
-                onUpstreamFailure: FailStage);
-
-            SetHandler(stage.Shape.Out0,
-                onPull: () =>
-                {
-                    if (!_initialSent)
-                    {
-                        Pull(stage.Shape.In);
-                    }
-                }, onDownstreamFinish: _ => { });
-
-            SetHandler(stage.Shape.Out1,
-                onPull: () =>
-                {
-                    if (_pending is not null)
-                    {
-                        Push(stage.Shape.Out1, _pending.RequestMessage);
-                        _pending = null;
-                    }
-                    else
-                    {
-                        Pull(stage.Shape.In);
-                    }
-                }, onDownstreamFinish: _ => CompleteStage());
-        }
-    }
-}
-
-internal sealed class
-    CorrelationStage : GraphStage<FanInShape<HttpRequestMessage, HttpResponseMessage, HttpResponseMessage>>
-{
-    private readonly Inlet<HttpRequestMessage> _requestIn = new("correlation.request.in");
-    private readonly Inlet<HttpResponseMessage> _responseIn = new("correlation.response.in");
-    private readonly Outlet<HttpResponseMessage> _out = new("correlation.out");
-
-    public override FanInShape<HttpRequestMessage, HttpResponseMessage, HttpResponseMessage> Shape { get; }
-
-    public CorrelationStage()
-    {
-        Shape = new FanInShape<HttpRequestMessage, HttpResponseMessage, HttpResponseMessage>(
-            _out, _requestIn, _responseIn);
-    }
-
-    protected override GraphStageLogic CreateLogic(Attributes inheritedAttributes)
-        => new Logic(this);
-
-    private sealed class Logic : GraphStageLogic
-    {
-        private readonly Queue<HttpRequestMessage> _pending = new();
-
-        private readonly Queue<HttpResponseMessage> _waiting = new();
-
-        public Logic(CorrelationStage stage) : base(stage.Shape)
-        {
-            SetHandler(stage._requestIn,
-                onPush: () =>
-                {
-                    _pending.Enqueue(Grab(stage._requestIn));
-                    TryCorrelateAndEmit(stage);
-                    Pull(stage._requestIn);
-                },
-                onUpstreamFinish: () =>
-                {
-                    if (_pending.Count == 0 && _waiting.Count == 0)
-                    {
-                        CompleteStage();
-                    }
-                });
-
-            SetHandler(stage._responseIn,
-                onPush: () =>
-                {
-                    _waiting.Enqueue(Grab(stage._responseIn));
-                    TryCorrelateAndEmit(stage);
-                },
-                onUpstreamFinish: () =>
-                {
-                    if (_pending.Count == 0 && _waiting.Count == 0)
-                    {
-                        CompleteStage();
-                    }
-                });
-
-            SetHandler(stage._out,
-                onPull: () =>
-                {
-                    if (!HasBeenPulled(stage._responseIn))
-                    {
-                        Pull(stage._responseIn);
-                    }
-                });
-        }
-
-        private void TryCorrelateAndEmit(CorrelationStage stage)
-        {
-            while (_pending.Count > 0 && _waiting.Count > 0 && IsAvailable(stage._out))
-            {
-                var response = _waiting.Dequeue();
-                response.RequestMessage = _pending.Dequeue();
-                Push(stage._out, response);
-            }
-        }
     }
 }

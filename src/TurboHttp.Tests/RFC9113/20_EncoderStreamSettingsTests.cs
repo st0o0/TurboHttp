@@ -48,28 +48,6 @@ public sealed class Http2EncoderStreamSettingsTests
         Assert.Equal(1, id);
     }
 
-    [Fact(DisplayName = "7540-5.1-002: Stream IDs increment (1,3,5,...)")]
-    public void StreamId_Increments_ByTwo()
-    {
-        var encoder = new Http2RequestEncoder(useHuffman: false);
-        var req = new HttpRequestMessage(HttpMethod.Get, "https://example.com/");
-
-        using var owner = MemoryPool<byte>.Shared.Rent(4096);
-
-        var b1 = owner.Memory;
-        var (id1, _) = encoder.Encode(req, ref b1);
-
-        var b2 = owner.Memory;
-        var (id2, _) = encoder.Encode(req, ref b2);
-
-        var b3 = owner.Memory;
-        var (id3, _) = encoder.Encode(req, ref b3);
-
-        Assert.Equal(1, id1);
-        Assert.Equal(3, id2);
-        Assert.Equal(5, id3);
-    }
-
     [Fact(DisplayName = "enc5-sid-001: Client never produces even stream IDs")]
     public void StreamId_NeverEven()
     {

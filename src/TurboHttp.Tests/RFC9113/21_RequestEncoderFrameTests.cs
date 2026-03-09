@@ -12,7 +12,7 @@ public sealed class Http2RequestEncoderFrameTests
         var encoder = new Http2RequestEncoder();
         var request = new HttpRequestMessage(HttpMethod.Get, "http://example.com/path");
 
-        var (streamId, frames) = encoder.Encode(request);
+        var (streamId, frames) = encoder.Encode(request, 1);
 
         Assert.Equal(1, streamId);
         Assert.Single(frames);
@@ -32,7 +32,7 @@ public sealed class Http2RequestEncoderFrameTests
             Content = new StringContent("hello world"),
         };
 
-        var (streamId, frames) = encoder.Encode(request);
+        var (streamId, frames) = encoder.Encode(request, 1);
 
         Assert.Equal(1, streamId);
         Assert.Equal(2, frames.Count);
@@ -47,24 +47,6 @@ public sealed class Http2RequestEncoderFrameTests
         Assert.NotEmpty(df.Data.ToArray());
     }
 
-    [Fact(DisplayName = "9113-8.1-003: Stream IDs increment by 2 for successive requests")]
-    public void Encode_MultipleRequests_StreamIdsIncrement()
-    {
-        var encoder = new Http2RequestEncoder();
-
-        var req1 = new HttpRequestMessage(HttpMethod.Get, "http://example.com/a");
-        var req2 = new HttpRequestMessage(HttpMethod.Get, "http://example.com/b");
-        var req3 = new HttpRequestMessage(HttpMethod.Get, "http://example.com/c");
-
-        var (id1, _) = encoder.Encode(req1);
-        var (id2, _) = encoder.Encode(req2);
-        var (id3, _) = encoder.Encode(req3);
-
-        Assert.Equal(1, id1);
-        Assert.Equal(3, id2);
-        Assert.Equal(5, id3);
-    }
-
     // ── Pseudo-headers ────────────────────────────────────────────────────────
 
     [Fact(DisplayName = "9113-8.3.1-001: Encoded header block contains required HTTP/2 pseudo-headers")]
@@ -73,7 +55,7 @@ public sealed class Http2RequestEncoderFrameTests
         var encoder = new Http2RequestEncoder();
         var request = new HttpRequestMessage(HttpMethod.Get, "https://api.example.com/v1/data?q=1");
 
-        var (_, frames) = encoder.Encode(request);
+        var (_, frames) = encoder.Encode(request, 1);
 
         var hf = Assert.IsType<HeadersFrame>(frames[0]);
 
@@ -81,10 +63,10 @@ public sealed class Http2RequestEncoderFrameTests
         var hpackDecoder = new HpackDecoder();
         var headers = hpackDecoder.Decode(hf.HeaderBlockFragment.Span);
 
-        Assert.Contains(headers, h => h.Name == ":method" && h.Value == "GET");
-        Assert.Contains(headers, h => h.Name == ":path" && h.Value == "/v1/data?q=1");
-        Assert.Contains(headers, h => h.Name == ":scheme" && h.Value == "https");
-        Assert.Contains(headers, h => h.Name == ":authority" && h.Value == "api.example.com");
+        Assert.Contains(headers, h => h is { Name: ":method", Value: "GET" });
+        Assert.Contains(headers, h => h is { Name: ":path", Value: "/v1/data?q=1" });
+        Assert.Contains(headers, h => h is { Name: ":scheme", Value: "https" });
+        Assert.Contains(headers, h => h is { Name: ":authority", Value: "api.example.com" });
     }
 
     [Fact(DisplayName = "9113-8.3.1-002: Path includes query string in :path pseudo-header")]
@@ -93,13 +75,13 @@ public sealed class Http2RequestEncoderFrameTests
         var encoder = new Http2RequestEncoder();
         var request = new HttpRequestMessage(HttpMethod.Get, "http://example.com/search?term=foo&page=2");
 
-        var (_, frames) = encoder.Encode(request);
+        var (_, frames) = encoder.Encode(request, 1);
 
         var hf = Assert.IsType<HeadersFrame>(frames[0]);
         var hpackDecoder = new HpackDecoder();
         var headers = hpackDecoder.Decode(hf.HeaderBlockFragment.Span);
 
-        Assert.Contains(headers, h => h.Name == ":path" && h.Value == "/search?term=foo&page=2");
+        Assert.Contains(headers, h => h is { Name: ":path", Value: "/search?term=foo&page=2" });
     }
 
     // ── Forbidden headers ─────────────────────────────────────────────────────
@@ -112,7 +94,7 @@ public sealed class Http2RequestEncoderFrameTests
         request.Headers.TryAddWithoutValidation("connection", "keep-alive");
         request.Headers.TryAddWithoutValidation("x-custom", "value");
 
-        var (_, frames) = encoder.Encode(request);
+        var (_, frames) = encoder.Encode(request, 1);
 
         var hf = Assert.IsType<HeadersFrame>(frames[0]);
         var hpackDecoder = new HpackDecoder();
@@ -132,7 +114,7 @@ public sealed class Http2RequestEncoderFrameTests
         var request = new HttpRequestMessage(HttpMethod.Get, "http://example.com/path");
         request.Headers.TryAddWithoutValidation("x-long-header", new string('a', 100));
 
-        var (streamId, frames) = encoder.Encode(request);
+        var (streamId, frames) = encoder.Encode(request, 1);
 
         Assert.True(frames.Count >= 2, "Expected at least HEADERS + CONTINUATION");
 
@@ -164,7 +146,7 @@ public sealed class Http2RequestEncoderFrameTests
             Content = new ByteArrayContent([1, 2, 3, 4]),
         };
 
-        var (streamId, frames) = encoder.Encode(request);
+        var (streamId, frames) = encoder.Encode(request, 1);
 
         Assert.All(frames, f => Assert.Equal(streamId, f.StreamId));
     }

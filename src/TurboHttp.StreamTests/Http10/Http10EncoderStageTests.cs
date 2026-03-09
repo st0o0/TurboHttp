@@ -24,7 +24,7 @@ public sealed class Http10EncoderStageTests : StreamTestBase
         return sb.ToString();
     }
 
-    [Fact(DisplayName = "RFC-1945-§5.1: Request-Line is METHOD SP path SP HTTP/1.0 CRLF")]
+    [Fact(Timeout = 10_000, DisplayName = "RFC-1945-§5.1: Request-Line is METHOD SP path SP HTTP/1.0 CRLF")]
     public async Task ST_10_ENC_001_RequestLine_Format()
     {
         var request = new HttpRequestMessage(HttpMethod.Get, "http://example.com/index.html")
@@ -37,7 +37,7 @@ public sealed class Http10EncoderStageTests : StreamTestBase
         Assert.StartsWith("GET /index.html HTTP/1.0\r\n", raw);
     }
 
-    [Fact(DisplayName = "RFC-1945-§7.1: Custom header is forwarded verbatim")]
+    [Fact(Timeout = 10_000, DisplayName = "RFC-1945-§7.1: Custom header is forwarded verbatim")]
     public async Task ST_10_ENC_002_CustomHeader_Forwarded()
     {
         var request = new HttpRequestMessage(HttpMethod.Get, "http://example.com/")
@@ -51,7 +51,7 @@ public sealed class Http10EncoderStageTests : StreamTestBase
         Assert.Contains("X-Custom: value\r\n", raw);
     }
 
-    [Fact(DisplayName = "RFC-1945-§D.1: No Host header emitted")]
+    [Fact(Timeout = 10_000, DisplayName = "RFC-1945-§D.1: No Host header emitted")]
     public async Task ST_10_ENC_003_NoHostHeader()
     {
         var request = new HttpRequestMessage(HttpMethod.Get, "http://example.com/")
@@ -64,7 +64,7 @@ public sealed class Http10EncoderStageTests : StreamTestBase
         Assert.DoesNotContain("Host:", raw);
     }
 
-    [Fact(DisplayName = "RFC-1945-§7.1: No Connection header emitted even when set on request")]
+    [Fact(Timeout = 10_000, DisplayName = "RFC-1945-§7.1: No Connection header emitted even when set on request")]
     public async Task ST_10_ENC_004_ConnectionHeader_Suppressed()
     {
         var request = new HttpRequestMessage(HttpMethod.Get, "http://example.com/")
@@ -78,7 +78,7 @@ public sealed class Http10EncoderStageTests : StreamTestBase
         Assert.DoesNotContain("Connection:", raw);
     }
 
-    [Fact(DisplayName = "RFC-1945-§D.1: POST body bytes follow headers after double-CRLF")]
+    [Fact(Timeout = 10_000, DisplayName = "RFC-1945-§D.1: POST body bytes follow headers after double-CRLF")]
     public async Task ST_10_ENC_005_PostBody_FollowsHeaders()
     {
         var body = "hello"u8.ToArray();
@@ -96,7 +96,7 @@ public sealed class Http10EncoderStageTests : StreamTestBase
         Assert.Contains("hello", bodyPart);
     }
 
-    [Fact(DisplayName = "RFC-1945-§D.1: Content-Length header present for POST body")]
+    [Fact(Timeout = 10_000, DisplayName = "RFC-1945-§D.1: Content-Length header present for POST body")]
     public async Task ST_10_ENC_006_ContentLength_PresentForPostBody()
     {
         var body = "hello"u8.ToArray();

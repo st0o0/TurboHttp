@@ -1,14 +1,6 @@
-using System;
-using System.Collections.Generic;
 using System.Net;
-using System.Net.Http;
-using System.Net.Http.Headers;
-using System.Threading;
 using System.Threading.Channels;
-using System.Threading.Tasks;
-using Akka.Actor;
 using TurboHttp.Client;
-using TurboHttp.IO;
 using TurboHttp.Streams;
 
 namespace TurboHttp.StreamTests.Client;
@@ -44,7 +36,7 @@ public sealed class TurboClientStreamManagerTests : StreamTestBase
         Assert.NotNull(manager.Responses);
     }
 
-    [Fact(DisplayName = "MGR-002: Writing a request with relative URI → enriched to absolute URI at pool")]
+    [Fact(Timeout = 10_000, DisplayName = "MGR-002: Writing a request with relative URI → enriched to absolute URI at pool")]
     public async Task MGR_002_RequestEnrichedWithBaseAddress_WhenWrittenToChannel()
     {
         var capturedRequests = new List<HttpRequestMessage>();
@@ -70,7 +62,7 @@ public sealed class TurboClientStreamManagerTests : StreamTestBase
         Assert.Equal("http://test.host/ping", capturedRequests[0].RequestUri?.ToString());
     }
 
-    [Fact(DisplayName = "MGR-003: Response callback → response appears on Responses channel")]
+    [Fact(Timeout = 10_000, DisplayName = "MGR-003: Response callback → response appears on Responses channel")]
     public async Task MGR_003_ResponseCallback_WritesToResponsesChannel()
     {
         Action<HttpResponseMessage>? capturedCallback = null;

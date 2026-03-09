@@ -1,3 +1,4 @@
+using System;
 using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Threading.Channels;
@@ -18,7 +19,7 @@ public sealed class TurboClientStreamManager
     private readonly HttpRequestMessage _defaultHeadersHolder;
     private readonly HostRoutingStage _hostRoutingStage;
 
-    public ChannelWriter<HttpRequestMessage>  Requests  { get; }
+    public ChannelWriter<HttpRequestMessage> Requests { get; }
     public ChannelReader<HttpResponseMessage> Responses { get; }
 
     /// <summary>
@@ -29,14 +30,14 @@ public sealed class TurboClientStreamManager
     internal HostRoutingStage HostRoutingStage => _hostRoutingStage;
 
     public TurboClientStreamManager(
-        TurboClientOptions   options,
-        ActorSystem          system,
-        HttpRequestHeaders?  defaultHeaders = null)
+        TurboClientOptions options,
+        ActorSystem system,
+        HttpRequestHeaders? defaultHeaders = null)
     {
-        var requestsChannel  = Channel.CreateUnbounded<HttpRequestMessage>();
+        var requestsChannel = Channel.CreateUnbounded<HttpRequestMessage>();
         var responsesChannel = Channel.CreateUnbounded<HttpResponseMessage>();
 
-        Requests  = requestsChannel.Writer;
+        Requests = requestsChannel.Writer;
         Responses = responsesChannel.Reader;
 
         _defaultHeadersHolder = new HttpRequestMessage();
@@ -44,8 +45,8 @@ public sealed class TurboClientStreamManager
 
         _hostRoutingStage = new HostRoutingStage(options);
 
-        Source
-            .FromGraph(new ChannelReaderSource<HttpRequestMessage>(requestsChannel.Reader))
+        ChannelSource
+            .FromReader(requestsChannel.Reader)
             .Via(Flow.FromGraph(new RequestEnricherStage(
                 options.BaseAddress,
                 options.DefaultRequestVersion,

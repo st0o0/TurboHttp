@@ -1,557 +1,578 @@
-# TurboHttp — Implementation Plan: Dynamic TcpOptions + Request Enrichment
+# STREAMS_TEST_PLAN.md — RFC-Coverage Extension for Akka.Streams Stages
+
+> **Goal:** Every RFC requirement previously covered only by unit tests at the protocol level
+> will additionally be verified through stream tests — i.e. the same RFC requirement flows through the
+> real Akka.Streams pipeline (Encoder Stage → Fake TCP → Decoder Stage) and is validated end-to-end.
+
+**Created:** 2026-03-10
+**Branch:** `poc2`
+**Project:** `TurboHttp.StreamTests`
 
 ---
 
-## Context
+## Overview
 
-`TurboHttpClient` is a skeleton. `SendAsync` throws `NotImplementedException`. The pipeline
-exists but is wired with a static `TcpOptions` that the caller must supply before anything
-starts — host, port, TLS, and timeout are not derived from the request at all.
-
-Two concrete problems to solve:
-
-| # | Problem | Current state |
-|---|---------|---------------|
-| 1 | `TcpOptions` is static | Caller supplies host/port before any request exists. Scheme-to-TLS mapping is missing. User config (timeout, reconnect) is never applied. |
-| 2 | No request enrichment | `BaseAddress`, `DefaultRequestHeaders`, `DefaultRequestVersion` are stored on the client but never applied to outgoing requests. |
-
-A third latent bug is also fixed along the way:
-
-| # | Bug | |
-|---|-----|-|
-| 3 | `ClientManager` always creates `TcpClientProvider` | Even when `TlsOptions` is passed it ignores TLS. |
+| Phase | Area | Tasks | New Tests (approx.) |
+|-------|------|-------|----------------------|
+| 1 | GAP-Closure: Missing Stage Tests | 4 | ~30 |
+| 2 | HTTP/1.0 Stages — RFC 1945 | 5 | ~25 |
+| 3 | HTTP/1.1 Stages — RFC 9112 | 6 | ~30 |
+| 4 | HTTP/2 Stages — RFC 9113 | 7 | ~35 |
+| 5 | HTTP/2 Connection-Level — RFC 9113 §6 | 5 | ~25 |
+| 6 | Engine-Integration — RFC Round-Trip | 4 | ~20 |
+| 7 | Cross-Cutting: Error & Edge Cases | 4 | ~15 |
+| **Σ** | | **35 Tasks** | **~180 Tests** |
 
 ---
 
-## Architecture overview (after this plan)
+## Phase 1 — GAP-Closure: Missing Dedicated Stage Tests
 
-```
-caller writes ──► ChannelWriter<HttpRequestMessage>
-                         │
-                         ▼  (TurboClientStreamManager materialises this graph once)
-                  RequestEnricherStage   ← Phase ENR
-                    ├─ Apply BaseAddress
-                    ├─ Apply DefaultRequestVersion
-                    └─ Merge DefaultRequestHeaders
-                         │
-                         ▼
-                  HostRoutingStage       ← Phase HRS + TCP
-                    └─ TcpOptionsFactory.Build(uri, TurboClientOptions)
-                         │
-                         ▼
-                  Engine / ConnectionStage / ClientManager   ← Phase CLT
-                    └─ TlsOptions → TlsClientProvider
-                       TcpOptions → TcpClientProvider
-                         │
-                         ▼  Phase REQ
-                  response.RequestMessage = correlatedRequest
-                         │
-                         ▼
-                  ChannelReader<HttpResponseMessage>
-                         │
-caller reads ◄───────────┘
+> Closes GAP-005, GAP-006, GAP-007, GAP-008 from the RFC_TEST_MATRIX.
 
+### TASK-GAP-01: StreamIdAllocator Stage Tests
 
-TurboHttpClient.SendAsync(request, ct)
-    writes to ChannelWriter
-    registers TCS in _pending map
-    awaits TCS (keyed by request reference)
-    ← response arrives via Sink callback → TCS.SetResult(response)
+**File:** `Http20/StreamIdAllocatorStageTests.cs`
+**RFC:** 9113 §5.1.1 — Stream Identifiers
+
+- [ ] `SID-001`: First stream ID is 1 (client initiates with odd number)
+- [ ] `SID-002`: Consecutive IDs: 1, 3, 5, 7 (strictly ascending +2)
+- [ ] `SID-003`: 10 requests → 10 distinct, monotonically increasing stream IDs
+- [ ] `SID-004`: Stream ID is always odd (no even value)
+- [ ] `SID-005`: Request object is passed through unchanged (reference equality)
+- [ ] `SID-006`: Stage terminates cleanly on UpstreamFinish (CompleteStage)
+
+**Test pattern:**
+```csharp
+// Source.From(requests) → StreamIdAllocator → Sink.Seq
+// Assert: outputTuple.Item2 == 1, 3, 5, ...
 ```
 
 ---
 
-## Phase ENR — Request Enrichment Stage
+### TASK-GAP-02: CorrelationHttp1XStage Tests
 
-**File:** `src/TurboHttp/Streams/Stages/RequestEnricherStage.cs`
+**File:** `Http11/CorrelationHttp1XStageTests.cs`
+**RFC:** 9112 §9 — Request/Response Ordering (HTTP/1.x pipeline)
 
-The enricher lives **inside the stream graph** as a `FlowShape` stage so that enrichment
-happens automatically for every element passing through the pipeline, without callers
-needing to call anything explicitly.
+- [ ] `COR1X-001`: Single request/response pairing → `response.RequestMessage == request`
+- [ ] `COR1X-002`: 5 sequential requests → FIFO order maintained
+- [ ] `COR1X-003`: Request reference is the exact same object (not copied)
+- [ ] `COR1X-004`: Response arrives before request → correctly buffered and correlated
+- [ ] `COR1X-005`: Request arrives before response → correctly buffered and correlated
+- [ ] `COR1X-006`: Stage terminates on empty queue after UpstreamFinish on both inlets
+- [ ] `COR1X-007`: Stage remains open while pending requests still exist
 
-- [x] **TASK-ENR-01** — `TurboClientOptions` defaults record
-
-  **File:** `src/TurboHttp/Client/ITurboHttpClient.cs` (expand existing empty record)
-
-  `TurboClientOptions` is currently `public record TurboClientOptions();`. Add TCP-level
-  user config that feeds `TcpOptionsFactory` later, plus the client-level defaults that
-  feed `RequestEnricherStage`.
-
-  ```csharp
-  public record TurboClientOptions
-  {
-      public Uri?    BaseAddress           { get; init; }
-      public Version DefaultRequestVersion { get; init; } = HttpVersion.Version11;
-
-      public TimeSpan ConnectTimeout        { get; init; } = TimeSpan.FromSeconds(10);
-      public TimeSpan ReconnectInterval     { get; init; } = TimeSpan.FromSeconds(5);
-      public int      MaxReconnectAttempts  { get; init; } = 10;
-      public int      MaxFrameSize          { get; init; } = 128 * 1024;
-
-      // TLS overrides — null means "decide from URI scheme"
-      public RemoteCertificateValidationCallback? ServerCertificateValidationCallback { get; init; }
-      public X509CertificateCollection?           ClientCertificates                  { get; init; }
-      public SslProtocols                         EnabledSslProtocols                 { get; init; } = SslProtocols.None;
-  }
-  ```
-
-  **Acceptance:** `new TurboClientOptions()` compiles with no required parameters.
-
-- [x] **TASK-ENR-02** — `RequestEnricherStage`
-
-  **File:** `src/TurboHttp/Streams/Stages/RequestEnricherStage.cs`
-
-  A `GraphStage<FlowShape<HttpRequestMessage, HttpRequestMessage>>` — every element that
-  flows through is enriched in-place and forwarded downstream.
-
-  ```csharp
-  internal sealed class RequestEnricherStage
-      : GraphStage<FlowShape<HttpRequestMessage, HttpRequestMessage>>
-  {
-      private readonly Uri?               _baseAddress;
-      private readonly Version            _defaultVersion;
-      private readonly HttpRequestHeaders _defaultHeaders;
-
-      public RequestEnricherStage(
-          Uri?               baseAddress,
-          Version            defaultVersion,
-          HttpRequestHeaders defaultHeaders) { ... }
-
-      protected override GraphStageLogic CreateLogic(Attributes inheritedAttributes)
-          => new Logic(this);
-
-      private sealed class Logic : InAndOutGraphStageLogic
-      {
-          // onPush: enrich Grab(_inlet), then Push(_outlet, enriched)
-      }
-  }
-  ```
-
-  Enrichment rules applied in `onPush` (same semantics as before, now inline in the stage):
-
-  1. **URI** — if `request.RequestUri` is `null` or relative:
-     - `_baseAddress` must not be `null` → `FailStage(new InvalidOperationException(...))`
-     - `request.RequestUri = new Uri(_baseAddress, request.RequestUri ?? "")`
-
-  2. **Version** — if `request.Version == HttpVersion.Version11` AND
-     `_defaultVersion != HttpVersion.Version11`:
-     - `request.Version = _defaultVersion`
-
-  3. **Headers** — for each header in `_defaultHeaders`:
-     - If `request.Headers` does not already contain that name → add it
-
-  Stage is a pure pass-through: it mutates the element and pushes it forward, one-for-one.
-  No buffering, no async.
-
-- [x] **TASK-ENR-03** — Unit tests for `RequestEnricherStage`
-
-  **File:** `src/TurboHttp.StreamTests/Streams/RequestEnricherStageTests.cs`
-
-  Use `Source.From(requests).Via(new RequestEnricherStage(...)).RunWith(Sink.Seq(), mat)`.
-  No real TCP needed — pure stream logic test using `AkkaSpec` / `TestKit`.
-
-  - [x] **ENR-001** Null URI + BaseAddress → RequestUri becomes BaseAddress root
-  - [x] **ENR-002** Relative URI "/ping" + BaseAddress "http://a.test" → "http://a.test/ping"
-  - [x] **ENR-003** Absolute URI → RequestUri unchanged even when BaseAddress is set
-  - [x] **ENR-004** Null URI, null BaseAddress → stage fails with InvalidOperationException
-  - [x] **ENR-005** Relative URI, null BaseAddress → stage fails with InvalidOperationException
-  - [x] **ENR-006** request.Version == 1.1 (default), defaultVersion == 2.0 → version becomes 2.0
-  - [x] **ENR-007** request.Version == 1.1 (default), defaultVersion == 1.1 → version unchanged
-  - [x] **ENR-008** request.Version explicitly set to 1.0 → unchanged regardless of defaultVersion
-  - [x] **ENR-009** request.Version explicitly set to 2.0 → unchanged regardless of defaultVersion
-  - [x] **ENR-010** DefaultRequestHeaders has X-Foo:bar → merged into request
-  - [x] **ENR-011** Request already has X-Foo:existing → not overridden; existing value kept
-  - [x] **ENR-012** DefaultRequestHeaders has two headers → both merged
-  - [x] **ENR-013** DefaultRequestHeaders empty → no headers added; request unchanged
-  - [x] **ENR-014** Same header name, different casing in request vs defaults → treated as same; not doubled
-  - [x] **ENR-015** DefaultRequestHeaders has multiple values for one name → all values added as one entry
-  - [x] **ENR-016** 3 requests in sequence → all 3 enriched independently, order preserved
+**Test pattern:**
+```csharp
+// GraphDSL: Source<Request> → CorrelationHttp1XStage ← Source<Response>
+// Assert: output.RequestMessage == originalRequest
+```
 
 ---
 
-## Phase TCP — Dynamic `TcpOptions` factory
+### TASK-GAP-03: CorrelationHttp20Stage Tests
 
-**File:** `src/TurboHttp/IO/TcpOptionsFactory.cs`  (new file in the IO namespace)
+**File:** `Http20/CorrelationHttp20StageTests.cs`
+**RFC:** 9113 §5.1 — Stream Multiplexing
 
-- [x] **TASK-TCP-01** — `TcpOptionsFactory`
+- [ ] `COR20-001`: Single (Request, streamId=1) + (Response, streamId=1) → correctly correlated
+- [ ] `COR20-002`: 3 requests (IDs 1,3,5) + 3 responses (IDs 5,1,3) → out-of-order correlation
+- [ ] `COR20-003`: Response stream ID with no matching request → stays in queue
+- [ ] `COR20-004`: Reference equality: `response.RequestMessage` is exactly the sent object
+- [ ] `COR20-005`: 10 interleaved requests/responses → all correctly matched
+- [ ] `COR20-006`: Stage terminates on empty dictionaries after UpstreamFinish
+- [ ] `COR20-007`: Interleaved push: Request(1), Response(3), Request(3) → correlation immediately on match
 
-  Pure static class. Converts a request URI + user config into the correct `TcpOptions`
-  (or `TlsOptions`) instance.
-
-  ```csharp
-  internal static class TcpOptionsFactory
-  {
-      internal static TcpOptions Build(Uri requestUri, TurboClientOptions clientOptions)
-  }
-  ```
-
-  Rules:
-
-  1. **Host** — `requestUri.Host`
-  2. **Port** — `requestUri.Port` when not `-1`; else `443` for `https`/`wss`, `80` otherwise
-  3. **AddressFamily** — `UriHostNameType` → `InterNetwork` / `InterNetworkV6` / `Unspecified`
-  4. **TLS** — scheme is `"https"` or `"wss"` → return `TlsOptions` instead of `TcpOptions`:
-     ```csharp
-     new TlsOptions
-     {
-         Host = host, Port = port, AddressFamily = af,
-         TargetHost                          = host,   // SNI
-         ServerCertificateValidationCallback = clientOptions.ServerCertificateValidationCallback,
-         ClientCertificates                  = clientOptions.ClientCertificates,
-         EnabledSslProtocols                 = clientOptions.EnabledSslProtocols,
-         ConnectTimeout        = clientOptions.ConnectTimeout,
-         ReconnectInterval     = clientOptions.ReconnectInterval,
-         MaxReconnectAttempts  = clientOptions.MaxReconnectAttempts,
-         MaxFrameSize          = clientOptions.MaxFrameSize,
-     }
-     ```
-  5. **Plain TCP** — all other schemes → `TcpOptions` with the same scalar fields
-
-- [x] **TASK-TCP-02** — Unit tests for `TcpOptionsFactory`
-
-  **File:** `src/TurboHttp.Tests/IO/TcpOptionsFactoryTests.cs`
-
-  - [x] **TCP-001** "http://example.com"       → TcpOptions, Host="example.com", Port=80
-  - [x] **TCP-002** "https://example.com"      → TlsOptions, Host="example.com", Port=443
-  - [x] **TCP-003** "http://example.com:8080"  → TcpOptions, Port=8080
-  - [x] **TCP-004** "https://example.com:8443" → TlsOptions, Port=8443
-  - [x] **TCP-005** "http://1.2.3.4"           → TcpOptions, AddressFamily=InterNetwork
-  - [x] **TCP-006** "http://[::1]"             → TcpOptions, AddressFamily=InterNetworkV6
-  - [x] **TCP-007** "http://hostname"          → TcpOptions, AddressFamily=Unspecified
-  - [x] **TCP-008** clientOptions.ConnectTimeout=30s       → result.ConnectTimeout == 30s
-  - [x] **TCP-009** clientOptions.ReconnectInterval=2s     → result.ReconnectInterval == 2s
-  - [x] **TCP-010** clientOptions.MaxReconnectAttempts=3   → result.MaxReconnectAttempts == 3
-  - [x] **TCP-011** clientOptions.MaxFrameSize=256*1024    → result.MaxFrameSize == 256*1024
-  - [x] **TCP-012** "https" + ServerCertificateValidationCallback set → callback on TlsOptions
-  - [x] **TCP-013** "http"  + ServerCertificateValidationCallback set → TcpOptions (callback ignored — plain TCP)
-  - [x] **TCP-014** TlsOptions.TargetHost == Host  (SNI set automatically)
-  - [x] **TCP-015** "wss://example.com" → TlsOptions (same as https)
+**Test pattern:**
+```csharp
+// GraphDSL: Source<(Request,int)> → CorrelationHttp20Stage ← Source<(Response,int)>
+// Assert: each response.RequestMessage == requests[streamId]
+```
 
 ---
 
-## Phase CLT — `ClientManager` TLS selection
+### TASK-GAP-04: ExtractOptionsStage Tests
 
-**File:** `src/TurboHttp/IO/ClientManager.cs`
+**File:** `Streams/ExtractOptionsStageTests.cs`
+**RFC:** N/A — internal architecture (connection initialization)
 
-- [x] **TASK-CLT-01** — Detect `TlsOptions` and create the right provider
+- [ ] `EXT-001`: First request → Out0 emits `InitialInput(TcpOptions)`, Out1 emits `RequestMessage`
+- [ ] `EXT-002`: Second request → only Out1 emits (no repeated options event)
+- [ ] `EXT-003`: 5 requests → exactly 1× Out0, 5× Out1
+- [ ] `EXT-004`: Options extracted only on very first request (`_initialSent` flag)
+- [ ] `EXT-005`: UpstreamFinish → stage terminates cleanly
+- [ ] `EXT-006`: Pending request after InitialInput correctly delivered via Out1
 
-  Current code always does `new TcpClientProvider(msg.Options)`.
-  Change the `Handle(CreateTcpRunner)` method:
-
-  ```csharp
-  var provider = msg.StreamProvider ?? msg.Options switch
-  {
-      TlsOptions tls => (IClientProvider)new TlsClientProvider(tls),
-      TcpOptions tcp =>                   new TcpClientProvider(tcp)
-  };
-  ```
-
-  **Acceptance:** Compile. Existing tests pass.
-
-- [x] **TASK-CLT-02** — Unit tests for provider selection
-
-  **File:** `src/TurboHttp.Tests/IO/ClientManagerProviderSelectionTests.cs`
-
-  - [x] **CLT-001** TcpOptions passed → no StreamProvider → would create TcpClientProvider
-  - [x] **CLT-002** TlsOptions passed → no StreamProvider → would create TlsClientProvider
-  - [x] **CLT-003** StreamProvider explicitly set → that provider used regardless of Options type
-
-  > Since `TcpClientProvider.GetStream()` opens a real socket, test via the
-  > `StreamProvider` injection path: pass a mock `IClientProvider` and assert the mock's
-  > `GetStream()` was called. For CLT-001/002, verify indirectly via the `TcpOptions`
-  > type passed to a stub.
+**Test pattern:**
+```csharp
+// Source.From(requests) → ExtractOptionsStage → (Sink.Seq<Options>, Sink.Seq<Request>)
+// Assert: optionsList.Count == 1, requestList.Count == N
+```
 
 ---
 
-## Phase HRS — `HostRoutingStage` options merging
+## Phase 2 — HTTP/1.0 Stages: RFC 1945 Through the Pipeline
 
-**File:** `src/TurboHttp/Streams/HostRoutingStage.cs`
+> Existing stream tests: 22 (4 files). Supplementing RFC-specific gaps here.
 
-- [x] **TASK-HRS-01** — Inject `TurboClientOptions` into `HostRoutingStage`
+### TASK-10-01: Http10EncoderStage — Request-Line Compliance
 
-  `HostRoutingStage` currently builds `TcpOptions` inline with only host/port/AddressFamily.
-  It has no access to user config (timeout, reconnect, TLS callbacks).
+**File:** `Http10/Http10EncoderStageRfcTests.cs`
+**RFC:** 1945 §5.1 — Request-Line
 
-  1. Add `TurboClientOptions _clientOptions` field; set in constructor:
-     ```csharp
-     public HostRoutingStage(TurboClientOptions clientOptions) { ... }
-     ```
-
-  2. In `Logic.onPush`, replace the inline `new TcpOptions { ... }` block with:
-     ```csharp
-     var options = TcpOptionsFactory.Build(uri, _clientOptions);
-     ```
-
-  3. Pool cache key: extend from `"{host}:{port}"` to `"{scheme}:{host}:{port}"` so that
-     `http://a.test:80` and `https://a.test:80` (different TLS) get separate pools.
-
-- [x] **TASK-HRS-02** — Unit tests for `HostRoutingStage` options merging
-
-  **File:** `src/TurboHttp.StreamTests/Streams/HostRoutingStageOptionsTests.cs`
-
-  Use `Source.From([request]) → HostRoutingStage → Sink.Ignore` with a materializer.
-  Verify pool creation by inspecting which `TcpOptions` reach the `ConnectionStage`.
-  Hook via `TestClientManagerProxy` (from TEMP.md WS-2 TASK-INF-04) or by reading
-  `connectionStage.Options` from the stage after materialization.
-
-  - [x] **HRS-001** http URI → pool created with TcpOptions (not TlsOptions)
-  - [x] **HRS-002** https URI → pool created with TlsOptions
-  - [x] **HRS-003** clientOptions.ConnectTimeout=20s → resulting TcpOptions.ConnectTimeout == 20s
-  - [x] **HRS-004** Two requests to same host:port:scheme → same pool reused (no second creation)
-  - [x] **HRS-005** Two requests to different host → two separate pools
-  - [x] **HRS-006** http://a.test and https://a.test → two separate pools (different scheme)
+- [ ] `10E-RFC-001`: Request-line format: `GET /path HTTP/1.0\r\n`
+- [ ] `10E-RFC-002`: POST with body → `Content-Length` header is set
+- [ ] `10E-RFC-003`: No `Host` header in HTTP/1.0 (not mandatory)
+- [ ] `10E-RFC-004`: `Connection: close` is not sent (no keep-alive in 1.0)
+- [ ] `10E-RFC-005`: Query string correctly in request target: `/search?q=foo`
 
 ---
 
-## Phase REQ — `response.RequestMessage` correlation
+### TASK-10-02: Http10DecoderStage — Status-Line & Headers
 
-`SendAsync` needs to match each `HttpResponseMessage` back to the `HttpRequestMessage`
-that caused it. This requires `response.RequestMessage` to be set inside the stream.
+**File:** `Http10/Http10DecoderStageRfcTests.cs`
+**RFC:** 1945 §6.1 — Status-Line, §4.2 — Headers
 
-- [x] **TASK-REQ-01** — Audit current decoder stages
-
-  **File:** Check `Http11DecoderStage`, `Http20StreamStage`.
-
-  Open question: does either stage set `response.RequestMessage`?
-
-  - If yes → skip TASK-REQ-02.
-  - If no (expected) → implement TASK-REQ-02.
-
-- [x] **TASK-REQ-02** — Correlation in `Http11Engine` (if needed)
-
-  **File:** `src/TurboHttp/Streams/Http11Engine.cs`
-
-  The existing `Http11EngineTest` / `ExtractOptionsStage` / `ConnectionV2Stage` sketches
-  in `Http11Engine.cs` already show this direction. Adopt that approach:
-
-  HTTP/1.1 delivers responses strictly in order. The engine graph keeps a
-  `Queue<HttpRequestMessage>` alongside the encoder:
-
-  ```
-           ┌─ EncoderStage (bytes out) ─── TCP ──→
-  Request ──┤
-           └─ side channel: request enqueued ─────→ DecoderStage post-process
-                                                     response.RequestMessage = queue.Dequeue()
-  ```
-
-  Implementation:
-
-  1. `RequestSplitterStage` — on each inbound `HttpRequestMessage`:
-     - pushes bytes to outlet 0 (existing encoder path)
-     - pushes the `HttpRequestMessage` itself to outlet 1 (side channel)
-
-  2. `ResponseCorrelatorStage` — combines `(HttpResponseMessage, HttpRequestMessage)`:
-     - waits for both; sets `response.RequestMessage = request`
-
-  For HTTP/2, correlation already exists via stream IDs inside `Http20StreamStage` —
-  verify separately (TASK-REQ-01).
-
-- [x] **TASK-REQ-03** — Unit tests for HTTP/1.1 correlation
-
-  **File:** `src/TurboHttp.StreamTests/Http11/Http11ResponseCorrelationTests.cs`
-
-  - [x] **REQ-001** Single request/response pair → response.RequestMessage == request
-  - [x] **REQ-002** 5 sequential requests → each response.RequestMessage matches the correct request in order
-  - [x] **REQ-003** response.RequestMessage is the exact same object instance (reference equality)
-  - [x] **REQ-004** Http11Engine flow with fake TCP (EngineFakeConnectionStage) — correlation preserved
+- [ ] `10D-RFC-001`: Status-line `HTTP/1.0 200 OK` → StatusCode=200, Version=1.0
+- [ ] `10D-RFC-002`: Status-line `HTTP/1.0 404 Not Found` → StatusCode=404
+- [ ] `10D-RFC-003`: Response headers correctly parsed (Content-Type, Content-Length)
+- [ ] `10D-RFC-004`: Body with Content-Length correctly read
+- [ ] `10D-RFC-005`: Connection-Close: stream ends after body
 
 ---
 
-## Phase MGR — `TurboClientStreamManager`
+### TASK-10-03: Http10 Stage Round-Trip — Methods
 
-**File:** `src/TurboHttp/Client/TurboClientStreamManager.cs`
+**File:** `Http10/Http10StageRoundTripMethodTests.cs`
+**RFC:** 1945 §8 — Method Definitions
 
-The stream manager owns the graph lifecycle. It creates the channels, materialises the
-pipeline once on construction, and exposes the raw `ChannelWriter`/`ChannelReader` ends
-for callers to use directly.
-
-- [x] **TASK-MGR-01** — `TurboClientStreamManager`
-
-  ```csharp
-  public sealed class TurboClientStreamManager
-  {
-      public ChannelWriter<HttpRequestMessage>  Requests  { get; }
-      public ChannelReader<HttpResponseMessage> Responses { get; }
-
-      public TurboClientStreamManager(TurboClientOptions options, ActorSystem system)
-      {
-          var requestsChannel  = Channel.CreateUnbounded<HttpRequestMessage>();
-          var responsesChannel = Channel.CreateUnbounded<HttpResponseMessage>();
-
-          Requests  = requestsChannel.Writer;
-          Responses = responsesChannel.Reader;
-
-          var defaultHeadersHolder = new HttpRequestMessage();
-          // caller populates defaultHeadersHolder.Headers externally before first use
-          // — or pass HttpRequestHeaders directly in constructor
-
-          ChannelSource
-              .FromReader(requestsChannel.Reader)
-              .Via(new RequestEnricherStage(
-                       options.BaseAddress,
-                       options.DefaultRequestVersion,
-                       defaultHeadersHolder.Headers))
-              .Via(Flow.FromGraph(new HostRoutingStage(options)))
-              .RunWith(
-                  Sink.ForEach<HttpResponseMessage>(r =>
-                      responsesChannel.Writer.TryWrite(r)),
-                  system.Materializer());
-      }
-  }
-  ```
-
-  **Open question (OQ-2 resolved):** Use `ChannelSource.FromReader` from Servus.Akka if
-  available; otherwise write a minimal `ChannelReaderSource` custom stage. Check
-  Servus.Akka API before implementing.
-
-  **Acceptance:** Creating `TurboClientStreamManager` materialises the graph without
-  throwing. Writing to `Requests` and reading from `Responses` works end-to-end in an
-  integration test.
-
-- [x] **TASK-MGR-02** — Unit tests for `TurboClientStreamManager` channels
-
-  **File:** `src/TurboHttp.StreamTests/Client/TurboClientStreamManagerTests.cs`
-
-  - [x] **MGR-001** Manager creates without throwing; Requests + Responses are non-null
-  - [x] **MGR-002** Writing a request to Requests channel → request appears enriched downstream (via a fake stage probe)
-  - [x] **MGR-003** Writing a response into the internal sink callback → readable from Responses channel
-  - [x] **MGR-004** Manager handles backpressure: Requests channel blocks when internal queue is full (bounded channel test)
+- [ ] `10RT-M-001`: GET → 200 OK — request-line + response correct
+- [ ] `10RT-M-002`: POST with body → body in wire format + 200 response
+- [ ] `10RT-M-003`: HEAD → response without body, but with Content-Length header
+- [ ] `10RT-M-004`: DELETE → 204 No Content (empty body)
+- [ ] `10RT-M-005`: PUT → body correctly transmitted and response parsed
 
 ---
 
-## Phase CLI — `TurboHttpClient` wiring
+### TASK-10-04: Http10 Stage Round-Trip — Headers & Body
 
-**File:** `src/TurboHttp/Client/ITurboHttpClient.cs` + `TurboHttpClient.cs`
+**File:** `Http10/Http10StageRoundTripBodyTests.cs`
+**RFC:** 1945 §7.2 — Entity Body, §10.4 — Content-Length
 
-`TurboHttpClient` becomes a thin wrapper over `TurboClientStreamManager`. It handles
-`DefaultRequestHeaders` storage, `SendAsync` correlation, and `CancelPendingRequests`.
-
-- [x] **TASK-CLI-01** — Fix `DefaultRequestHeaders` backing field
-
-  `HttpRequestHeaders` cannot be instantiated directly. Borrow from a dummy message:
-
-  ```csharp
-  private readonly HttpRequestMessage _defaultHeadersHolder = new();
-  public HttpRequestHeaders DefaultRequestHeaders => _defaultHeadersHolder.Headers;
-  ```
-
-  Pass `_defaultHeadersHolder.Headers` into `TurboClientStreamManager` constructor so the
-  stage always sees the current state of the headers collection.
-
-  **Acceptance:** `client.DefaultRequestHeaders.Add("X-Test", "1")` does not throw.
-
-- [x] **TASK-CLI-02** — `TurboHttpClient` constructor — create `TurboClientStreamManager`
-
-  ```csharp
-  public TurboHttpClient(TurboClientOptions clientOptions, ActorSystem system)
-  {
-      _options = clientOptions;
-      _manager = new TurboClientStreamManager(clientOptions, system, DefaultRequestHeaders);
-
-      // drain Responses channel → complete pending TCS entries
-      _ = DrainResponsesAsync(_manager.Responses, _cts.Token);
-  }
-
-  private async Task DrainResponsesAsync(
-      ChannelReader<HttpResponseMessage> reader,
-      CancellationToken ct)
-  {
-      await foreach (var response in reader.ReadAllAsync(ct))
-      {
-          if (response.RequestMessage is not null &&
-              _pending.TryRemove(response.RequestMessage, out var tcs))
-          {
-              tcs.TrySetResult(response);
-          }
-      }
-  }
-  ```
-
-- [x] **TASK-CLI-03** — Implement `SendAsync`
-
-  ```csharp
-  public async Task<HttpResponseMessage> SendAsync(
-      HttpRequestMessage request,
-      CancellationToken  cancellationToken)
-  {
-      var tcs = new TaskCompletionSource<HttpResponseMessage>(
-          TaskCreationOptions.RunContinuationsAsynchronously);
-
-      _pending.TryAdd(request, tcs);
-
-      await _manager.Requests.WriteAsync(request, cancellationToken);
-
-      return await tcs.Task.WaitAsync(Timeout, cancellationToken);
-  }
-  ```
-
-  Note: enrichment (BaseAddress, version, default headers) happens inside
-  `RequestEnricherStage` within the stream — `SendAsync` writes the raw request.
-  The pending map key is the original request reference; `response.RequestMessage`
-  must be that same reference (set by TASK-REQ-02).
-
-- [x] **TASK-CLI-04** — Unit tests for `TurboHttpClient.SendAsync`
-
-  **File:** `src/TurboHttp.StreamTests/Client/TurboHttpClientSendAsyncTests.cs`
-
-  Use `EngineFakeConnectionStage` (already in `EngineTestBase`) or a plain fake Akka
-  graph to avoid real TCP. Tests must cover:
-
-  - [x] **CLI-001** Single request → single response returned
-  - [x] **CLI-002** BaseAddress applied before request enters pipeline — assert raw bytes reaching fake TCP contain the absolute URI
-  - [x] **CLI-003** DefaultRequestVersion applied → raw bytes use the correct request line
-  - [x] **CLI-004** DefaultRequestHeaders merged → X-Default header present in raw bytes
-  - [x] **CLI-005** Explicit headers on request not overridden by DefaultRequestHeaders
-  - [x] **CLI-006** Timeout expires before response → TaskCanceledException thrown
-  - [x] **CLI-007** CancellationToken cancelled → TaskCanceledException thrown
-  - [x] **CLI-008** 5 sequential requests all complete in order
-  - [x] **CLI-009** 10 concurrent requests all complete (Task.WhenAll)
-
-- [x] **TASK-CLI-05** — `CancelPendingRequests` implementation
-
-  ```csharp
-  public void CancelPendingRequests()
-  {
-      foreach (var (_, tcs) in _pending)
-      {
-          tcs.TrySetCanceled();
-      }
-      _pending.Clear();
-  }
-  ```
-
-  - [x] **CLI-010** CancelPendingRequests() → all in-flight SendAsync tasks throw OperationCanceledException
-  - [x] **CLI-011** After CancelPendingRequests(), new SendAsync works normally
+- [ ] `10RT-B-001`: Empty body → `Content-Length: 0`
+- [ ] `10RT-B-002`: Large body (64 KB) → correctly serialized and deserialized
+- [ ] `10RT-B-003`: Binary body (bytes 0x00–0xFF) → byte-for-byte identical
+- [ ] `10RT-B-004`: Custom headers in request → present in wire format
+- [ ] `10RT-B-005`: Response with multiple headers → all correctly parsed
 
 ---
 
-## Phase ITG — Integration smoke tests
+### TASK-10-05: Http10 Stage — TCP Fragmentation
 
-**File:** `src/TurboHttp.IntegrationTests/Client/TurboHttpClientIntegrationTests.cs`
-**Fixtures:** `[Collection("Http11Integration")]`
+**File:** `Http10/Http10StageFragmentationTests.cs`
+**RFC:** 1945 §4.1 — Message Framing (implicit: TCP segments)
 
-These tests use the real `TurboHttpClient` against a live Kestrel instance (via the
-existing `KestrelFixture`). They are the final proof that the entire chain works.
-
-- [ ] **ITG-001** GET http://127.0.0.1:{Port}/ping → 200, body == "pong"
-- [ ] **ITG-002** BaseAddress set → relative URI "/ping" resolves correctly
-- [ ] **ITG-003** DefaultRequestVersion = 1.0 → response.Version == 1.0
-- [ ] **ITG-004** DefaultRequestHeaders["X-Test"] = "hello" → /headers/echo echoes it back
-- [ ] **ITG-005** POST /echo with body → body echoed, Content-Length correct
-- [ ] **ITG-006** GET /status/404 → 404 status code, no exception
-- [ ] **ITG-007** GET /status/500 → 500 status code, no exception
-- [ ] **ITG-008** 10 concurrent GETs all return 200 (Task.WhenAll)
-- [ ] **ITG-009** https URI (if TLS fixture available) → TlsOptions used, TLS handshake succeeds
-- [ ] **ITG-010** Timeout = 100ms, GET /slow/500 → TaskCanceledException within ~200ms
+- [ ] `10F-001`: Response split into 3 TCP fragments → correctly reassembled
+- [ ] `10F-002`: Headers split across 2 fragments → correctly parsed
+- [ ] `10F-003`: Body fragment arrives in separate chunk → content complete
+- [ ] `10F-004`: 1-byte fragments → decoder handles gracefully
+- [ ] `10F-005`: Fragment boundary in the middle of `\r\n\r\n` → header end correctly detected
 
 ---
 
-## Open questions (check before starting)
+## Phase 3 — HTTP/1.1 Stages: RFC 9112 Through the Pipeline
 
-| # | Question | Where to look |
-|---|----------|---------------|
-| OQ-1 | Does `Http11DecoderStage` or `Http20StreamStage` already set `response.RequestMessage`? | `src/TurboHttp/Streams/Stages/Http11DecoderStage.cs`, `Http20StreamStage.cs` |
-| OQ-2 | Does Servus.Akka expose `ChannelSource.FromReader` or similar? If not, write a minimal `ChannelReaderSource` stage in TASK-MGR-01. | Servus.Akka source / NuGet package |
-| OQ-3 | Should `DefaultRequestHeaders` be passed into `TurboClientStreamManager` as a constructor parameter (live reference), or should the stage snapshot it at startup? | If headers can be mutated after construction, pass the live `HttpRequestHeaders` reference. |
-| OQ-4 | `DefaultVersionPolicy` (`HttpVersionPolicy.RequestVersionExact` vs `Negotiate`) — does `RequestEnricherStage` need to consult it before applying `DefaultRequestVersion`? | See `HttpVersionPolicy` enum meaning |
-| OQ-5 | For the `Http11EngineTest` / `ExtractOptionsStage` / `ConnectionV2Stage` sketches already in `Http11Engine.cs` — should TASK-REQ-02 adopt that direction or use `RequestSplitterStage` + `ResponseCorrelatorStage`? | Discuss with Ralph before starting TASK-REQ-02 |
+> Existing stream tests: 27 (5 files). Adding RFC-critical scenarios.
+
+### TASK-11-01: Http11EncoderStage — Host Header & Request-Line
+
+**File:** `Http11/Http11EncoderStageRfcTests.cs`
+**RFC:** 9112 §3.2 — Request-Line, 9112 §7.2 — Host Header
+
+- [ ] `11E-RFC-001`: Request-line: `GET /path HTTP/1.1\r\n`
+- [ ] `11E-RFC-002`: Host header MUST be present (RFC 9112 §7.2)
+- [ ] `11E-RFC-003`: Host header value = `authority` of the URI
+- [ ] `11E-RFC-004`: POST → `Content-Length` or `Transfer-Encoding: chunked`
+- [ ] `11E-RFC-005`: Hop-by-hop headers (TE, Keep-Alive, Proxy-Connection) are stripped
+
+---
+
+### TASK-11-02: Http11DecoderStage — Chunked Transfer
+
+**File:** `Http11/Http11DecoderStageChunkedRfcTests.cs`
+**RFC:** 9112 §7.1 — Chunked Transfer Coding
+
+- [ ] `11D-CH-001`: Single chunk `5\r\nhello\r\n0\r\n\r\n` → body = "hello"
+- [ ] `11D-CH-002`: Multiple chunks → bodies correctly concatenated
+- [ ] `11D-CH-003`: Zero-length terminator `0\r\n\r\n` → stream ends
+- [ ] `11D-CH-004`: Chunk extension (`;ext=val`) is ignored
+- [ ] `11D-CH-005`: Trailers after last chunk → correctly parsed or ignored
+
+---
+
+### TASK-11-03: Http11 Stage Round-Trip — Pipelining
+
+**File:** `Http11/Http11StageRoundTripPipelineTests.cs`
+**RFC:** 9112 §9.3 — Pipelining
+
+- [ ] `11RT-P-001`: 3 sequential GET requests → 3 responses in FIFO order
+- [ ] `11RT-P-002`: Each response has correct `RequestMessage` reference
+- [ ] `11RT-P-003`: Mixed methods (GET, POST, DELETE) → correct assignment
+- [ ] `11RT-P-004`: 10 requests → all 10 responses received
+- [ ] `11RT-P-005`: Response order matches request order (FIFO guarantee)
+
+---
+
+### TASK-11-04: Http11 Stage Round-Trip — Connection Management
+
+**File:** `Http11/Http11StageConnectionMgmtTests.cs`
+**RFC:** 9112 §9.6 — Connection: close, §9.8 — Keep-Alive
+
+- [ ] `11RT-C-001`: Response with `Connection: close` → version correctly set
+- [ ] `11RT-C-002`: Response without `Connection` header → keep-alive (default for HTTP/1.1)
+- [ ] `11RT-C-003`: `Transfer-Encoding: chunked` + `Connection: keep-alive` → stream stays open
+- [ ] `11RT-C-004`: Content-Length body → correctly read, connection not prematurely closed
+- [ ] `11RT-C-005`: Empty body with Content-Length: 0 → response emitted immediately
+
+---
+
+### TASK-11-05: Http11 Stage — Fragmentation & Reassembly
+
+**File:** `Http11/Http11StageFragmentationTests.cs`
+**RFC:** 9112 §6 — Message Body (TCP boundary handling)
+
+- [ ] `11F-001`: Chunked response over 4 TCP segments → correctly reassembled
+- [ ] `11F-002`: Header/body boundary on TCP segment boundary → correctly separated
+- [ ] `11F-003`: Chunk-size line split across 2 segments → correctly parsed
+- [ ] `11F-004`: Content-Length body in 3 fragments → fully read
+- [ ] `11F-005`: Very small fragments (1–2 bytes) → decoder handles gracefully
+
+---
+
+### TASK-11-06: Http11 Stage — Status Codes
+
+**File:** `Http11/Http11StageStatusCodeTests.cs`
+**RFC:** 9110 §15 — Status Codes
+
+- [ ] `11SC-001`: 200 OK → StatusCode=200
+- [ ] `11SC-002`: 301 Moved Permanently → StatusCode=301, Location header present
+- [ ] `11SC-003`: 404 Not Found → StatusCode=404
+- [ ] `11SC-004`: 500 Internal Server Error → StatusCode=500
+- [ ] `11SC-005`: 204 No Content → StatusCode=204, no body
+
+---
+
+## Phase 4 — HTTP/2 Stages: RFC 9113 Through the Pipeline
+
+> Existing stream tests: 32 (5 files). Extension with frame-level RFC compliance.
+
+### TASK-20-01: Http20EncoderStage — Frame Serialization
+
+**File:** `Http20/Http20EncoderStageRfcTests.cs`
+**RFC:** 9113 §4.1 — Frame Format (9-byte header)
+
+- [ ] `20E-RFC-001`: HEADERS frame → 9-byte header + HPACK payload
+- [ ] `20E-RFC-002`: DATA frame → 9-byte header + body payload
+- [ ] `20E-RFC-003`: Frame-length field (3 bytes) → correct payload length
+- [ ] `20E-RFC-004`: Frame type (1 byte): 0x0=DATA, 0x1=HEADERS
+- [ ] `20E-RFC-005`: Stream ID in big-endian (4 bytes), highest bit = 0
+
+---
+
+### TASK-20-02: Http20DecoderStage — Frame Parsing
+
+**File:** `Http20/Http20DecoderStageRfcTests.cs`
+**RFC:** 9113 §4.1 — Frame Format
+
+- [ ] `20D-RFC-001`: Complete frame → correctly decoded
+- [ ] `20D-RFC-002`: Frame split across 2 TCP segments → reassembled
+- [ ] `20D-RFC-003`: 2 frames in one TCP segment → both decoded
+- [ ] `20D-RFC-004`: SETTINGS frame (Type 0x4) → flags and parameters correct
+- [ ] `20D-RFC-005`: DATA frame → stream ID and payload correct
+
+---
+
+### TASK-20-03: Http20StreamStage — Response Reassembly
+
+**File:** `Http20/Http20StreamStageTests.cs`
+**RFC:** 9113 §8.1 — HTTP Request/Response Exchange
+
+- [ ] `20S-001`: HEADERS with END_STREAM → response without body
+- [ ] `20S-002`: HEADERS + DATA with END_STREAM → response with body
+- [ ] `20S-003`: HEADERS + CONTINUATION + DATA → header block reassembled
+- [ ] `20S-004`: Multiple streams (ID 1, 3) → separate responses
+- [ ] `20S-005`: `:status` pseudo-header → correct HttpStatusCode
+- [ ] `20S-006`: Content-Encoding header → decompression applied (gzip)
+- [ ] `20S-007`: Regular headers (non-pseudo) → present in Response.Headers
+
+---
+
+### TASK-20-04: Http20ConnectionStage — SETTINGS Handling
+
+**File:** `Http20/Http20ConnectionStageSettingsTests.cs`
+**RFC:** 9113 §6.5 — SETTINGS
+
+- [ ] `20CS-001`: Server SETTINGS received → SETTINGS ACK sent
+- [ ] `20CS-002`: SETTINGS with ACK flag → no ACK sent back
+- [ ] `20CS-003`: INITIAL_WINDOW_SIZE parameter → `_initialStreamWindow` updated
+- [ ] `20CS-004`: SETTINGS frame forwarded downstream
+- [ ] `20CS-005`: Multiple consecutive SETTINGS → one ACK each
+
+---
+
+### TASK-20-05: Http20ConnectionStage — PING Handling
+
+**File:** `Http20/Http20ConnectionStagePingTests.cs`
+**RFC:** 9113 §6.7 — PING
+
+- [ ] `20CP-001`: PING without ACK → PING with ACK sent back
+- [ ] `20CP-002`: PING payload (8 bytes) → identical in ACK
+- [ ] `20CP-003`: PING with ACK flag → no new PING sent
+- [ ] `20CP-004`: PING on stream 0 → response on stream 0
+
+---
+
+### TASK-20-06: Http20ConnectionStage — GOAWAY Handling
+
+**File:** `Http20/Http20ConnectionStageGoAwayTests.cs`
+**RFC:** 9113 §6.8 — GOAWAY
+
+- [ ] `20CG-001`: GOAWAY received → `_goAwayReceived` flag set
+- [ ] `20CG-002`: GOAWAY frame forwarded downstream
+- [ ] `20CG-003`: After GOAWAY → new requests rejected (on stage extension)
+
+---
+
+### TASK-20-07: Http20ConnectionStage — Flow Control (WINDOW_UPDATE)
+
+**File:** `Http20/Http20ConnectionStageFlowControlTests.cs`
+**RFC:** 9113 §6.9 — WINDOW_UPDATE
+
+- [ ] `20CW-001`: Inbound DATA → connection window decremented
+- [ ] `20CW-002`: Inbound DATA → stream window decremented
+- [ ] `20CW-003`: Inbound DATA → WINDOW_UPDATE(stream=0) sent
+- [ ] `20CW-004`: Inbound DATA → WINDOW_UPDATE(stream=N) sent
+- [ ] `20CW-005`: Connection window < 0 → stage fails with exception
+- [ ] `20CW-006`: Stream window < 0 → stage fails with exception
+- [ ] `20CW-007`: Outbound DATA → connection window decremented
+- [ ] `20CW-008`: WINDOW_UPDATE(stream=0) received → connection window incremented
+- [ ] `20CW-009`: WINDOW_UPDATE(stream=N) received → stream window incremented
+
+---
+
+## Phase 5 — HTTP/2 Connection-Level: RFC 9113 §3
+
+### TASK-H2C-01: Connection Preface End-to-End
+
+**File:** `Http20/Http20ConnectionPrefaceRfcTests.cs`
+**RFC:** 9113 §3.4 — HTTP/2 Connection Preface
+
+- [ ] `H2P-001`: First 24 bytes = `PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n`
+- [ ] `H2P-002`: SETTINGS frame directly after magic (byte 24+)
+- [ ] `H2P-003`: Preface is sent exactly once (not repeated on second request)
+- [ ] `H2P-004`: SETTINGS frame on stream 0
+
+---
+
+### TASK-H2C-02: Stream ID Management End-to-End
+
+**File:** `Http20/Http20StreamIdRfcTests.cs`
+**RFC:** 9113 §5.1.1 — Stream Identifiers
+
+- [ ] `H2S-001`: First request → stream ID 1
+- [ ] `H2S-002`: Second request → stream ID 3
+- [ ] `H2S-003`: 5 requests → IDs 1, 3, 5, 7, 9
+- [ ] `H2S-004`: All HEADERS frames have correct stream ID
+- [ ] `H2S-005`: DATA frames have same stream ID as associated HEADERS
+
+---
+
+### TASK-H2C-03: Pseudo-Header End-to-End
+
+**File:** `Http20/Http20PseudoHeaderRfcTests.cs`
+**RFC:** 9113 §8.3.1 — Request Pseudo-Header Fields
+
+- [ ] `H2PH-001`: `:method` = HTTP method (GET, POST, etc.)
+- [ ] `H2PH-002`: `:path` = absolute path + query
+- [ ] `H2PH-003`: `:scheme` = URI scheme (http/https)
+- [ ] `H2PH-004`: `:authority` = host:port
+- [ ] `H2PH-005`: Pseudo-headers appear BEFORE regular headers
+
+---
+
+### TASK-H2C-04: Forbidden Header Stripping End-to-End
+
+**File:** `Http20/Http20ForbiddenHeaderRfcTests.cs`
+**RFC:** 9113 §8.2.2 — Connection-Specific Header Fields
+
+- [ ] `H2FH-001`: `connection` header → not present in wire format
+- [ ] `H2FH-002`: `transfer-encoding` header → not present in wire format
+- [ ] `H2FH-003`: `upgrade` header → not present in wire format
+- [ ] `H2FH-004`: `keep-alive` header → not present in wire format
+- [ ] `H2FH-005`: Custom header (`x-custom`) → present in wire format
+
+---
+
+### TASK-H2C-05: HPACK in Stream Context
+
+**File:** `Http20/Http20HpackStreamTests.cs`
+**RFC:** 7541 §2 — HPACK in HTTP/2 Context
+
+- [ ] `H2HP-001`: Static table: `:method GET` transmitted as indexed
+- [ ] `H2HP-002`: Dynamic table: repeated custom headers → smaller block on 2nd request
+- [ ] `H2HP-003`: 3 requests with same host → progressive compression visible
+- [ ] `H2HP-004`: Huffman encoding enabled → header block smaller than without
+
+---
+
+## Phase 6 — Engine Integration: Complete RFC Round-Trips
+
+### TASK-ENG-01: Http10Engine RFC Round-Trip
+
+**File:** `Http10/Http10EngineRfcRoundTripTests.cs`
+**RFC:** 1945 (combined)
+
+- [ ] `10ENG-001`: GET → 200 with body — version 1.0 in response
+- [ ] `10ENG-002`: POST with body → request body in wire, 200 response with body
+- [ ] `10ENG-003`: 404 response → StatusCode correct, ReasonPhrase present
+- [ ] `10ENG-004`: Custom request header → in wire and available in response
+- [ ] `10ENG-005`: Response correlation: `response.RequestMessage` == sent request
+
+---
+
+### TASK-ENG-02: Http11Engine RFC Round-Trip
+
+**File:** `Http11/Http11EngineRfcRoundTripTests.cs`
+**RFC:** 9112 (combined)
+
+- [ ] `11ENG-001`: GET → 200 with Content-Length body — version 1.1
+- [ ] `11ENG-002`: POST → chunked request + chunked response
+- [ ] `11ENG-003`: 5 sequential requests → FIFO correlation
+- [ ] `11ENG-004`: Host header in wire correct for each URI
+- [ ] `11ENG-005`: Hop-by-hop headers stripped in wire
+
+---
+
+### TASK-ENG-03: Http20Engine RFC Round-Trip
+
+**File:** `Http20/Http20EngineRfcRoundTripTests.cs`
+**RFC:** 9113 (combined)
+
+- [ ] `20ENG-001`: GET → 200 — preface + SETTINGS + HEADERS round-trip
+- [ ] `20ENG-002`: POST with body → HEADERS + DATA frames
+- [ ] `20ENG-003`: gzip-compressed response → body correctly decompressed
+- [ ] `20ENG-004`: Server SETTINGS ACK → correct in outbound frames
+- [ ] `20ENG-005`: 3 requests → 3 responses with correct stream IDs
+
+---
+
+### TASK-ENG-04: Engine Version Routing
+
+**File:** `Streams/EngineVersionRoutingTests.cs`
+**RFC:** N/A — architecture (partition-by-version)
+
+- [ ] `EROUTE-001`: HTTP/1.0 request → routed through Http10Engine
+- [ ] `EROUTE-002`: HTTP/1.1 request → routed through Http11Engine
+- [ ] `EROUTE-003`: HTTP/2.0 request → routed through Http20Engine
+- [ ] `EROUTE-004`: Mixed versions → each response has correct version
+- [ ] `EROUTE-005`: Unknown version → partition error (expected behavior)
+
+---
+
+## Phase 7 — Cross-Cutting: Error Handling & Edge Cases
+
+### TASK-ERR-01: Encoder Stage Buffer Management
+
+**File:** `Stages/EncoderStageBufferTests.cs`
+**RFC:** N/A — performance & correctness
+
+- [ ] `BUF-001`: Small request (< 4 KB) → adaptive buffer starts small
+- [ ] `BUF-002`: Large request (> 64 KB) → buffer grows (no overflow)
+- [ ] `BUF-003`: Sequential requests → buffer reuse (no memory leak)
+- [ ] `BUF-004`: Binary body → bytes passed through correctly
+
+---
+
+### TASK-ERR-02: Decoder Stage Partial Frame Handling
+
+**File:** `Stages/DecoderStagePartialTests.cs`
+**RFC:** 9113 §4.1 — Frame Format (partial receive)
+
+- [ ] `PART-001`: HTTP/1.x — incomplete header → decoder waits for next chunk
+- [ ] `PART-002`: HTTP/1.x — body fragment → accumulates until Content-Length reached
+- [ ] `PART-003`: HTTP/2 — 5 of 9 header bytes → frame waits for remainder
+- [ ] `PART-004`: HTTP/2 — frame payload spread across 3 chunks → correctly reassembled
+
+---
+
+### TASK-ERR-03: Stage Lifecycle & Termination
+
+**File:** `Stages/StageLifecycleTests.cs`
+**RFC:** N/A — Akka.Streams compliance
+
+- [ ] `LIFE-001`: UpstreamFinish → stage terminates without exception
+- [ ] `LIFE-002`: DownstreamCancel → stage shuts down cleanly
+- [ ] `LIFE-003`: Exception in encoder → stage fails with meaningful error message
+- [ ] `LIFE-004`: Exception in decoder → stage fails with HttpDecoderException
+
+---
+
+### TASK-ERR-04: Http20StreamStage — Memory Management
+
+**File:** `Http20/Http20StreamStageMemoryTests.cs`
+**RFC:** N/A — resource management
+
+- [ ] `MEM-001`: StreamState.Dispose() called after response emission
+- [ ] `MEM-002`: BodyBuffer grows correctly for large body (Rent → Copy → Dispose old buffer)
+- [ ] `MEM-003`: HeaderBuffer grows correctly for CONTINUATION frames
+- [ ] `MEM-004`: Stream dictionary cleaned up after response emission (`_streams.Remove`)
+
+---
+
+## Execution Order
+
+```
+Phase 1 (GAP-Closure)     ← Highest priority: closes known gaps
+  ├── TASK-GAP-01          StreamIdAllocator
+  ├── TASK-GAP-02          CorrelationHttp1XStage
+  ├── TASK-GAP-03          CorrelationHttp20Stage
+  └── TASK-GAP-04          ExtractOptionsStage
+
+Phase 2+3 (HTTP/1.x)      ← Can be worked on in parallel
+  ├── TASK-10-01..05       HTTP/1.0 Stages
+  └── TASK-11-01..06       HTTP/1.1 Stages
+
+Phase 4+5 (HTTP/2)        ← Can be worked on in parallel
+  ├── TASK-20-01..07       HTTP/2 Stages
+  └── TASK-H2C-01..05      HTTP/2 Connection-Level
+
+Phase 6 (Integration)     ← Depends on Phases 2–5
+  └── TASK-ENG-01..04      Engine Round-Trips
+
+Phase 7 (Cross-Cutting)   ← Independent, can be done anytime
+  └── TASK-ERR-01..04      Error & Edge Cases
+```
+
+---
+
+## Conventions
+
+| Aspect | Rule |
+|--------|------|
+| **Namespace** | `namespace TurboHttp.StreamTests.<Folder>;` (file-scoped) |
+| **Class** | `public sealed class <Name>Tests : StreamTestBase` or `: EngineTestBase` |
+| **DisplayName** | `"<RFC>-<Section>-<Cat>-<NNN>: <Description>"` |
+| **Timeout** | `[Fact(Timeout = 10_000)]` for all async stream tests |
+| **No** `#nullable enable` | As per CLAUDE.md |
+| **Helpers** | Use `StreamTestBase.Materializer` or `EngineTestBase.SendAsync/SendH2Async` |
+| **Fake TCP** | `EngineFakeConnectionStage` for HTTP/1.x, `H2FakeConnectionStage` for HTTP/2 |
+
+---
+
+## Success Criteria
+
+- [ ] All 35 tasks implemented
+- [ ] ~180 new stream tests passing
+- [ ] `dotnet test ./src/TurboHttp.StreamTests/` → 0 failures
+- [ ] RFC_TEST_MATRIX.md updated: GAP-005..008 → ✅
+- [ ] No regression in existing tests (`dotnet test ./src/TurboHttp.sln`)

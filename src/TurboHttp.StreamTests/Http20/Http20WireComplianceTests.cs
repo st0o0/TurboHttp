@@ -79,7 +79,7 @@ public sealed class Http2WireComplianceTests : EngineTestBase
 
     // ── ST-20-WIRE-001 ─────────────────────────────────────────────────────────
 
-    [Fact(DisplayName = "RFC-9113-§3.5: ST-20-WIRE-001: First 24 bytes equal connection preface magic verbatim")]
+    [Fact(Timeout = 10_000, DisplayName = "RFC-9113-§3.5: ST-20-WIRE-001: First 24 bytes equal connection preface magic verbatim")]
     public async Task ST_20_WIRE_001_Connection_Preface_Magic_First24Bytes()
     {
         var preface = await GetFirstOutboundChunkAsync();
@@ -91,7 +91,7 @@ public sealed class Http2WireComplianceTests : EngineTestBase
 
     // ── ST-20-WIRE-002 ─────────────────────────────────────────────────────────
 
-    [Fact(DisplayName = "RFC-9113-§3.5: ST-20-WIRE-002: SETTINGS frame immediately follows preface at byte offset 24")]
+    [Fact(Timeout = 10_000, DisplayName = "RFC-9113-§3.5: ST-20-WIRE-002: SETTINGS frame immediately follows preface at byte offset 24")]
     public async Task ST_20_WIRE_002_Settings_Frame_Follows_Preface_At_Offset_24()
     {
         var preface = await GetFirstOutboundChunkAsync();
@@ -113,7 +113,7 @@ public sealed class Http2WireComplianceTests : EngineTestBase
 
     // ── ST-20-WIRE-003 ─────────────────────────────────────────────────────────
 
-    [Fact(DisplayName = "RFC-9113-§8.3.1: ST-20-WIRE-003: HPACK block contains :method :path :scheme :authority")]
+    [Fact(Timeout = 10_000, DisplayName = "RFC-9113-§8.3.1: ST-20-WIRE-003: HPACK block contains :method :path :scheme :authority")]
     public async Task ST_20_WIRE_003_Hpack_PseudoHeaders_All_Present()
     {
         var request = new HttpRequestMessage(HttpMethod.Get, "https://example.com/resource")
@@ -139,7 +139,7 @@ public sealed class Http2WireComplianceTests : EngineTestBase
 
     // ── ST-20-WIRE-004 ─────────────────────────────────────────────────────────
 
-    [Fact(DisplayName = "RFC-9113-§4.1: ST-20-WIRE-004: All frame length fields consistent with actual payload sizes")]
+    [Fact(Timeout = 10_000, DisplayName = "RFC-9113-§4.1: ST-20-WIRE-004: All frame length fields consistent with actual payload sizes")]
     public async Task ST_20_WIRE_004_All_Frame_Length_Fields_Consistent()
     {
         var raw = await GetAllOutboundBytesAsync();
@@ -173,7 +173,7 @@ public sealed class Http2WireComplianceTests : EngineTestBase
 
     // ── ST-20-WIRE-005 ─────────────────────────────────────────────────────────
 
-    [Fact(DisplayName = "RFC-9113-§5.1.1: ST-20-WIRE-005: First request stream ID is 1")]
+    [Fact(Timeout = 10_000, DisplayName = "RFC-9113-§5.1.1: ST-20-WIRE-005: First request stream ID is 1")]
     public async Task ST_20_WIRE_005_First_Request_StreamId_Is_1()
     {
         var request = new HttpRequestMessage(HttpMethod.Get, "https://example.com/")
@@ -192,7 +192,7 @@ public sealed class Http2WireComplianceTests : EngineTestBase
 
     // ── ST-20-WIRE-006 ─────────────────────────────────────────────────────────
 
-    [Fact(DisplayName = "RFC-9113-§6.5: ST-20-WIRE-006: SETTINGS ACK flags byte is 0x01")]
+    [Fact(Timeout = 10_000, DisplayName = "RFC-9113-§6.5: ST-20-WIRE-006: SETTINGS ACK flags byte is 0x01")]
     public async Task ST_20_WIRE_006_Settings_Ack_Flags_Byte_Is_0x01()
     {
         var request = new HttpRequestMessage(HttpMethod.Get, "https://example.com/")

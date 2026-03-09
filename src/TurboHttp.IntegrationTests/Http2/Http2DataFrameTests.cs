@@ -20,7 +20,7 @@ public sealed class Http2DataFrameTests
 
     // ── Empty DATA Frame ──────────────────────────────────────────────────────
 
-    [Fact(DisplayName = "IT-2-060: 204 No Content response has zero DATA bytes")]
+    [Fact(Timeout = 10_000, DisplayName = "IT-2-060: 204 No Content response has zero DATA bytes")]
     public async Task Should_HaveNoDataBytes_When_Status204Received()
     {
         await using var conn = await Http2Connection.OpenAsync(_fixture.Port);
@@ -34,7 +34,7 @@ public sealed class Http2DataFrameTests
         }
     }
 
-    [Fact(DisplayName = "IT-2-061: Zero-byte POST body → echo returns empty body")]
+    [Fact(Timeout = 10_000, DisplayName = "IT-2-061: Zero-byte POST body → echo returns empty body")]
     public async Task Should_ReturnEmptyBody_When_ZeroBytePostSent()
     {
         await using var conn = await Http2Connection.OpenAsync(_fixture.Port);
@@ -51,7 +51,7 @@ public sealed class Http2DataFrameTests
 
     // ── Single DATA Frame ─────────────────────────────────────────────────────
 
-    [Fact(DisplayName = "IT-2-062: Small response body in a single DATA frame — body matches exactly")]
+    [Fact(Timeout = 10_000, DisplayName = "IT-2-062: Small response body in a single DATA frame — body matches exactly")]
     public async Task Should_ReturnExactBody_When_SmallResponseFitsInOneFrame()
     {
         await using var conn = await Http2Connection.OpenAsync(_fixture.Port);
@@ -64,7 +64,7 @@ public sealed class Http2DataFrameTests
 
     // ── Multiple DATA Frames ──────────────────────────────────────────────────
 
-    [Fact(DisplayName = "IT-2-063: 17 KB body delivered in two DATA frames (> 16384 bytes)")]
+    [Fact(Timeout = 10_000, DisplayName = "IT-2-063: 17 KB body delivered in two DATA frames (> 16384 bytes)")]
     public async Task Should_AssembleBody_When_BodySpansTwoDataFrames()
     {
         await using var conn = await Http2Connection.OpenAsync(_fixture.Port);
@@ -75,7 +75,7 @@ public sealed class Http2DataFrameTests
         Assert.Equal(17 * 1024, body.Length);
     }
 
-    [Fact(DisplayName = "IT-2-064: Multiple DATA frames + END_STREAM assembles complete body")]
+    [Fact(Timeout = 10_000, DisplayName = "IT-2-064: Multiple DATA frames + END_STREAM assembles complete body")]
     public async Task Should_AssembleCompleteBody_When_MultipleDataFramesPlusFinalEndStream()
     {
         await using var conn = await Http2Connection.OpenAsync(_fixture.Port);
@@ -90,14 +90,14 @@ public sealed class Http2DataFrameTests
 
     // ── Flow Control ──────────────────────────────────────────────────────────
 
-    [Fact(DisplayName = "IT-2-065: Flow control — connection receive window starts at 65535")]
+    [Fact(Timeout = 10_000, DisplayName = "IT-2-065: Flow control — connection receive window starts at 65535")]
     public async Task Should_HaveInitialReceiveWindow_When_ConnectionOpened()
     {
         await using var conn = await Http2Connection.OpenAsync(_fixture.Port);
         Assert.Equal(65535, conn.GetConnectionReceiveWindow());
     }
 
-    [Fact(DisplayName = "IT-2-066: Flow control — receive window decrements as DATA frames arrive")]
+    [Fact(Timeout = 10_000, DisplayName = "IT-2-066: Flow control — receive window decrements as DATA frames arrive")]
     public async Task Should_DecrementReceiveWindow_When_DataFramesReceived()
     {
         await using var conn = await Http2Connection.OpenAsync(_fixture.Port);
@@ -112,7 +112,7 @@ public sealed class Http2DataFrameTests
         Assert.True(windowAfter < initialWindow, "Receive window should have decreased after receiving DATA frames.");
     }
 
-    [Fact(DisplayName = "IT-2-067: Flow control — large body (60 KB) received after WINDOW_UPDATE")]
+    [Fact(Timeout = 10_000, DisplayName = "IT-2-067: Flow control — large body (60 KB) received after WINDOW_UPDATE")]
     public async Task Should_ReceiveLargeBody_When_WindowUpdateSentToReplenish()
     {
         // The Http2Connection.ReadResponseAsync automatically sends WINDOW_UPDATE
@@ -125,7 +125,7 @@ public sealed class Http2DataFrameTests
         Assert.Equal(60 * 1024, body.Length);
     }
 
-    [Fact(DisplayName = "IT-2-068: Manual WINDOW_UPDATE on connection (stream 0) — server can send more data")]
+    [Fact(Timeout = 10_000, DisplayName = "IT-2-068: Manual WINDOW_UPDATE on connection (stream 0) — server can send more data")]
     public async Task Should_AcceptMoreData_When_ManualWindowUpdateSent()
     {
         await using var conn = await Http2Connection.OpenAsync(_fixture.Port);
@@ -147,7 +147,7 @@ public sealed class Http2DataFrameTests
 
     // ── DATA Frame with END_STREAM ─────────────────────────────────────────────
 
-    [Fact(DisplayName = "IT-2-069: POST body DATA frame carries END_STREAM — response delivered correctly")]
+    [Fact(Timeout = 10_000, DisplayName = "IT-2-069: POST body DATA frame carries END_STREAM — response delivered correctly")]
     public async Task Should_DeliverResponse_When_PostBodyDataFrameHasEndStream()
     {
         await using var conn = await Http2Connection.OpenAsync(_fixture.Port);
@@ -167,7 +167,7 @@ public sealed class Http2DataFrameTests
 
     // ── Stream-Level Flow Control ─────────────────────────────────────────────
 
-    [Fact(DisplayName = "IT-2-070: Stream-level receive window decrements correctly for 4 KB response")]
+    [Fact(Timeout = 10_000, DisplayName = "IT-2-070: Stream-level receive window decrements correctly for 4 KB response")]
     public async Task Should_DecrementStreamWindow_When_DataFramesReceivedOnStream()
     {
         await using var conn = await Http2Connection.OpenAsync(_fixture.Port);
@@ -184,7 +184,7 @@ public sealed class Http2DataFrameTests
 
     // ── DATA Fragments Reassembly ─────────────────────────────────────────────
 
-    [Fact(DisplayName = "IT-2-071: Body delivered in many small TCP reads reassembles correctly")]
+    [Fact(Timeout = 10_000, DisplayName = "IT-2-071: Body delivered in many small TCP reads reassembles correctly")]
     public async Task Should_ReassembleBody_When_DeliveredInManySmallReads()
     {
         // /slow/{count} sends each byte with a flush, forcing many small TCP reads.
@@ -200,7 +200,7 @@ public sealed class Http2DataFrameTests
 
     // ── Content-Type in Response ──────────────────────────────────────────────
 
-    [Fact(DisplayName = "IT-2-072: Response content-type header decoded and accessible")]
+    [Fact(Timeout = 10_000, DisplayName = "IT-2-072: Response content-type header decoded and accessible")]
     public async Task Should_DecodeContentTypeHeader_When_ResponseContainsIt()
     {
         await using var conn = await Http2Connection.OpenAsync(_fixture.Port);

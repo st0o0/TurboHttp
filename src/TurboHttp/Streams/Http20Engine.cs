@@ -17,13 +17,15 @@ public class Http20Engine : IHttpProtocolEngine
 
         return BidiFlow.FromGraph(GraphDsl.Create(b =>
         {
+            var streamIdAllocator = b.Add(new StreamIdAllocator());
             var requestToFrame = b.Add(new Request2FrameStage(requestEncoder));
             var frameEncoder = b.Add(new Http20EncoderStage());
             var prependPreface = b.Add(new PrependPrefaceStage());
             var frameDecoder = b.Add(new Http20DecoderStage());
             var streamDecoder = b.Add(new Http20StreamStage());
             var connection = b.Add(new Http20ConnectionStage());
-
+            
+            b.From(streamIdAllocator.Outlet).To(requestToFrame.Inlet);
             b.From(requestToFrame.Outlet).To(connection.Inlet2);
             b.From(connection.Outlet2).To(frameEncoder.Inlet);
             b.From(frameEncoder.Outlet).To(prependPreface.Inlet);
@@ -35,7 +37,7 @@ public class Http20Engine : IHttpProtocolEngine
                 (IMemoryOwner<byte> buffer, int readableBytes),
                 (IMemoryOwner<byte> buffer, int readableBytes),
                 HttpResponseMessage>(
-                requestToFrame.Inlet,
+                streamIdAllocator.Inlet,
                 prependPreface.Outlet,
                 frameDecoder.Inlet,
                 streamDecoder.Outlet);

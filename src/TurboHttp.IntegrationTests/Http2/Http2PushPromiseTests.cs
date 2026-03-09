@@ -79,7 +79,7 @@ public sealed class Http2PushPromiseTests
         Assert.Empty(session.Responses); // No response yet — push response comes separately
     }
 
-    [Fact(DisplayName = "IT-2A-023: Push stream DATA frames received — response assembled correctly")]
+    [Fact(Timeout = 10_000, DisplayName = "IT-2A-023: Push stream DATA frames received — response assembled correctly")]
     public async Task Should_AssemblePushResponse_When_HeadersThenDataOnPushStream()
     {
         var session = new Http2IntegrationSession();

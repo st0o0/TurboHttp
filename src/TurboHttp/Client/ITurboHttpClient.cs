@@ -15,18 +15,18 @@ namespace TurboHttp.Client;
 
 public record TurboClientOptions
 {
-    public Uri?    BaseAddress           { get; init; }
+    public Uri? BaseAddress { get; init; }
     public Version DefaultRequestVersion { get; init; } = HttpVersion.Version11;
 
-    public TimeSpan ConnectTimeout        { get; init; } = TimeSpan.FromSeconds(10);
-    public TimeSpan ReconnectInterval     { get; init; } = TimeSpan.FromSeconds(5);
-    public int      MaxReconnectAttempts  { get; init; } = 10;
-    public int      MaxFrameSize          { get; init; } = 128 * 1024;
+    public TimeSpan ConnectTimeout { get; init; } = TimeSpan.FromSeconds(10);
+    public TimeSpan ReconnectInterval { get; init; } = TimeSpan.FromSeconds(5);
+    public int MaxReconnectAttempts { get; init; } = 10;
+    public int MaxFrameSize { get; init; } = 128 * 1024;
 
-    // TLS overrides — null means "decide from URI scheme"
-    public RemoteCertificateValidationCallback? ServerCertificateValidationCallback { get; init; }
-    public X509CertificateCollection?           ClientCertificates                  { get; init; }
-    public SslProtocols                         EnabledSslProtocols                 { get; init; } = SslProtocols.None;
+    public RemoteCertificateValidationCallback? ServerCertificateValidationCallback { get; init; } =
+        static (_, _, _, sslPolicyErrors) => sslPolicyErrors is SslPolicyErrors.None;
+    public X509CertificateCollection? ClientCertificates { get; init; }
+    public SslProtocols EnabledSslProtocols { get; init; } = SslProtocols.None;
 }
 
 public interface ITurboHttpClient
@@ -47,7 +47,10 @@ public sealed class TurboHttpClient : ITurboHttpClient
 {
     private readonly HttpRequestMessage _defaultHeadersHolder = new();
     private readonly TurboClientStreamManager _manager;
-    private readonly ConcurrentDictionary<HttpRequestMessage, TaskCompletionSource<HttpResponseMessage>> _pending = new();
+
+    private readonly ConcurrentDictionary<HttpRequestMessage, TaskCompletionSource<HttpResponseMessage>> _pending =
+        new();
+
     private readonly CancellationTokenSource _cts = new();
 
     public Uri? BaseAddress { get; set; }
@@ -83,7 +86,7 @@ public sealed class TurboHttpClient : ITurboHttpClient
 
     public async Task<HttpResponseMessage> SendAsync(
         HttpRequestMessage request,
-        CancellationToken  cancellationToken)
+        CancellationToken cancellationToken)
     {
         var tcs = new TaskCompletionSource<HttpResponseMessage>(
             TaskCreationOptions.RunContinuationsAsynchronously);
@@ -101,6 +104,7 @@ public sealed class TurboHttpClient : ITurboHttpClient
         {
             tcs.TrySetCanceled();
         }
+
         _pending.Clear();
     }
 }

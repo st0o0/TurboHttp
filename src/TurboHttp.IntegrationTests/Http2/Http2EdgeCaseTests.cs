@@ -23,7 +23,7 @@ public sealed class Http2EdgeCaseTests
 
     // ── Immediately Closed Stream ─────────────────────────────────────────────
 
-    [Fact(DisplayName = "IT-2A-060: Immediately closed stream (HEADERS + END_STREAM, no DATA) — decoded correctly")]
+    [Fact(Timeout = 10_000, DisplayName = "IT-2A-060: Immediately closed stream (HEADERS + END_STREAM, no DATA) — decoded correctly")]
     public async Task Should_ReturnEmptyBodyResponse_When_StreamImmediatelyClosed()
     {
         // GET /status/204 returns HEADERS with END_STREAM set and no DATA frame.
@@ -58,7 +58,7 @@ public sealed class Http2EdgeCaseTests
 
     // ── SETTINGS with Multiple Parameters ────────────────────────────────────
 
-    [Fact(DisplayName = "IT-2A-062: SETTINGS with multiple parameters in one frame — all applied correctly")]
+    [Fact(Timeout = 10_000, DisplayName = "IT-2A-062: SETTINGS with multiple parameters in one frame — all applied correctly")]
     public async Task Should_ApplyAllSettings_When_SettingsFrameHasMultipleParameters()
     {
         await using var conn = await Http2Connection.OpenAsync(_fixture.Port);
@@ -105,7 +105,7 @@ public sealed class Http2EdgeCaseTests
 
     // ── PING Round-Trip ───────────────────────────────────────────────────────
 
-    [Fact(DisplayName = "IT-2A-064: PING with 8-byte opaque data round-trip — ACK data matches")]
+    [Fact(Timeout = 10_000, DisplayName = "IT-2A-064: PING with 8-byte opaque data round-trip — ACK data matches")]
     public async Task Should_EchoOpaqueData_When_PingAckReceived()
     {
         await using var conn = await Http2Connection.OpenAsync(_fixture.Port);
@@ -184,7 +184,7 @@ public sealed class Http2EdgeCaseTests
         Assert.Equal(Http2ErrorCode.NoError, session.GoAwayFrame!.ErrorCode);
     }
 
-    [Fact(DisplayName = "IT-2A-068: Connection reuse after SETTINGS_MAX_CONCURRENT_STREAMS update")]
+    [Fact(Timeout = 10_000, DisplayName = "IT-2A-068: Connection reuse after SETTINGS_MAX_CONCURRENT_STREAMS update")]
     public async Task Should_RemainFunctional_When_MaxConcurrentStreamsIncreased()
     {
         await using var conn = await Http2Connection.OpenAsync(_fixture.Port);
@@ -231,7 +231,7 @@ public sealed class Http2EdgeCaseTests
 
     // ── Long URI ──────────────────────────────────────────────────────────────
 
-    [Fact(DisplayName = "IT-2A-070: Very long :path value (4 KB URI) — server responds with 200")]
+    [Fact(Timeout = 10_000, DisplayName = "IT-2A-070: Very long :path value (4 KB URI) — server responds with 200")]
     public async Task Should_Return200_When_PathIs4KbLong()
     {
         await using var conn = await Http2Connection.OpenAsync(_fixture.Port);
@@ -250,7 +250,7 @@ public sealed class Http2EdgeCaseTests
 
     // ── :authority with Port ──────────────────────────────────────────────────
 
-    [Fact(DisplayName = "IT-2A-071: :authority with explicit port number — request succeeds")]
+    [Fact(Timeout = 10_000, DisplayName = "IT-2A-071: :authority with explicit port number — request succeeds")]
     public async Task Should_Return200_When_AuthorityIncludesExplicitPort()
     {
         await using var conn = await Http2Connection.OpenAsync(_fixture.Port);

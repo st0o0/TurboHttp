@@ -12,7 +12,7 @@ public sealed class Http11WireComplianceTests : EngineTestBase
 
     private static Http11Engine Engine => new();
 
-    [Fact(DisplayName = "RFC-9112-§3.1: ST-11-WIRE-001: GET /path HTTP/1.1 CRLF exact bytes")]
+    [Fact(Timeout = 10_000, DisplayName = "RFC-9112-§3.1: ST-11-WIRE-001: GET /path HTTP/1.1 CRLF exact bytes")]
     public async Task ST_11_WIRE_001_RequestLine_ExactBytes()
     {
         var request = new HttpRequestMessage(HttpMethod.Get, "http://example.com/path")
@@ -25,7 +25,7 @@ public sealed class Http11WireComplianceTests : EngineTestBase
         Assert.StartsWith("GET /path HTTP/1.1\r\n", raw);
     }
 
-    [Fact(DisplayName = "RFC-9112-§7.2: ST-11-WIRE-002: Host header is present and correct")]
+    [Fact(Timeout = 10_000, DisplayName = "RFC-9112-§7.2: ST-11-WIRE-002: Host header is present and correct")]
     public async Task ST_11_WIRE_002_HostHeader_PresentAndCorrect()
     {
         var request = new HttpRequestMessage(HttpMethod.Get, "http://example.com/")
@@ -38,7 +38,7 @@ public sealed class Http11WireComplianceTests : EngineTestBase
         Assert.Contains("Host: example.com\r\n", raw);
     }
 
-    [Fact(DisplayName = "RFC-9112-§7.6.1: ST-11-WIRE-003: Hop-by-hop Keep-Alive header absent on outbound")]
+    [Fact(Timeout = 10_000, DisplayName = "RFC-9112-§7.6.1: ST-11-WIRE-003: Hop-by-hop Keep-Alive header absent on outbound")]
     public async Task ST_11_WIRE_003_KeepAlive_HopByHop_NotForwarded()
     {
         var request = new HttpRequestMessage(HttpMethod.Get, "http://example.com/")
@@ -52,7 +52,7 @@ public sealed class Http11WireComplianceTests : EngineTestBase
         Assert.DoesNotContain("Keep-Alive:", raw);
     }
 
-    [Fact(DisplayName = "RFC-9112-§6.1: ST-11-WIRE-004: Chunked encoding first chunk header is hex-size CRLF")]
+    [Fact(Timeout = 10_000, DisplayName = "RFC-9112-§6.1: ST-11-WIRE-004: Chunked encoding first chunk header is hex-size CRLF")]
     public async Task ST_11_WIRE_004_ChunkedEncoding_FirstChunkHeader_Format()
     {
         var bodyBytes = Encoding.UTF8.GetBytes("hello world");
@@ -74,7 +74,7 @@ public sealed class Http11WireComplianceTests : EngineTestBase
         Assert.Matches(new Regex(@"^[0-9a-fA-F]+\r\n"), bodySection);
     }
 
-    [Fact(DisplayName = "RFC-9112-§2.1: ST-11-WIRE-005: Header section ends with double CRLF before body")]
+    [Fact(Timeout = 10_000, DisplayName = "RFC-9112-§2.1: ST-11-WIRE-005: Header section ends with double CRLF before body")]
     public async Task ST_11_WIRE_005_HeaderSection_EndsWith_DoubleCrlf()
     {
         var request = new HttpRequestMessage(HttpMethod.Get, "http://example.com/")
@@ -87,7 +87,7 @@ public sealed class Http11WireComplianceTests : EngineTestBase
         Assert.Contains("\r\n\r\n", raw);
     }
 
-    [Theory(DisplayName = "RFC-9112-§3.1: ST-11-WIRE-006: Method preserved verbatim on outbound wire")]
+    [Theory(Timeout = 10_000, DisplayName = "RFC-9112-§3.1: ST-11-WIRE-006: Method preserved verbatim on outbound wire")]
     [InlineData("DELETE")]
     [InlineData("PATCH")]
     public async Task ST_11_WIRE_006_Method_PreservedVerbatim(string method)

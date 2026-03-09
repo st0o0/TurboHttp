@@ -6,9 +6,9 @@ using TurboHttp.Protocol;
 
 namespace TurboHttp.Streams.Stages;
 
-public sealed class Request2FrameStage : GraphStage<FlowShape<HttpRequestMessage, Http2Frame>>
+public sealed class Request2FrameStage : GraphStage<FlowShape<(HttpRequestMessage, int), Http2Frame>>
 {
-    private readonly Inlet<HttpRequestMessage> _inlet = new("req.in");
+    private readonly Inlet<(HttpRequestMessage, int)> _inlet = new("req.in");
     private readonly Outlet<Http2Frame> _outlet = new("req.out");
     private readonly Http2RequestEncoder _encoder;
 
@@ -17,7 +17,7 @@ public sealed class Request2FrameStage : GraphStage<FlowShape<HttpRequestMessage
         _encoder = encoder;
     }
 
-    public override FlowShape<HttpRequestMessage, Http2Frame> Shape => new(_inlet, _outlet);
+    public override FlowShape<(HttpRequestMessage, int), Http2Frame> Shape => new(_inlet, _outlet);
 
     protected override GraphStageLogic CreateLogic(Attributes inheritedAttributes) => new Logic(this);
 
@@ -29,8 +29,8 @@ public sealed class Request2FrameStage : GraphStage<FlowShape<HttpRequestMessage
         {
             SetHandler(stage._inlet, onPush: () =>
             {
-                var req = Grab(stage._inlet);
-                var (_, frames) = stage._encoder.Encode(req);
+                var (request, streamId) = Grab(stage._inlet);
+                var (_, frames) = stage._encoder.Encode(request, streamId);
 
                 foreach (var f in frames)
                 {
