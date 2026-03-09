@@ -434,7 +434,7 @@ independently buildable.  RFC-tagged `DisplayName` attributes tie each test to a
 ---
 
 ### Phase 18 — `Http11WireComplianceTests.cs` (RFC 9112 on-wire validation)
-- [ ] **Status**: pending
+- [x] **Status**: done
 
 **File**: `src/TurboHttp.StreamTests/Http11/Http11WireComplianceTests.cs`
 
