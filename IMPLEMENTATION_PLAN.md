@@ -426,7 +426,7 @@ for callers to use directly.
 `TurboHttpClient` becomes a thin wrapper over `TurboClientStreamManager`. It handles
 `DefaultRequestHeaders` storage, `SendAsync` correlation, and `CancelPendingRequests`.
 
-- [ ] **TASK-CLI-01** — Fix `DefaultRequestHeaders` backing field
+- [x] **TASK-CLI-01** — Fix `DefaultRequestHeaders` backing field
 
   `HttpRequestHeaders` cannot be instantiated directly. Borrow from a dummy message:
 
@@ -440,7 +440,7 @@ for callers to use directly.
 
   **Acceptance:** `client.DefaultRequestHeaders.Add("X-Test", "1")` does not throw.
 
-- [ ] **TASK-CLI-02** — `TurboHttpClient` constructor — create `TurboClientStreamManager`
+- [x] **TASK-CLI-02** — `TurboHttpClient` constructor — create `TurboClientStreamManager`
 
   ```csharp
   public TurboHttpClient(TurboClientOptions clientOptions, ActorSystem system)
@@ -467,7 +467,7 @@ for callers to use directly.
   }
   ```
 
-- [ ] **TASK-CLI-03** — Implement `SendAsync`
+- [x] **TASK-CLI-03** — Implement `SendAsync`
 
   ```csharp
   public async Task<HttpResponseMessage> SendAsync(
@@ -490,24 +490,24 @@ for callers to use directly.
   The pending map key is the original request reference; `response.RequestMessage`
   must be that same reference (set by TASK-REQ-02).
 
-- [ ] **TASK-CLI-04** — Unit tests for `TurboHttpClient.SendAsync`
+- [x] **TASK-CLI-04** — Unit tests for `TurboHttpClient.SendAsync`
 
   **File:** `src/TurboHttp.StreamTests/Client/TurboHttpClientSendAsyncTests.cs`
 
   Use `EngineFakeConnectionStage` (already in `EngineTestBase`) or a plain fake Akka
   graph to avoid real TCP. Tests must cover:
 
-  - [ ] **CLI-001** Single request → single response returned
-  - [ ] **CLI-002** BaseAddress applied before request enters pipeline — assert raw bytes reaching fake TCP contain the absolute URI
-  - [ ] **CLI-003** DefaultRequestVersion applied → raw bytes use the correct request line
-  - [ ] **CLI-004** DefaultRequestHeaders merged → X-Default header present in raw bytes
-  - [ ] **CLI-005** Explicit headers on request not overridden by DefaultRequestHeaders
-  - [ ] **CLI-006** Timeout expires before response → TaskCanceledException thrown
-  - [ ] **CLI-007** CancellationToken cancelled → TaskCanceledException thrown
-  - [ ] **CLI-008** 5 sequential requests all complete in order
-  - [ ] **CLI-009** 10 concurrent requests all complete (Task.WhenAll)
+  - [x] **CLI-001** Single request → single response returned
+  - [x] **CLI-002** BaseAddress applied before request enters pipeline — assert raw bytes reaching fake TCP contain the absolute URI
+  - [x] **CLI-003** DefaultRequestVersion applied → raw bytes use the correct request line
+  - [x] **CLI-004** DefaultRequestHeaders merged → X-Default header present in raw bytes
+  - [x] **CLI-005** Explicit headers on request not overridden by DefaultRequestHeaders
+  - [x] **CLI-006** Timeout expires before response → TaskCanceledException thrown
+  - [x] **CLI-007** CancellationToken cancelled → TaskCanceledException thrown
+  - [x] **CLI-008** 5 sequential requests all complete in order
+  - [x] **CLI-009** 10 concurrent requests all complete (Task.WhenAll)
 
-- [ ] **TASK-CLI-05** — `CancelPendingRequests` implementation
+- [x] **TASK-CLI-05** — `CancelPendingRequests` implementation
 
   ```csharp
   public void CancelPendingRequests()
@@ -520,8 +520,8 @@ for callers to use directly.
   }
   ```
 
-  - [ ] **CLI-010** CancelPendingRequests() → all in-flight SendAsync tasks throw OperationCanceledException
-  - [ ] **CLI-011** After CancelPendingRequests(), new SendAsync works normally
+  - [x] **CLI-010** CancelPendingRequests() → all in-flight SendAsync tasks throw OperationCanceledException
+  - [x] **CLI-011** After CancelPendingRequests(), new SendAsync works normally
 
 ---
 
