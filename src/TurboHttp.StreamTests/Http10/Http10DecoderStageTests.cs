@@ -2,7 +2,7 @@ using System.Buffers;
 using System.Net;
 using System.Text;
 using Akka.Streams.Dsl;
-using TurboHttp.Streams;
+using TurboHttp.Streams.Stages;
 
 namespace TurboHttp.StreamTests.Http10;
 
@@ -18,7 +18,7 @@ public sealed class Http10DecoderStageTests : StreamTestBase
     {
         var source = Source.From(chunks.Select(Chunk));
         return await source
-            .Via(Flow.FromGraph(new Stages.Http10DecoderStage()))
+            .Via(Flow.FromGraph(new Http10DecoderStage()))
             .RunWith(Sink.First<HttpResponseMessage>(), Materializer);
     }
 
@@ -37,7 +37,7 @@ public sealed class Http10DecoderStageTests : StreamTestBase
         var response = await DecodeAsync("HTTP/1.0 200 OK\r\nX-Custom: test\r\n\r\n");
 
         Assert.True(response.Headers.TryGetValues("X-Custom", out var values));
-        Assert.Equal("test", values!.First());
+        Assert.Equal("test", values.First());
     }
 
     [Fact(DisplayName = "RFC-1945-§7.2: Body delimited by Content-Length decoded correctly")]

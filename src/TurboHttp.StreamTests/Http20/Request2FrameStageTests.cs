@@ -1,27 +1,27 @@
-using System.Net.Http;
 using Akka.Streams.Dsl;
 using TurboHttp.Protocol;
-using TurboHttp.Streams;
+using TurboHttp.Streams.Stages;
 
 namespace TurboHttp.StreamTests.Http20;
 
-public sealed class Request2Http2FrameStageTests : StreamTestBase
+public sealed class Request2FrameStageTests : StreamTestBase
 {
     private static HttpRequestMessage GetRequest(string url = "http://example.com/path")
-        => new HttpRequestMessage(HttpMethod.Get, url);
+        => new(HttpMethod.Get, url);
 
     private static HttpRequestMessage PostRequest(string url = "http://example.com/path", string body = "hello")
     {
-        var req = new HttpRequestMessage(HttpMethod.Post, url);
-        req.Content = new ByteArrayContent(System.Text.Encoding.UTF8.GetBytes(body));
-        return req;
+        return new HttpRequestMessage(HttpMethod.Post, url)
+        {
+            Content = new ByteArrayContent(System.Text.Encoding.UTF8.GetBytes(body))
+        };
     }
 
     private async Task<IReadOnlyList<Http2Frame>> EncodeAsync(Http2RequestEncoder encoder, params HttpRequestMessage[] requests)
     {
         var source = Source.From(requests);
         return await source
-            .Via(Flow.FromGraph(new Stages.Request2Http2FrameStage(encoder)))
+            .Via(Flow.FromGraph(new Request2FrameStage(encoder)))
             .RunWith(Sink.Seq<Http2Frame>(), Materializer);
     }
 

@@ -23,6 +23,31 @@ public interface ITurboHttpClient
     Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken);
 }
 
+
+public class TurboHttpClient : ITurboHttpClient
+{
+    private readonly Channel<HttpRequestMessage> _requests = Channel.CreateUnbounded<HttpRequestMessage>();
+    private readonly Channel<HttpResponseMessage> _responses = Channel.CreateUnbounded<HttpResponseMessage>();
+    
+    public Uri? BaseAddress { get; set; }
+    public HttpRequestHeaders DefaultRequestHeaders { get; }
+    public Version DefaultRequestVersion { get; set; }
+    public HttpVersionPolicy DefaultVersionPolicy { get; set; }
+    public TimeSpan Timeout { get; set; }
+    public long MaxResponseContentBufferSize { get; set; }
+    public ChannelWriter<HttpRequestMessage> Requests => _requests.Writer;
+    public ChannelReader<HttpResponseMessage> Responses => _responses.Reader;
+    public void CancelPendingRequests()
+    {
+        
+    }
+
+    public Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+    {
+        throw new NotImplementedException();
+    }
+}
+
 public interface ITurboHttpClientFactory
 {
     ITurboHttpClient CreateClient();

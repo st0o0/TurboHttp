@@ -2,7 +2,7 @@ using System.Buffers;
 using System.Net;
 using System.Text;
 using Akka.Streams.Dsl;
-using TurboHttp.Streams;
+using TurboHttp.Streams.Stages;
 
 namespace TurboHttp.StreamTests.Http11;
 
@@ -18,7 +18,7 @@ public sealed class Http11DecoderStageTests : StreamTestBase
     {
         var source = Source.From(chunks.Select(Chunk));
         return await source
-            .Via(Flow.FromGraph(new Stages.Http11DecoderStage()))
+            .Via(Flow.FromGraph(new Http11DecoderStage()))
             .RunWith(Sink.First<HttpResponseMessage>(), Materializer);
     }
 
@@ -59,7 +59,7 @@ public sealed class Http11DecoderStageTests : StreamTestBase
         ]);
 
         var responses = await source
-            .Via(Flow.FromGraph(new Stages.Http11DecoderStage()))
+            .Via(Flow.FromGraph(new Http11DecoderStage()))
             .RunWith(Sink.Seq<HttpResponseMessage>(), Materializer);
 
         Assert.Equal(2, responses.Count);
@@ -73,7 +73,7 @@ public sealed class Http11DecoderStageTests : StreamTestBase
         var response = await DecodeAsync("HTTP/1.1 200 OK\r\nX-Custom: myval\r\nContent-Length: 0\r\n\r\n");
 
         Assert.True(response.Headers.TryGetValues("X-Custom", out var values));
-        Assert.Equal("myval", values!.First());
+        Assert.Equal("myval", values.First());
     }
 
     [Fact(DisplayName = "RFC-9112-§6.1: Response split across three TCP chunks reassembled")]

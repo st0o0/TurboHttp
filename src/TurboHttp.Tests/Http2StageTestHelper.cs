@@ -1,5 +1,4 @@
 using System.Buffers.Binary;
-using System.Collections.Generic;
 using TurboHttp.Protocol;
 
 namespace TurboHttp.Tests;

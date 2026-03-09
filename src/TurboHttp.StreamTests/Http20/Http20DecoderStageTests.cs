@@ -1,12 +1,11 @@
 using System.Buffers;
-using System.Collections.Generic;
 using Akka.Streams.Dsl;
 using TurboHttp.Protocol;
-using TurboHttp.Streams;
+using TurboHttp.Streams.Stages;
 
 namespace TurboHttp.StreamTests.Http20;
 
-public sealed class Http2FrameDecoderStageTests : StreamTestBase
+public sealed class Http20DecoderStageTests : StreamTestBase
 {
     private static (IMemoryOwner<byte>, int) Chunk(byte[] data)
         => (new SimpleMemoryOwner(data), data.Length);
@@ -15,7 +14,7 @@ public sealed class Http2FrameDecoderStageTests : StreamTestBase
     {
         var source = Source.From(chunks.Select(Chunk));
         return await source
-            .Via(Flow.FromGraph(new Stages.Http2FrameDecoderStage()))
+            .Via(Flow.FromGraph(new Http20DecoderStage()))
             .RunWith(Sink.Seq<Http2Frame>(), Materializer);
     }
 

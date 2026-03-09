@@ -57,9 +57,9 @@ public sealed class Http2EncoderBaselineTests
 
         var (_, data) = Encode(request);
 
-        var flags = (HeadersFlags)data[4];
-        Assert.True(flags.HasFlag(HeadersFlags.EndStream));
-        Assert.True(flags.HasFlag(HeadersFlags.EndHeaders));
+        var flags = (Headers)data[4];
+        Assert.True(flags.HasFlag(Headers.EndStream));
+        Assert.True(flags.HasFlag(Headers.EndHeaders));
     }
 
     [Fact]
@@ -139,9 +139,9 @@ public sealed class Http2EncoderBaselineTests
 
         var (_, data) = Encode(request);
 
-        var flags = (HeadersFlags)data[4];
-        Assert.False(flags.HasFlag(HeadersFlags.EndStream));
-        Assert.True(flags.HasFlag(HeadersFlags.EndHeaders));
+        var flags = (Headers)data[4];
+        Assert.False(flags.HasFlag(Headers.EndStream));
+        Assert.True(flags.HasFlag(Headers.EndHeaders));
     }
 
     [Fact]
@@ -194,7 +194,7 @@ public sealed class Http2EncoderBaselineTests
         var ack = Http2FrameUtils.EncodeSettingsAck();
 
         Assert.Equal((byte)FrameType.Settings, ack[3]);
-        Assert.Equal((byte)SettingsFlags.Ack, ack[4]);
+        Assert.Equal((byte)Settings.Ack, ack[4]);
     }
 
     [Fact]
@@ -323,8 +323,8 @@ public sealed class Http2EncoderBaselineTests
 
         var data = (ReadOnlySpan<byte>)buffer;
         Assert.Equal((byte)FrameType.Headers, data[3]);
-        var firstFlags = (HeadersFlags)data[4];
-        Assert.False(firstFlags.HasFlag(HeadersFlags.EndHeaders));
+        var firstFlags = (Headers)data[4];
+        Assert.False(firstFlags.HasFlag(Headers.EndHeaders));
 
         var firstPayloadLen = (data[0] << 16) | (data[1] << 8) | data[2];
         var nextOffset = 9 + firstPayloadLen;

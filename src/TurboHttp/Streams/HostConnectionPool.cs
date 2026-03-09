@@ -4,7 +4,7 @@ using Akka.Actor;
 using Akka.Streams;
 using Akka.Streams.Dsl;
 using Servus.Akka;
-using Servus.Akka.IO;
+using TurboHttp.IO;
 
 namespace TurboHttp.Streams;
 

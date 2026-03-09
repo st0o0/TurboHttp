@@ -133,8 +133,8 @@ public sealed class Http2EncoderRfcTaggedTests
         var request = new HttpRequestMessage(HttpMethod.Get, "https://example.com/");
         var (_, data) = Encode(request);
 
-        var flags = (HeadersFlags)data[4];
-        Assert.True(flags.HasFlag(HeadersFlags.EndStream));
+        var flags = (Headers)data[4];
+        Assert.True(flags.HasFlag(Headers.EndStream));
     }
 
     [Fact(DisplayName = "7540-6.2-003: END_HEADERS flag set on single HEADERS frame")]
@@ -143,8 +143,8 @@ public sealed class Http2EncoderRfcTaggedTests
         var request = new HttpRequestMessage(HttpMethod.Get, "https://example.com/");
         var (_, data) = Encode(request);
 
-        var flags = (HeadersFlags)data[4];
-        Assert.True(flags.HasFlag(HeadersFlags.EndHeaders));
+        var flags = (Headers)data[4];
+        Assert.True(flags.HasFlag(Headers.EndHeaders));
     }
 
     [Fact(DisplayName = "7540-6.9-001: Headers exceeding max frame size split into CONTINUATION")]
@@ -261,8 +261,8 @@ public sealed class Http2EncoderRfcTaggedTests
         var payloadLen = (data[0] << 16) | (data[1] << 8) | data[2];
         Assert.Equal(data.Length, 9 + payloadLen);
 
-        var flags = (HeadersFlags)data[4];
-        Assert.True(flags.HasFlag(HeadersFlags.EndStream));
+        var flags = (Headers)data[4];
+        Assert.True(flags.HasFlag(Headers.EndStream));
     }
 
     [Fact(DisplayName = "enc5-data-001: DATA frame has type byte 0x00")]

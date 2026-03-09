@@ -1,4 +1,3 @@
-using System.Net.Http;
 using TurboHttp.Protocol;
 
 namespace TurboHttp.Tests.RFC9113;

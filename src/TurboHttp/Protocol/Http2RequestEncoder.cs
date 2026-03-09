@@ -10,19 +10,13 @@ namespace TurboHttp.Protocol;
 /// Stateful: maintains HPACK encoder and stream ID counter.
 /// One instance per connection.
 /// </summary>
-public sealed class Http2RequestEncoder
+public sealed class Http2RequestEncoder(bool useHuffman = false, int maxFrameSize = 16384)
 {
-    private readonly HpackEncoder _hpack;
-    private int _maxFrameSize;
+    private readonly HpackEncoder _hpack = new(useHuffman);
+    private int _maxFrameSize = maxFrameSize;
     private int _nextStreamId = 1;
     private long _connectionSendWindow = 65535; // Tracks connection-level flow control (for RFC 7540 compliance)
     private readonly Dictionary<int, long> _streamSendWindows = new();
-
-    public Http2RequestEncoder(bool useHuffman = false, int maxFrameSize = 16384)
-    {
-        _hpack = new HpackEncoder(useHuffman);
-        _maxFrameSize = maxFrameSize;
-    }
 
     /// <summary>
     /// Encodes a request to HTTP/2 frames. Returns the stream ID and frame list.
@@ -35,9 +29,7 @@ public sealed class Http2RequestEncoder
 
         if (_nextStreamId < 0)
         {
-            throw new Http2Exception(
-                "HTTP/2 stream ID space exhausted: all client stream IDs have been used.",
-                Http2ErrorCode.ProtocolError);
+            throw new Http2Exception("HTTP/2 stream ID space exhausted: all client stream IDs have been used.");
         }
 
         var streamId = _nextStreamId;
@@ -57,9 +49,9 @@ public sealed class Http2RequestEncoder
             var body = request.Content!.ReadAsByteArrayAsync().GetAwaiter().GetResult();
             if (body.Length > 0)
             {
-                var streamWindow = _streamSendWindows.TryGetValue(streamId, out var sw) ? sw : 65535L;
+                var streamWindow = _streamSendWindows.GetValueOrDefault(streamId, 65535L);
                 var effectiveWindow = Math.Max(0L, Math.Min(_connectionSendWindow, streamWindow));
-                var bytesToSend = (int)Math.Min((long)body.Length, effectiveWindow);
+                var bytesToSend = (int)Math.Min(body.Length, effectiveWindow);
 
                 _connectionSendWindow -= bytesToSend;
                 _streamSendWindows[streamId] = streamWindow - bytesToSend;
@@ -209,20 +201,12 @@ public sealed class Http2RequestEncoder
             (":authority", uri.Authority),
         };
 
-        foreach (var h in request.Headers)
-        {
-            if (!IsForbidden(h.Key))
-            {
-                headers.Add((h.Key.ToLowerInvariant(), string.Join(", ", h.Value)));
-            }
-        }
+        headers.AddRange(request.Headers.Where(x => !IsForbidden(x.Key))
+            .Select(h => (h.Key.ToLowerInvariant(), string.Join(", ", h.Value))));
 
         if (request.Content == null) return headers;
 
-        foreach (var h in request.Content.Headers)
-        {
-            headers.Add((h.Key.ToLowerInvariant(), string.Join(", ", h.Value)));
-        }
+        headers.AddRange(request.Content.Headers.Select(h => (h.Key.ToLowerInvariant(), string.Join(", ", h.Value))));
 
         return headers;
     }

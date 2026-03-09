@@ -32,7 +32,7 @@ public sealed class Http2EncoderStreamSettingsTests
     {
         var ack = Http2FrameUtils.EncodeSettingsAck();
         Assert.Equal((byte)FrameType.Settings, ack[3]);         // type = 0x04
-        Assert.Equal((byte)SettingsFlags.Ack, ack[4]);          // flags = 0x01
+        Assert.Equal((byte)Settings.Ack, ack[4]);          // flags = 0x01
         var streamId = BinaryPrimitives.ReadUInt32BigEndian(ack.AsSpan(5)) & 0x7FFFFFFFu;
         Assert.Equal(0u, streamId);                             // stream = 0
     }

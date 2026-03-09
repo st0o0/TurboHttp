@@ -188,7 +188,7 @@ public sealed class Http2ErrorTests
         // Frame header: length=6, type=SETTINGS(0x4), flags=ACK(0x1), streamId=0
         frameBytes[0] = 0; frameBytes[1] = 0; frameBytes[2] = 6; // length = 6
         frameBytes[3] = (byte)FrameType.Settings;
-        frameBytes[4] = (byte)SettingsFlags.Ack;
+        frameBytes[4] = (byte)Settings.Ack;
         // stream ID = 0 (already zero from array init)
 
         var ex = Assert.Throws<Http2Exception>(() =>

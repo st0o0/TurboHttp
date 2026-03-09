@@ -1,16 +1,16 @@
 using System.Buffers;
 using Akka.Streams.Dsl;
 using TurboHttp.Protocol;
-using TurboHttp.Streams;
+using TurboHttp.Streams.Stages;
 
 namespace TurboHttp.StreamTests.Http20;
 
-public sealed class Http2FrameEncoderStageTests : StreamTestBase
+public sealed class Http20EncoderStageTests : StreamTestBase
 {
     private async Task<byte[]> EncodeAsync(Http2Frame frame)
     {
         var chunk = await Source.Single(frame)
-            .Via(Flow.FromGraph(new Stages.Http2FrameEncoderStage()))
+            .Via(Flow.FromGraph(new Http20EncoderStage()))
             .RunWith(Sink.First<(IMemoryOwner<byte>, int)>(), Materializer);
 
         var bytes = chunk.Item1.Memory.Span[..chunk.Item2].ToArray();

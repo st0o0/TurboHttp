@@ -1,7 +1,6 @@
 using System.Net;
 using System.Text;
 using TurboHttp.Protocol;
-using TurboHttp.Tests;
 
 namespace TurboHttp.Tests.RFC9113;
 
@@ -74,9 +73,9 @@ public sealed class Http2RoundTripMethodTests
 
         // Only a HEADERS frame (endStream=true), no DATA frame
         Assert.Equal((byte)FrameType.Headers, encoderBuf[3]);
-        var headersFlags = (HeadersFlags)encoderBuf[4];
-        Assert.True(headersFlags.HasFlag(HeadersFlags.EndStream));
-        Assert.True(headersFlags.HasFlag(HeadersFlags.EndHeaders));
+        var headersFlags = (Headers)encoderBuf[4];
+        Assert.True(headersFlags.HasFlag(Headers.EndStream));
+        Assert.True(headersFlags.HasFlag(Headers.EndHeaders));
     }
 
     // ── RT-2-021 ───────────────────────────────────────────────────────────────
@@ -98,8 +97,8 @@ public sealed class Http2RoundTripMethodTests
 
         // HEADERS frame without END_STREAM (body follows)
         Assert.Equal((byte)FrameType.Headers, encoderBuf[3]);
-        var headersFlags = (HeadersFlags)encoderBuf[4];
-        Assert.False(headersFlags.HasFlag(HeadersFlags.EndStream));
+        var headersFlags = (Headers)encoderBuf[4];
+        Assert.False(headersFlags.HasFlag(Headers.EndStream));
 
         // DATA frame follows
         var firstFrameLen = (encoderBuf[0] << 16) | (encoderBuf[1] << 8) | encoderBuf[2];
@@ -144,8 +143,8 @@ public sealed class Http2RoundTripMethodTests
 
         // First frame HEADERS without END_HEADERS (continuation follows)
         Assert.Equal((byte)FrameType.Headers, encoderBuf[3]);
-        var headersFlags = (HeadersFlags)encoderBuf[4];
-        Assert.False(headersFlags.HasFlag(HeadersFlags.EndHeaders));
+        var headersFlags = (Headers)encoderBuf[4];
+        Assert.False(headersFlags.HasFlag(Headers.EndHeaders));
 
         // Find at least two CONTINUATION frames
         var continuationCount = 0;

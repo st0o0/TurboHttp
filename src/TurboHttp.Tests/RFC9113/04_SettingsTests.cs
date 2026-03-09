@@ -1,6 +1,5 @@
 using System.Buffers.Binary;
 using TurboHttp.Protocol;
-using TurboHttp.Tests;
 
 namespace TurboHttp.Tests.RFC9113;
 
@@ -326,7 +325,7 @@ public sealed class Http2SettingsSynchronizationTests
         // Type = SETTINGS
         Assert.Equal((byte)FrameType.Settings, ack[3]);
         // Flags = ACK (0x1)
-        Assert.Equal((byte)SettingsFlags.Ack, ack[4]);
+        Assert.Equal((byte)Settings.Ack, ack[4]);
         // Stream = 0
         var streamId = BinaryPrimitives.ReadUInt32BigEndian(ack.AsSpan(5)) & 0x7FFFFFFFu;
         Assert.Equal(0u, streamId);
@@ -502,7 +501,7 @@ public sealed class Http2SettingsSynchronizationTests
     {
         // Minimal HPACK: ":status: 200" via static table index 8 (indexed representation)
         var headerBlock = new byte[] { 0x88 }; // index 8 = :status: 200
-        var flags = (byte)(HeadersFlags.EndHeaders | (endStream ? HeadersFlags.EndStream : 0));
+        var flags = (byte)(Headers.EndHeaders | (endStream ? Headers.EndStream : 0));
 
         var frame = new byte[9 + headerBlock.Length];
         frame[0] = 0;

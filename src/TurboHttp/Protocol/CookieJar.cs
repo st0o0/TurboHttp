@@ -97,7 +97,7 @@ public sealed class CookieJar
     /// Adds applicable cookies from the jar to the request's Cookie header.
     /// Applies domain matching, path matching, Secure, and expiry rules.
     /// </summary>
-    public void AddCookiesToRequest(Uri requestUri, HttpRequestMessage request)
+    public void AddCookiesToRequest(Uri requestUri, ref HttpRequestMessage request)
     {
         ArgumentNullException.ThrowIfNull(requestUri);
         ArgumentNullException.ThrowIfNull(request);

@@ -1,7 +1,6 @@
 using System.Net;
 using System.Text;
 using TurboHttp.Protocol;
-using TurboHttp.Tests;
 
 namespace TurboHttp.Tests.Integration;
 

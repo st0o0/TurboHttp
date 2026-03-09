@@ -1,8 +1,5 @@
-using System;
 using System.Net;
-using System.Net.Http;
 using TurboHttp.Protocol;
-using Xunit;
 
 namespace TurboHttp.Tests.RFC9111;
 

@@ -4,6 +4,7 @@ using Akka;
 using Akka.Streams;
 using Akka.Streams.Dsl;
 using TurboHttp.Protocol;
+using TurboHttp.Streams.Stages;
 
 namespace TurboHttp.Streams;
 
@@ -16,12 +17,12 @@ public class Http20Engine : IHttpProtocolEngine
 
         return BidiFlow.FromGraph(GraphDsl.Create(b =>
         {
-            var requestToFrame = b.Add(new Stages.Request2Http2FrameStage(requestEncoder));
-            var frameEncoder = b.Add(new Stages.Http2FrameEncoderStage());
-            var prependPreface = b.Add(new Stages.PrependPrefaceStage());
-            var frameDecoder = b.Add(new Stages.Http2FrameDecoderStage());
-            var streamDecoder = b.Add(new Stages.Http2StreamStage());
-            var connection = b.Add(new Stages.Http2ConnectionStage());
+            var requestToFrame = b.Add(new Request2FrameStage(requestEncoder));
+            var frameEncoder = b.Add(new Http20EncoderStage());
+            var prependPreface = b.Add(new PrependPrefaceStage());
+            var frameDecoder = b.Add(new Http20DecoderStage());
+            var streamDecoder = b.Add(new Http20StreamStage());
+            var connection = b.Add(new Http20ConnectionStage());
 
             b.From(requestToFrame.Outlet).To(connection.Inlet2);
             b.From(connection.Outlet2).To(frameEncoder.Inlet);

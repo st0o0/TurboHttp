@@ -105,8 +105,8 @@ public sealed class Http2FrameDecoder
 
     private static HeadersFrame ParseHeadersFrame(byte flags, int streamId, ReadOnlyMemory<byte> payload)
     {
-        var endStream = (flags & (byte)HeadersFlags.EndStream) != 0;
-        var endHeaders = (flags & (byte)HeadersFlags.EndHeaders) != 0;
+        var endStream = (flags & (byte)Headers.EndStream) != 0;
+        var endHeaders = (flags & (byte)Headers.EndHeaders) != 0;
         var data = payload;
 
         if ((flags & 0x08) != 0) // PADDED
@@ -148,7 +148,7 @@ public sealed class Http2FrameDecoder
 
     private static SettingsFrame ParseSettings(ReadOnlyMemory<byte> payload, byte flags)
     {
-        var isAck = (flags & (byte)SettingsFlags.Ack) != 0;
+        var isAck = (flags & (byte)Settings.Ack) != 0;
 
         // RFC 7540 §6.5: A SETTINGS frame with ACK flag MUST have an empty payload.
         if (isAck && payload.Length > 0)
@@ -201,7 +201,7 @@ public sealed class Http2FrameDecoder
     {
         var span = payload.Span;
         var promised = (int)(BinaryPrimitives.ReadUInt32BigEndian(span) & 0x7FFFFFFFu);
-        var endHeaders = (flags & (byte)HeadersFlags.EndHeaders) != 0;
+        var endHeaders = (flags & (byte)Headers.EndHeaders) != 0;
         var headerBlock = payload[4..].ToArray();
         return new PushPromiseFrame(streamId, promised, headerBlock, endHeaders);
     }

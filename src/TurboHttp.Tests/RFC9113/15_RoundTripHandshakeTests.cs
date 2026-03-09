@@ -1,7 +1,6 @@
 using System.Net;
 using System.Text;
 using TurboHttp.Protocol;
-using TurboHttp.Tests;
 
 namespace TurboHttp.Tests.RFC9113;
 
@@ -131,9 +130,9 @@ public sealed class Http2RoundTripHandshakeTests
         Assert.Equal((byte)FrameType.Headers, encoderBuf[3]);
 
         // HEADERS for POST must NOT have END_STREAM (bit 0) since there is a body
-        var headersFlags = (HeadersFlags)encoderBuf[4];
-        Assert.False(headersFlags.HasFlag(HeadersFlags.EndStream));
-        Assert.True(headersFlags.HasFlag(HeadersFlags.EndHeaders));
+        var headersFlags = (Headers)encoderBuf[4];
+        Assert.False(headersFlags.HasFlag(Headers.EndStream));
+        Assert.True(headersFlags.HasFlag(Headers.EndHeaders));
 
         // A DATA frame must follow (verify it exists)
         var firstFrameLen = (encoderBuf[0] << 16) | (encoderBuf[1] << 8) | encoderBuf[2];
@@ -452,8 +451,8 @@ public sealed class Http2RoundTripHandshakeTests
         Assert.Equal((byte)FrameType.Headers, encoderBuf[3]);
 
         // HEADERS frame flags must NOT have END_HEADERS (0x04) — continuation follows
-        var headersFlags = (HeadersFlags)encoderBuf[4];
-        Assert.False(headersFlags.HasFlag(HeadersFlags.EndHeaders));
+        var headersFlags = (Headers)encoderBuf[4];
+        Assert.False(headersFlags.HasFlag(Headers.EndHeaders));
 
         // Second frame must be CONTINUATION type (0x09)
         var firstFramePayloadLen = (encoderBuf[0] << 16) | (encoderBuf[1] << 8) | encoderBuf[2];

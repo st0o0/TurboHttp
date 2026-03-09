@@ -37,7 +37,7 @@ public sealed class CookieJarTests
         jar.ProcessResponse(Uri("http://example.com/"), ResponseWithCookie("token=xyz"));
 
         var req = new HttpRequestMessage(HttpMethod.Get, "http://example.com/");
-        jar.AddCookiesToRequest(Uri("http://example.com/"), req);
+        jar.AddCookiesToRequest(Uri("http://example.com/"), ref req);
 
         Assert.True(req.Headers.TryGetValues("Cookie", out var values));
         Assert.Contains("token=xyz", string.Join("", values));
@@ -82,7 +82,7 @@ public sealed class CookieJarTests
         jar.ProcessResponse(Uri("http://example.com/"), ResponseWithCookie("id=1"));
 
         var req = new HttpRequestMessage(HttpMethod.Get, "http://sub.example.com/");
-        jar.AddCookiesToRequest(Uri("http://sub.example.com/"), req);
+        jar.AddCookiesToRequest(Uri("http://sub.example.com/"), ref req);
 
         Assert.False(req.Headers.Contains("Cookie"));
     }
@@ -94,7 +94,7 @@ public sealed class CookieJarTests
         jar.ProcessResponse(Uri("http://example.com/"), ResponseWithCookie("id=1"));
 
         var req = new HttpRequestMessage(HttpMethod.Get, "http://example.com/path");
-        jar.AddCookiesToRequest(Uri("http://example.com/path"), req);
+        jar.AddCookiesToRequest(Uri("http://example.com/path"), ref req);
 
         Assert.True(req.Headers.Contains("Cookie"));
     }
@@ -106,7 +106,7 @@ public sealed class CookieJarTests
         jar.ProcessResponse(Uri("http://example.com/"), ResponseWithCookie("id=1; Domain=example.com"));
 
         var req = new HttpRequestMessage(HttpMethod.Get, "http://sub.example.com/");
-        jar.AddCookiesToRequest(Uri("http://sub.example.com/"), req);
+        jar.AddCookiesToRequest(Uri("http://sub.example.com/"), ref req);
 
         Assert.True(req.Headers.Contains("Cookie"));
     }
@@ -118,7 +118,7 @@ public sealed class CookieJarTests
         jar.ProcessResponse(Uri("http://example.com/"), ResponseWithCookie("id=1; Domain=example.com"));
 
         var req = new HttpRequestMessage(HttpMethod.Get, "http://notexample.com/");
-        jar.AddCookiesToRequest(Uri("http://notexample.com/"), req);
+        jar.AddCookiesToRequest(Uri("http://notexample.com/"), ref req);
 
         Assert.False(req.Headers.Contains("Cookie"));
     }
@@ -131,7 +131,7 @@ public sealed class CookieJarTests
         jar.ProcessResponse(Uri("http://example.com/"), ResponseWithCookie("id=1; Domain=.example.com"));
 
         var req = new HttpRequestMessage(HttpMethod.Get, "http://sub.example.com/");
-        jar.AddCookiesToRequest(Uri("http://sub.example.com/"), req);
+        jar.AddCookiesToRequest(Uri("http://sub.example.com/"), ref req);
 
         Assert.True(req.Headers.Contains("Cookie"));
     }
@@ -145,7 +145,7 @@ public sealed class CookieJarTests
         jar.ProcessResponse(Uri("http://example.com/api"), ResponseWithCookie("token=x; Path=/api"));
 
         var req = new HttpRequestMessage(HttpMethod.Get, "http://example.com/api/users");
-        jar.AddCookiesToRequest(Uri("http://example.com/api/users"), req);
+        jar.AddCookiesToRequest(Uri("http://example.com/api/users"), ref req);
 
         Assert.True(req.Headers.Contains("Cookie"));
     }
@@ -157,7 +157,7 @@ public sealed class CookieJarTests
         jar.ProcessResponse(Uri("http://example.com/api"), ResponseWithCookie("token=x; Path=/api"));
 
         var req = new HttpRequestMessage(HttpMethod.Get, "http://example.com/apiv2");
-        jar.AddCookiesToRequest(Uri("http://example.com/apiv2"), req);
+        jar.AddCookiesToRequest(Uri("http://example.com/apiv2"), ref req);
 
         Assert.False(req.Headers.Contains("Cookie"));
     }
@@ -169,7 +169,7 @@ public sealed class CookieJarTests
         jar.ProcessResponse(Uri("http://example.com/"), ResponseWithCookie("global=1; Path=/"));
 
         var req = new HttpRequestMessage(HttpMethod.Get, "http://example.com/deep/nested/path");
-        jar.AddCookiesToRequest(Uri("http://example.com/deep/nested/path"), req);
+        jar.AddCookiesToRequest(Uri("http://example.com/deep/nested/path"), ref req);
 
         Assert.True(req.Headers.Contains("Cookie"));
     }
@@ -181,7 +181,7 @@ public sealed class CookieJarTests
         jar.ProcessResponse(Uri("http://example.com/foo/"), ResponseWithCookie("x=1; Path=/foo/"));
 
         var req = new HttpRequestMessage(HttpMethod.Get, "http://example.com/foo/bar");
-        jar.AddCookiesToRequest(Uri("http://example.com/foo/bar"), req);
+        jar.AddCookiesToRequest(Uri("http://example.com/foo/bar"), ref req);
 
         Assert.True(req.Headers.Contains("Cookie"));
     }
@@ -195,7 +195,7 @@ public sealed class CookieJarTests
 
         // Should match /foo/baz (same directory)
         var req = new HttpRequestMessage(HttpMethod.Get, "http://example.com/foo/baz");
-        jar.AddCookiesToRequest(Uri("http://example.com/foo/baz"), req);
+        jar.AddCookiesToRequest(Uri("http://example.com/foo/baz"), ref req);
 
         Assert.True(req.Headers.Contains("Cookie"));
     }
@@ -209,7 +209,7 @@ public sealed class CookieJarTests
         jar.ProcessResponse(Uri("https://example.com/"), ResponseWithCookie("sess=abc; Secure"));
 
         var req = new HttpRequestMessage(HttpMethod.Get, "http://example.com/");
-        jar.AddCookiesToRequest(Uri("http://example.com/"), req);
+        jar.AddCookiesToRequest(Uri("http://example.com/"), ref req);
 
         Assert.False(req.Headers.Contains("Cookie"));
     }
@@ -221,7 +221,7 @@ public sealed class CookieJarTests
         jar.ProcessResponse(Uri("https://example.com/"), ResponseWithCookie("sess=abc; Secure"));
 
         var req = new HttpRequestMessage(HttpMethod.Get, "https://example.com/");
-        jar.AddCookiesToRequest(Uri("https://example.com/"), req);
+        jar.AddCookiesToRequest(Uri("https://example.com/"), ref req);
 
         Assert.True(req.Headers.Contains("Cookie"));
     }
@@ -233,7 +233,7 @@ public sealed class CookieJarTests
         jar.ProcessResponse(Uri("http://example.com/"), ResponseWithCookie("pref=dark"));
 
         var req = new HttpRequestMessage(HttpMethod.Get, "http://example.com/");
-        jar.AddCookiesToRequest(Uri("http://example.com/"), req);
+        jar.AddCookiesToRequest(Uri("http://example.com/"), ref req);
 
         Assert.True(req.Headers.Contains("Cookie"));
     }
@@ -248,7 +248,7 @@ public sealed class CookieJarTests
         jar.ProcessResponse(Uri("http://example.com/"), ResponseWithCookie("session=s1; HttpOnly"));
 
         var req = new HttpRequestMessage(HttpMethod.Get, "http://example.com/");
-        jar.AddCookiesToRequest(Uri("http://example.com/"), req);
+        jar.AddCookiesToRequest(Uri("http://example.com/"), ref req);
 
         // HttpOnly = restrict JS access; we still send it in HTTP requests
         Assert.True(req.Headers.Contains("Cookie"));
@@ -261,7 +261,7 @@ public sealed class CookieJarTests
         jar.ProcessResponse(Uri("http://example.com/"), ResponseWithCookie("pref=light"));
 
         var req = new HttpRequestMessage(HttpMethod.Get, "http://example.com/");
-        jar.AddCookiesToRequest(Uri("http://example.com/"), req);
+        jar.AddCookiesToRequest(Uri("http://example.com/"), ref req);
 
         Assert.True(req.Headers.Contains("Cookie"));
     }
@@ -273,10 +273,11 @@ public sealed class CookieJarTests
     {
         var jar = new CookieJar();
         // Expires in the distant past
-        jar.ProcessResponse(Uri("http://example.com/"), ResponseWithCookie("old=x; Expires=Thu, 01 Jan 1970 00:00:00 GMT"));
+        jar.ProcessResponse(Uri("http://example.com/"),
+            ResponseWithCookie("old=x; Expires=Thu, 01 Jan 1970 00:00:00 GMT"));
 
         var req = new HttpRequestMessage(HttpMethod.Get, "http://example.com/");
-        jar.AddCookiesToRequest(Uri("http://example.com/"), req);
+        jar.AddCookiesToRequest(Uri("http://example.com/"), ref req);
 
         Assert.False(req.Headers.Contains("Cookie"));
     }
@@ -285,10 +286,11 @@ public sealed class CookieJarTests
     public void Future_Expires_Cookie_Is_Sent()
     {
         var jar = new CookieJar();
-        jar.ProcessResponse(Uri("http://example.com/"), ResponseWithCookie("future=x; Expires=Thu, 01 Jan 2099 00:00:00 GMT"));
+        jar.ProcessResponse(Uri("http://example.com/"),
+            ResponseWithCookie("future=x; Expires=Thu, 01 Jan 2099 00:00:00 GMT"));
 
         var req = new HttpRequestMessage(HttpMethod.Get, "http://example.com/");
-        jar.AddCookiesToRequest(Uri("http://example.com/"), req);
+        jar.AddCookiesToRequest(Uri("http://example.com/"), ref req);
 
         Assert.True(req.Headers.Contains("Cookie"));
     }
@@ -311,7 +313,8 @@ public sealed class CookieJarTests
     {
         var jar = new CookieJar();
         // Expires says far future, but Max-Age=0 should win and delete
-        jar.ProcessResponse(Uri("http://example.com/"), ResponseWithCookie("x=1; Expires=Thu, 01 Jan 2099 00:00:00 GMT; Max-Age=0"));
+        jar.ProcessResponse(Uri("http://example.com/"),
+            ResponseWithCookie("x=1; Expires=Thu, 01 Jan 2099 00:00:00 GMT; Max-Age=0"));
 
         Assert.Equal(0, jar.Count);
     }
@@ -324,7 +327,7 @@ public sealed class CookieJarTests
         Assert.Equal(1, jar.Count);
 
         var req = new HttpRequestMessage(HttpMethod.Get, "http://example.com/");
-        jar.AddCookiesToRequest(Uri("http://example.com/"), req);
+        jar.AddCookiesToRequest(Uri("http://example.com/"), ref req);
 
         Assert.True(req.Headers.Contains("Cookie"));
     }
@@ -341,7 +344,7 @@ public sealed class CookieJarTests
         Assert.Equal(1, jar.Count);
 
         var req = new HttpRequestMessage(HttpMethod.Get, "http://example.com/");
-        jar.AddCookiesToRequest(Uri("http://example.com/"), req);
+        jar.AddCookiesToRequest(Uri("http://example.com/"), ref req);
 
         Assert.True(req.Headers.TryGetValues("Cookie", out var vals));
         Assert.Contains("token=new", string.Join("", vals));
@@ -426,7 +429,7 @@ public sealed class CookieJarTests
         jar.ProcessResponse(Uri("http://192.168.1.1/"), ResponseWithCookie("id=1"));
 
         var req = new HttpRequestMessage(HttpMethod.Get, "http://192.168.1.1/");
-        jar.AddCookiesToRequest(Uri("http://192.168.1.1/"), req);
+        jar.AddCookiesToRequest(Uri("http://192.168.1.1/"), ref req);
 
         Assert.True(req.Headers.Contains("Cookie"));
     }
@@ -481,7 +484,7 @@ public sealed class CookieJarTests
         jar.ProcessResponse(Uri("http://example.com/api/v1"), ResponseWithCookie("v1=3; Path=/api/v1"));
 
         var req = new HttpRequestMessage(HttpMethod.Get, "http://example.com/api/v1/users");
-        jar.AddCookiesToRequest(Uri("http://example.com/api/v1/users"), req);
+        jar.AddCookiesToRequest(Uri("http://example.com/api/v1/users"), ref req);
 
         Assert.True(req.Headers.TryGetValues("Cookie", out var vals));
         var cookieHeader = string.Join("", vals);
@@ -508,7 +511,7 @@ public sealed class CookieJarTests
 
         // Redirect to redirect.com — only redir=2 should be sent
         var req = new HttpRequestMessage(HttpMethod.Get, "http://redirect.com/");
-        jar.AddCookiesToRequest(Uri("http://redirect.com/"), req);
+        jar.AddCookiesToRequest(Uri("http://redirect.com/"), ref req);
 
         Assert.True(req.Headers.TryGetValues("Cookie", out var vals));
         var header = string.Join("", vals);
@@ -523,7 +526,7 @@ public sealed class CookieJarTests
         jar.ProcessResponse(Uri("http://example.com/"), ResponseWithCookie("id=1"));
 
         var req = new HttpRequestMessage(HttpMethod.Get, "http://other.com/");
-        jar.AddCookiesToRequest(Uri("http://other.com/"), req);
+        jar.AddCookiesToRequest(Uri("http://other.com/"), ref req);
 
         Assert.False(req.Headers.Contains("Cookie"));
     }
@@ -540,7 +543,7 @@ public sealed class CookieJarTests
         Assert.Equal(1, jar.Count);
 
         var req = new HttpRequestMessage(HttpMethod.Get, "http://example.com/");
-        jar.AddCookiesToRequest(Uri("http://example.com/"), req);
+        jar.AddCookiesToRequest(Uri("http://example.com/"), ref req);
         Assert.True(req.Headers.Contains("Cookie"));
     }
 

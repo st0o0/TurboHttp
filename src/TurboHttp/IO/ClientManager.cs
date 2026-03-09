@@ -1,8 +1,9 @@
 using System;
 using Akka.Actor;
 using Akka.Event;
+using Servus.Akka;
 
-namespace Servus.Akka.IO;
+namespace TurboHttp.IO;
 
 public sealed class ClientManager : ReceiveActor
 {

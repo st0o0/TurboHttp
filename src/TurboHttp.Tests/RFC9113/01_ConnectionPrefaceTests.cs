@@ -1,6 +1,5 @@
 using System.Buffers.Binary;
 using TurboHttp.Protocol;
-using TurboHttp.Tests;
 
 namespace TurboHttp.Tests.RFC9113;
 
@@ -105,7 +104,7 @@ public sealed class Http2ConnectionPrefaceTests
         var preface = Http2FrameUtils.BuildConnectionPreface();
 
         var flags = preface[MagicLength + 4]; // flags byte
-        Assert.Equal(0, flags & (byte)SettingsFlags.Ack);
+        Assert.Equal(0, flags & (byte)Settings.Ack);
     }
 
     /// RFC 9113 §3.4 — Magic bytes spell 'PRI * HTTP/2.0 SM' as ASCII
@@ -510,7 +509,7 @@ public sealed class Http2ConnectionPrefaceTests
         // A SETTINGS ACK frame with R-bit set in the stream word.
         var settingsFrame = new byte[9];
         settingsFrame[3] = 0x04; // SETTINGS
-        settingsFrame[4] = (byte)SettingsFlags.Ack; // ACK
+        settingsFrame[4] = (byte)Settings.Ack; // ACK
         settingsFrame[5] = 0x80; // R-bit set in MSB
 
         // Http2FrameDecoder masks the R-bit and decodes the frame normally.

@@ -28,8 +28,6 @@ public sealed class RedirectHandler
         _redirectCount = 0;
     }
 
-    // ── Public API ───────────────────────────────────────────────────────────────
-
     /// <summary>
     /// Returns true if the response status code is a redirect that should be followed.
     /// </summary>
@@ -226,7 +224,7 @@ public sealed class RedirectHandler
     {
         ArgumentNullException.ThrowIfNull(cookieJar);
         ArgumentNullException.ThrowIfNull(original);
-        ArgumentNullException.ThrowIfNull(original.RequestUri, nameof(original.RequestUri));
+        ArgumentNullException.ThrowIfNull(original.RequestUri);
 
         // Process Set-Cookie headers from the redirect response into the jar
         cookieJar.ProcessResponse(original.RequestUri, response);
@@ -235,9 +233,9 @@ public sealed class RedirectHandler
         var newRequest = BuildRedirectRequest(original, response);
 
         // Re-apply cookies for the new redirect URI from the jar
-        if (newRequest.RequestUri != null)
+        if (newRequest.RequestUri is not null)
         {
-            cookieJar.AddCookiesToRequest(newRequest.RequestUri, newRequest);
+            cookieJar.AddCookiesToRequest(newRequest.RequestUri, ref newRequest);
         }
 
         return newRequest;

@@ -1,6 +1,6 @@
 using System.Buffers;
 using Akka.Streams.Dsl;
-using TurboHttp.Streams;
+using TurboHttp.Streams.Stages;
 
 namespace TurboHttp.StreamTests.Http20;
 
@@ -19,7 +19,7 @@ public sealed class PrependPrefaceStageTests : StreamTestBase
         }));
 
         var chunks = await source
-            .Via(Flow.FromGraph(new Stages.PrependPrefaceStage()))
+            .Via(Flow.FromGraph(new PrependPrefaceStage()))
             .RunWith(Sink.Seq<(IMemoryOwner<byte>, int)>(), Materializer);
 
         return chunks.Select(c =>

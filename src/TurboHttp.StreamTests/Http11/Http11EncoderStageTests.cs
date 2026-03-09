@@ -1,7 +1,7 @@
 using System.Buffers;
 using System.Text;
 using Akka.Streams.Dsl;
-using TurboHttp.Streams;
+using TurboHttp.Streams.Stages;
 
 namespace TurboHttp.StreamTests.Http11;
 
@@ -10,7 +10,7 @@ public sealed class Http11EncoderStageTests : StreamTestBase
     private async Task<string> EncodeAsync(HttpRequestMessage request)
     {
         var chunks = await Source.Single(request)
-            .Via(Flow.FromGraph(new Stages.Http11EncoderStage()))
+            .Via(Flow.FromGraph(new Http11EncoderStage()))
             .RunWith(Sink.Seq<(IMemoryOwner<byte>, int)>(), Materializer);
 
         var sb = new StringBuilder();

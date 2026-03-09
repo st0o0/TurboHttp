@@ -1,7 +1,4 @@
 {
-    "enabledPlugins": {
-    "dotnet-skills@dotnet-skills": true
-  },
   "permissions": {
     "allow": [
       "Bash(echo:*)",
@@ -26,7 +23,11 @@
       "Bash(git checkout:*)",
       "mcp__plugin_context-mode_context-mode__batch_execute",
       "mcp__plugin_context-mode_context-mode__index",
-      "mcp__plugin_context-mode_context-mode__search"
+      "mcp__plugin_context-mode_context-mode__search",
+      "Bash(read f:*)"
     ]
+  },
+  "enabledPlugins": {
+    "dotnet-skills@dotnet-skills": true
   }
 }

@@ -1,6 +1,6 @@
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
-using System.Threading;
 
 namespace TurboHttp.Protocol;
 
@@ -16,8 +16,7 @@ namespace TurboHttp.Protocol;
 public sealed class PerHostConnectionLimiter
 {
     private readonly int _maxConnectionsPerHost;
-    private readonly Dictionary<string, int> _active = new(StringComparer.OrdinalIgnoreCase);
-    private readonly Lock _lock = new();
+    private readonly ConcurrentDictionary<string, int> _active = new(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>
     /// Creates a new limiter with the specified per-host connection limit.
@@ -53,10 +52,7 @@ public sealed class PerHostConnectionLimiter
     {
         ArgumentException.ThrowIfNullOrEmpty(host);
 
-        lock (_lock)
-        {
-            return _active.GetValueOrDefault(host, 0);
-        }
+        return _active.GetValueOrDefault(host, 0);
     }
 
     /// <summary>
@@ -76,17 +72,14 @@ public sealed class PerHostConnectionLimiter
             return false;
         }
 
-        lock (_lock)
+        var current = _active.GetValueOrDefault(host, 0);
+        if (current >= _maxConnectionsPerHost)
         {
-            var current = _active.GetValueOrDefault(host, 0);
-            if (current >= _maxConnectionsPerHost)
-            {
-                return false;
-            }
-
-            _active[host] = current + 1;
-            return true;
+            return false;
         }
+
+        _active[host] = current + 1;
+        return true;
     }
 
     /// <summary>
@@ -98,21 +91,18 @@ public sealed class PerHostConnectionLimiter
     {
         ArgumentException.ThrowIfNullOrEmpty(host);
 
-        lock (_lock)
+        if (!_active.TryGetValue(host, out var count) || count <= 0)
         {
-            if (!_active.TryGetValue(host, out var count) || count <= 0)
-            {
-                return;
-            }
+            return;
+        }
 
-            if (count == 1)
-            {
-                _active.Remove(host);
-            }
-            else
-            {
-                _active[host] = count - 1;
-            }
+        if (count == 1)
+        {
+            _active.Remove(host, out _);
+        }
+        else
+        {
+            _active[host] = count - 1;
         }
     }
 }

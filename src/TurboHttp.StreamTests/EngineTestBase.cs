@@ -1,5 +1,4 @@
 using System.Buffers;
-using System.Net;
 using System.Text;
 using System.Threading.Channels;
 using Akka;
@@ -9,7 +8,6 @@ using Akka.Streams.Dsl;
 using Akka.Streams.Stage;
 using Akka.TestKit.Xunit2;
 using TurboHttp.Protocol;
-using TurboHttp.Streams;
 
 namespace TurboHttp.StreamTests;
 
