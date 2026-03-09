@@ -69,7 +69,7 @@ The enricher lives **inside the stream graph** as a `FlowShape` stage so that en
 happens automatically for every element passing through the pipeline, without callers
 needing to call anything explicitly.
 
-- [ ] **TASK-ENR-01** — `TurboClientOptions` defaults record
+- [x] **TASK-ENR-01** — `TurboClientOptions` defaults record
 
   **File:** `src/TurboHttp/Client/ITurboHttpClient.cs` (expand existing empty record)
 

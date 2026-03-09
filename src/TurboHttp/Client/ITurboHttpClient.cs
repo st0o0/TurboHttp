@@ -1,13 +1,31 @@
 ﻿using System;
+using System.Net;
 using System.Net.Http;
 using System.Net.Http.Headers;
+using System.Net.Security;
+using System.Security.Authentication;
+using System.Security.Cryptography.X509Certificates;
 using System.Threading;
 using System.Threading.Channels;
 using System.Threading.Tasks;
 
 namespace TurboHttp.Client;
 
-public record TurboClientOptions();
+public record TurboClientOptions
+{
+    public Uri?    BaseAddress           { get; init; }
+    public Version DefaultRequestVersion { get; init; } = HttpVersion.Version11;
+
+    public TimeSpan ConnectTimeout        { get; init; } = TimeSpan.FromSeconds(10);
+    public TimeSpan ReconnectInterval     { get; init; } = TimeSpan.FromSeconds(5);
+    public int      MaxReconnectAttempts  { get; init; } = 10;
+    public int      MaxFrameSize          { get; init; } = 128 * 1024;
+
+    // TLS overrides — null means "decide from URI scheme"
+    public RemoteCertificateValidationCallback? ServerCertificateValidationCallback { get; init; }
+    public X509CertificateCollection?           ClientCertificates                  { get; init; }
+    public SslProtocols                         EnabledSslProtocols                 { get; init; } = SslProtocols.None;
+}
 
 public interface ITurboHttpClient
 {
