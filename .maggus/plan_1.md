@@ -418,10 +418,10 @@
 **File:** `Http20/Http20HpackStreamTests.cs`
 **RFC:** 7541 §2 — HPACK in HTTP/2 Context
 
-- [ ] `H2HP-001`: Static table: `:method GET` transmitted as indexed
-- [ ] `H2HP-002`: Dynamic table: repeated custom headers → smaller block on 2nd request
-- [ ] `H2HP-003`: 3 requests with same host → progressive compression visible
-- [ ] `H2HP-004`: Huffman encoding enabled → header block smaller than without
+- [x] `H2HP-001`: Static table: `:method GET` transmitted as indexed
+- [x] `H2HP-002`: Dynamic table: repeated custom headers → smaller block on 2nd request
+- [x] `H2HP-003`: 3 requests with same host → progressive compression visible
+- [x] `H2HP-004`: Huffman encoding enabled → header block smaller than without
 
 ---
 
