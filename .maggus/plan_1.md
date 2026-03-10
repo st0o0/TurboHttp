@@ -215,11 +215,11 @@
 **File:** `Http11/Http11StageRoundTripPipelineTests.cs`
 **RFC:** 9112 §9.3 — Pipelining
 
-- [ ] `11RT-P-001`: 3 sequential GET requests → 3 responses in FIFO order
-- [ ] `11RT-P-002`: Each response has correct `RequestMessage` reference
-- [ ] `11RT-P-003`: Mixed methods (GET, POST, DELETE) → correct assignment
-- [ ] `11RT-P-004`: 10 requests → all 10 responses received
-- [ ] `11RT-P-005`: Response order matches request order (FIFO guarantee)
+- [x] `11RT-P-001`: 3 sequential GET requests → 3 responses in FIFO order
+- [x] `11RT-P-002`: Each response has correct `RequestMessage` reference
+- [x] `11RT-P-003`: Mixed methods (GET, POST, DELETE) → correct assignment
+- [x] `11RT-P-004`: 10 requests → all 10 responses received
+- [x] `11RT-P-005`: Response order matches request order (FIFO guarantee)
 
 ---
 
@@ -228,11 +228,11 @@
 **File:** `Http11/Http11StageConnectionMgmtTests.cs`
 **RFC:** 9112 §9.6 — Connection: close, §9.8 — Keep-Alive
 
-- [ ] `11RT-C-001`: Response with `Connection: close` → version correctly set
-- [ ] `11RT-C-002`: Response without `Connection` header → keep-alive (default for HTTP/1.1)
-- [ ] `11RT-C-003`: `Transfer-Encoding: chunked` + `Connection: keep-alive` → stream stays open
-- [ ] `11RT-C-004`: Content-Length body → correctly read, connection not prematurely closed
-- [ ] `11RT-C-005`: Empty body with Content-Length: 0 → response emitted immediately
+- [x] `11RT-C-001`: Response with `Connection: close` → version correctly set
+- [x] `11RT-C-002`: Response without `Connection` header → keep-alive (default for HTTP/1.1)
+- [x] `11RT-C-003`: `Transfer-Encoding: chunked` + `Connection: keep-alive` → stream stays open
+- [x] `11RT-C-004`: Content-Length body → correctly read, connection not prematurely closed
+- [x] `11RT-C-005`: Empty body with Content-Length: 0 → response emitted immediately
 
 ---
 
