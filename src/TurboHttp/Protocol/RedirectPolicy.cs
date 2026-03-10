@@ -18,5 +18,5 @@ public sealed record RedirectPolicy
     /// If true, allows redirects from HTTPS to HTTP.
     /// Default is false (downgrade blocked by default for security).
     /// </summary>
-    public bool AllowHttpsToHttpDowngrade { get; init; } = false;
+    public bool AllowHttpsToHttpDowngrade { get; init; }
 }

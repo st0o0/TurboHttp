@@ -39,7 +39,7 @@ internal static class ContentEncodingDecoder
         {
             var encoding = encodings[i].Trim();
 
-            if (string.IsNullOrEmpty(encoding) || encoding.Equals("identity", StringComparison.OrdinalIgnoreCase))
+            if (string.IsNullOrEmpty(encoding) || encoding.Equals(WellKnownHeaders.Identity, StringComparison.OrdinalIgnoreCase))
             {
                 continue;
             }
@@ -59,18 +59,18 @@ internal static class ContentEncodingDecoder
 
         try
         {
-            if (encoding.Equals("gzip", StringComparison.OrdinalIgnoreCase) ||
-                encoding.Equals("x-gzip", StringComparison.OrdinalIgnoreCase))
+            if (encoding.Equals(WellKnownHeaders.Gzip, StringComparison.OrdinalIgnoreCase) ||
+                encoding.Equals(WellKnownHeaders.XGzip, StringComparison.OrdinalIgnoreCase))
             {
                 return DecompressGzip(data);
             }
 
-            if (encoding.Equals("deflate", StringComparison.OrdinalIgnoreCase))
+            if (encoding.Equals(WellKnownHeaders.Deflate, StringComparison.OrdinalIgnoreCase))
             {
                 return DecompressDeflate(data);
             }
 
-            if (encoding.Equals("br", StringComparison.OrdinalIgnoreCase))
+            if (encoding.Equals(WellKnownHeaders.Brotli, StringComparison.OrdinalIgnoreCase))
             {
                 return DecompressBrotli(data);
             }

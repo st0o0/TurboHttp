@@ -226,7 +226,7 @@ public sealed class Http20StreamStage : GraphStage<FlowShape<Http2Frame, HttpRes
                 {
                     response.Headers.TryAddWithoutValidation(h.Name, h.Value);
 
-                    if (h.Name.Equals("content-encoding", StringComparison.OrdinalIgnoreCase))
+                    if (h.Name.Equals(WellKnownHeaders.Names.ContentEncoding, StringComparison.OrdinalIgnoreCase))
                     {
                         state.ContentEncoding = h.Value;
                     }

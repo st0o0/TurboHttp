@@ -95,6 +95,38 @@ public static class WellKnownHeaders
     /// <summary>Comma-space for multi-value headers</summary>
     public static ReadOnlySpan<byte> CommaSpace => ", "u8;
 
+    // ── Header Names (string) ──────────────────────────────────────────────────
+    // For use with System.Net.Http APIs that compare header names as strings.
+
+    /// <summary>Header name strings for use with System.Net.Http APIs.</summary>
+#pragma warning disable CS0108 // Nested constants intentionally shadow outer byte-span properties
+    public static class Names
+    {
+        public const string Host = "Host";
+        public const string Connection = "Connection";
+        public const string ContentLength = "Content-Length";
+        public const string ContentEncoding = "Content-Encoding";
+        public const string TransferEncoding = "Transfer-Encoding";
+    }
+#pragma warning restore CS0108
+
+    // ── Content-Encoding Values (RFC 9110 §8.4) ──────────────────────────────
+
+    /// <summary>RFC 9110 §8.4.1: identity encoding (no transformation)</summary>
+    public const string Identity = "identity";
+
+    /// <summary>RFC 9110 §8.4.1.3: gzip encoding</summary>
+    public const string Gzip = "gzip";
+
+    /// <summary>Legacy alias for gzip</summary>
+    public const string XGzip = "x-gzip";
+
+    /// <summary>RFC 9110 §8.4.1.2: deflate encoding</summary>
+    public const string Deflate = "deflate";
+
+    /// <summary>RFC 7932: Brotli encoding</summary>
+    public const string Brotli = "br";
+
     // ── Comparison Utilities ────────────────────────────────────────────────────
 
     /// <summary>

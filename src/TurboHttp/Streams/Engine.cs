@@ -1,13 +1,10 @@
 ﻿using System;
 using System.Buffers;
-using System.Net;
 using System.Net.Http;
 using Akka;
 using Akka.Actor;
 using Akka.Streams;
 using Akka.Streams.Dsl;
-using Akka.Streams.Stage;
-using TurboHttp.IO;
 using TurboHttp.Streams.Stages;
 
 namespace TurboHttp.Streams;
@@ -18,7 +15,7 @@ public class Engine
     {
         return Flow.FromGraph(GraphDsl.Create(builder =>
         {
-            var enricher = builder.Add(new RequestEnricherStage(null, HttpVersion.Version11, new HttpRequestMessage().Headers));
+            var enricher = builder.Add(new RequestEnricherStage(() => null));
 
             var partition = builder.Add(Router());
             var hub = builder.Add(new Merge<HttpResponseMessage>(4));

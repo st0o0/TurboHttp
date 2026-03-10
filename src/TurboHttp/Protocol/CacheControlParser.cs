@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 
 namespace TurboHttp.Protocol;
 
@@ -203,17 +204,13 @@ public static class CacheControlParser
             return null;
         }
 
-        var fields = new List<string>();
         var str = value.ToString();
 
-        foreach (var part in str.Split(','))
-        {
-            var trimmed = part.Trim();
-            if (trimmed.Length > 0)
-            {
-                fields.Add(trimmed);
-            }
-        }
+        var fields = str
+            .Split(',')
+            .Select(part => part.Trim())
+            .Where(trimmed => trimmed.Length > 0)
+            .ToList();
 
         return fields.Count > 0 ? fields : null;
     }

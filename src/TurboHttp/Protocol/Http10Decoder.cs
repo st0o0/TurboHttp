@@ -100,15 +100,12 @@ public sealed class Http10Decoder
         var parts = statusLine.Split(' ', 3);
         if (parts.Length < 2 || !int.TryParse(parts[1], out var code))
         {
-            throw new HttpDecoderException(
-                HttpDecodeError.InvalidStatusLine,
-                $"Line: '{statusLine}'.");
+            throw new HttpDecoderException(HttpDecodeError.InvalidStatusLine, $"Line: '{statusLine}'.");
         }
 
         if (code is < 100 or > 999)
         {
-            throw new HttpDecoderException(
-                HttpDecodeError.InvalidStatusLine,
+            throw new HttpDecoderException(HttpDecodeError.InvalidStatusLine,
                 $"Status code {code} is out of the valid range 100–999.");
         }
     }
@@ -125,7 +122,8 @@ public sealed class Http10Decoder
     /// </summary>
     private static int? GetContentLength(Dictionary<string, List<string>> headers)
     {
-        if (!headers.TryGetValue("Content-Length", out var clValues) || clValues.Count == 0)
+        if (!headers.TryGetValue(WellKnownHeaders.Names.ContentLength, out var clValues) ||
+            clValues.Count == 0)
         {
             return null;
         }
@@ -138,8 +136,7 @@ public sealed class Http10Decoder
             {
                 if (!clValues[i].Equals(first, StringComparison.Ordinal))
                 {
-                    throw new HttpDecoderException(
-                        HttpDecodeError.MultipleContentLengthValues,
+                    throw new HttpDecoderException(HttpDecodeError.MultipleContentLengthValues,
                         $"Values '{first}' and '{clValues[i]}' conflict.");
                 }
             }
@@ -147,15 +144,13 @@ public sealed class Http10Decoder
 
         if (!int.TryParse(clValues[0], out var len))
         {
-            throw new HttpDecoderException(
-                HttpDecodeError.InvalidContentLength,
+            throw new HttpDecoderException(HttpDecodeError.InvalidContentLength,
                 $"Value: '{clValues[0]}'.");
         }
 
         if (len < 0)
         {
-            throw new HttpDecoderException(
-                HttpDecodeError.InvalidContentLength,
+            throw new HttpDecoderException(HttpDecodeError.InvalidContentLength,
                 $"Value {len} is negative.");
         }
 
@@ -215,7 +210,8 @@ public sealed class Http10Decoder
 
     private static readonly HashSet<string> ContentHeaders = new(StringComparer.OrdinalIgnoreCase)
     {
-        "Content-Type", "Content-Length", "Content-Encoding", "Content-Language", "Content-Location", "Content-MD5",
+        "Content-Type", WellKnownHeaders.Names.ContentLength,
+        WellKnownHeaders.Names.ContentEncoding, "Content-Language", "Content-Location", "Content-MD5",
         "Content-Range", "Content-Disposition", "Expires", "Last-Modified"
     };
 
@@ -233,16 +229,17 @@ public sealed class Http10Decoder
         var response = new HttpResponseMessage((HttpStatusCode)statusCode)
         {
             ReasonPhrase = reasonPhrase,
-            Version = new Version(1, 0)
+            Version = HttpVersion.Version10
         };
 
         // Decompress body if Content-Encoding is set (RFC 9110 §8.4)
-        var contentEncoding = headers.TryGetValue("Content-Encoding", out var ceValues) && ceValues.Count > 0
+        var contentEncoding = headers.TryGetValue(WellKnownHeaders.Names.ContentEncoding, out var ceValues) &&
+                              ceValues.Count > 0
             ? ceValues[0]
             : null;
 
         var decompressed = !string.IsNullOrWhiteSpace(contentEncoding) &&
-                           !contentEncoding.Equals("identity", StringComparison.OrdinalIgnoreCase);
+                           !contentEncoding.Equals(WellKnownHeaders.Identity, StringComparison.OrdinalIgnoreCase);
 
         if (decompressed)
         {
@@ -256,16 +253,15 @@ public sealed class Http10Decoder
         {
             foreach (var value in values)
             {
-                // Remove Content-Encoding after decompression (RFC 9110 §8.4)
-                if (decompressed && name.Equals("Content-Encoding", StringComparison.OrdinalIgnoreCase))
+                switch (decompressed)
                 {
-                    continue;
-                }
-
-                // Update Content-Length to decompressed size (skip original value)
-                if (decompressed && name.Equals("Content-Length", StringComparison.OrdinalIgnoreCase))
-                {
-                    continue;
+                    // Remove Content-Encoding after decompression (RFC 9110 §8.4)
+                    case true when name.Equals(WellKnownHeaders.Names.ContentEncoding,
+                        StringComparison.OrdinalIgnoreCase):
+                    // Update Content-Length to decompressed size (skip original value)
+                    case true
+                        when name.Equals(WellKnownHeaders.Names.ContentLength, StringComparison.OrdinalIgnoreCase):
+                        continue;
                 }
 
                 if (ContentHeaders.Contains(name))

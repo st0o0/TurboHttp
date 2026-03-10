@@ -202,13 +202,9 @@ public sealed class Http11Decoder : IDisposable
             }
         }
 
-        if (builder.Count > 0)
-        {
-            responses = builder.ToImmutable();
-            return true;
-        }
-
-        return false;
+        if (builder.Count <= 0) return false;
+        responses = builder.ToImmutable();
+        return true;
     }
 
     /// <summary>
@@ -464,9 +460,9 @@ public sealed class Http11Decoder : IDisposable
         }
 
         // 7. Decompress body if Content-Encoding is set (RFC 9110 §8.4)
-        var contentEncoding = GetSingleHeader(headers, "Content-Encoding");
+        var contentEncoding = GetSingleHeader(headers, WellKnownHeaders.Names.ContentEncoding);
         if (!string.IsNullOrWhiteSpace(contentEncoding) &&
-            !contentEncoding.Equals("identity", StringComparison.OrdinalIgnoreCase))
+            !contentEncoding.Equals(WellKnownHeaders.Identity, StringComparison.OrdinalIgnoreCase))
         {
             bodyBytes = ContentEncodingDecoder.Decompress(bodyBytes, contentEncoding);
         }
@@ -482,17 +478,17 @@ public sealed class Http11Decoder : IDisposable
             }
 
             // Remove Content-Encoding after successful decompression (RFC 9110 §8.4)
-            if (name.Equals("Content-Encoding", StringComparison.OrdinalIgnoreCase) &&
+            if (name.Equals(WellKnownHeaders.Names.ContentEncoding, StringComparison.OrdinalIgnoreCase) &&
                 !string.IsNullOrWhiteSpace(contentEncoding) &&
-                !contentEncoding.Equals("identity", StringComparison.OrdinalIgnoreCase))
+                !contentEncoding.Equals(WellKnownHeaders.Identity, StringComparison.OrdinalIgnoreCase))
             {
                 continue;
             }
 
             // Update Content-Length to match decompressed size (skip the original value)
-            if (name.Equals("Content-Length", StringComparison.OrdinalIgnoreCase) &&
+            if (name.Equals(WellKnownHeaders.Names.ContentLength, StringComparison.OrdinalIgnoreCase) &&
                 !string.IsNullOrWhiteSpace(contentEncoding) &&
-                !contentEncoding.Equals("identity", StringComparison.OrdinalIgnoreCase))
+                !contentEncoding.Equals(WellKnownHeaders.Identity, StringComparison.OrdinalIgnoreCase))
             {
                 continue;
             }
@@ -505,7 +501,7 @@ public sealed class Http11Decoder : IDisposable
 
         // Set updated Content-Length after decompression
         if (!string.IsNullOrWhiteSpace(contentEncoding) &&
-            !contentEncoding.Equals("identity", StringComparison.OrdinalIgnoreCase))
+            !contentEncoding.Equals(WellKnownHeaders.Identity, StringComparison.OrdinalIgnoreCase))
         {
             content.Headers.ContentLength = bodyBytes.Length;
         }
@@ -619,8 +615,7 @@ public sealed class Http11Decoder : IDisposable
             // RFC 9112 §5.5: Header field values MUST NOT contain CR, LF, or NUL characters.
             if (valueStr.IndexOfAny(['\r', '\n', '\0']) >= 0)
             {
-                throw new HttpDecoderException(
-                    HttpDecodeError.InvalidFieldValue,
+                throw new HttpDecoderException(HttpDecodeError.InvalidFieldValue,
                     $"Header '{nameStr}' contains a CR, LF, or NUL character in its value.");
             }
 
@@ -641,7 +636,7 @@ public sealed class Http11Decoder : IDisposable
     private (HttpDecodeResult result, byte[]? body, int consumed, Dictionary<string, List<string>>? trailers)
         ParseBody(ReadOnlySpan<byte> data, Dictionary<string, List<string>> headers)
     {
-        var transferEncoding = GetSingleHeader(headers, "Transfer-Encoding");
+        var transferEncoding = GetSingleHeader(headers, WellKnownHeaders.Names.TransferEncoding);
         var contentLength = GetContentLengthHeader(headers);
 
         // RFC 9112 Section 6.3: Transfer-Encoding takes precedence
@@ -782,7 +777,7 @@ public sealed class Http11Decoder : IDisposable
 
     private static int? GetContentLengthHeader(Dictionary<string, List<string>> headers)
     {
-        if (!headers.TryGetValue("Content-Length", out var values) || values.Count == 0)
+        if (!headers.TryGetValue(WellKnownHeaders.Names.ContentLength, out var values) || values.Count == 0)
         {
             return null;
         }

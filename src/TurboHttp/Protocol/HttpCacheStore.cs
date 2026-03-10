@@ -268,10 +268,7 @@ public sealed class HttpCacheStore
         {
             foreach (var v in varyValues)
             {
-                foreach (var part in v.Split(','))
-                {
-                    varyNames.Add(part.Trim());
-                }
+                varyNames.AddRange(v.Split(',').Select(part => part.Trim()));
             }
         }
 
@@ -319,7 +316,7 @@ public sealed class HttpCacheStore
                 return false;
             }
 
-            string? cachedValue = entry.VaryRequestValues.TryGetValue(name, out var cv) ? cv : null;
+            var cachedValue = entry.VaryRequestValues.GetValueOrDefault(name);
             string? currentValue = null;
 
             if (request.Headers.TryGetValues(name, out var vals))
@@ -350,12 +347,14 @@ public sealed class HttpCacheStore
 
                 foreach (var kvp in varyValues)
                 {
-                    var entryVal = entryVary.TryGetValue(kvp.Key, out var ev) ? ev : null;
-                    if (!string.Equals(entryVal, kvp.Value, StringComparison.Ordinal))
+                    var entryVal = entryVary.GetValueOrDefault(kvp.Key);
+                    if (string.Equals(entryVal, kvp.Value, StringComparison.Ordinal))
                     {
-                        same = false;
-                        break;
+                        continue;
                     }
+
+                    same = false;
+                    break;
                 }
 
                 if (same)

@@ -52,7 +52,7 @@ internal sealed record CookieEntry(
 /// </summary>
 public sealed class CookieJar
 {
-    private readonly List<CookieEntry> _cookies = new();
+    private readonly List<CookieEntry> _cookies = [];
 
     /// <summary>
     /// Processes all Set-Cookie headers in <paramref name="response"/>, updating the cookie jar.

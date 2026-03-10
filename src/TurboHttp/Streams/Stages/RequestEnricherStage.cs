@@ -1,33 +1,25 @@
 using System;
 using System.Net;
 using System.Net.Http;
-using System.Net.Http.Headers;
 using Akka.Streams;
 using Akka.Streams.Stage;
+using TurboHttp.Client;
 
 namespace TurboHttp.Streams.Stages;
 
 internal sealed class RequestEnricherStage
     : GraphStage<FlowShape<HttpRequestMessage, HttpRequestMessage>>
 {
-    private readonly Uri? _baseAddress;
-    private readonly Version _defaultVersion;
-    private readonly HttpRequestHeaders _defaultHeaders;
+    private readonly Func<TurboRequestOptions> _optionsFactory;
 
     private readonly Inlet<HttpRequestMessage> _inlet = new("enricher.in");
     private readonly Outlet<HttpRequestMessage> _outlet = new("enricher.out");
 
     public override FlowShape<HttpRequestMessage, HttpRequestMessage> Shape { get; }
 
-    public RequestEnricherStage(
-        Uri? baseAddress,
-        Version defaultVersion,
-        HttpRequestHeaders defaultHeaders)
+    public RequestEnricherStage(Func<TurboRequestOptions> optionsFactory)
     {
-        _baseAddress = baseAddress;
-        _defaultVersion = defaultVersion;
-        _defaultHeaders = defaultHeaders;
-
+        _optionsFactory = optionsFactory;
         Shape = new FlowShape<HttpRequestMessage, HttpRequestMessage>(_inlet, _outlet);
     }
 
@@ -69,33 +61,38 @@ internal sealed class RequestEnricherStage
 
         private void Enrich(HttpRequestMessage request)
         {
+            var options = _stage._optionsFactory.Invoke();
+
             // Rule 1: URI resolution
             if (request.RequestUri is null || !request.RequestUri.IsAbsoluteUri)
             {
-                if (_stage._baseAddress is null)
+                var baseAddress = options.BaseAddress;
+                if (baseAddress is null)
                 {
                     throw new InvalidOperationException("RequestUri is null or relative but no BaseAddress is configured.");
                 }
 
                 request.RequestUri = request.RequestUri is null
-                    ? _stage._baseAddress
-                    : new Uri(_stage._baseAddress, request.RequestUri);
+                    ? baseAddress
+                    : new Uri(baseAddress, request.RequestUri);
             }
 
             // Rule 2: Version — only override when request is still at the 1.1 default
-            if (request.Version == HttpVersion.Version11 && _stage._defaultVersion != HttpVersion.Version11)
+            if (request.Version == HttpVersion.Version11 && options.DefaultRequestVersion != HttpVersion.Version11)
             {
-                request.Version = _stage._defaultVersion;
+                request.Version = options.DefaultRequestVersion;
             }
 
             // Rule 3: Default headers — add those absent from the request
-            foreach (var header in _stage._defaultHeaders)
+            foreach (var header in options.DefaultRequestHeaders)
             {
                 if (!request.Headers.Contains(header.Key))
                 {
                     request.Headers.TryAddWithoutValidation(header.Key, header.Value);
                 }
             }
+            
+            
         }
     }
 }

@@ -104,7 +104,7 @@ public static class Http11Encoder
         bytesWritten += WriteAscii(ref buffer, request.Method.Method);
 
         // Space
-        bytesWritten += WriteBytes(ref buffer, " "u8);
+        bytesWritten += WriteBytes(ref buffer, WellKnownHeaders.Space);
 
         // Request-target (RFC 9112 Section 3.2)
         var uri = request.RequestUri!;
@@ -172,13 +172,13 @@ public static class Http11Encoder
         foreach (var header in headers)
         {
             // Skip Host - we handle it separately
-            if (skipHost && header.Key.Equals("Host", StringComparison.OrdinalIgnoreCase))
+            if (skipHost && header.Key.Equals(WellKnownHeaders.Names.Host, StringComparison.OrdinalIgnoreCase))
             {
                 continue;
             }
 
             // Skip Connection - we handle it separately
-            if (header.Key.Equals("Connection", StringComparison.OrdinalIgnoreCase))
+            if (header.Key.Equals(WellKnownHeaders.Names.Connection, StringComparison.OrdinalIgnoreCase))
             {
                 continue;
             }
@@ -211,7 +211,7 @@ public static class Http11Encoder
 
         // Header name
         bytesWritten += WriteAscii(ref buffer, name);
-        bytesWritten += WriteBytes(ref buffer, ": "u8);
+        bytesWritten += WriteBytes(ref buffer, WellKnownHeaders.ColonSpace);
 
         // Values joined with comma (RFC 9110 Section 5.3)
         var first = true;
@@ -219,7 +219,7 @@ public static class Http11Encoder
         {
             if (!first)
             {
-                bytesWritten += WriteBytes(ref buffer, ", "u8);
+                bytesWritten += WriteBytes(ref buffer, WellKnownHeaders.CommaSpace);
             }
 
             bytesWritten += WriteAscii(ref buffer, value);
@@ -238,7 +238,7 @@ public static class Http11Encoder
         foreach (var header in headers)
         {
             // RFC 7230 Section 3.3.2: Content-Length MUST NOT be sent when Transfer-Encoding is present
-            if (isChunked && header.Key.Equals("Content-Length", StringComparison.OrdinalIgnoreCase))
+            if (isChunked && header.Key.Equals(WellKnownHeaders.Names.ContentLength, StringComparison.OrdinalIgnoreCase))
             {
                 continue;
             }
@@ -279,7 +279,7 @@ public static class Http11Encoder
         {
             if (!first)
             {
-                bytesWritten += WriteBytes(ref buffer, ", "u8);
+                bytesWritten += WriteBytes(ref buffer, WellKnownHeaders.CommaSpace);
             }
 
             bytesWritten += WriteAscii(ref buffer, value);
@@ -288,10 +288,11 @@ public static class Http11Encoder
 
         if (!first)
         {
-            bytesWritten += WriteBytes(ref buffer, ", "u8);
+            bytesWritten += WriteBytes(ref buffer, WellKnownHeaders.CommaSpace);
         }
 
-        bytesWritten += WriteBytes(ref buffer, "keep-alive\r\n"u8);
+        bytesWritten += WriteBytes(ref buffer, WellKnownHeaders.KeepAlive);
+        bytesWritten += WriteCrlf(ref buffer);
 
         return bytesWritten;
     }
