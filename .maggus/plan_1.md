@@ -405,11 +405,11 @@
 **File:** `Http20/Http20ForbiddenHeaderRfcTests.cs`
 **RFC:** 9113 §8.2.2 — Connection-Specific Header Fields
 
-- [ ] `H2FH-001`: `connection` header → not present in wire format
-- [ ] `H2FH-002`: `transfer-encoding` header → not present in wire format
-- [ ] `H2FH-003`: `upgrade` header → not present in wire format
-- [ ] `H2FH-004`: `keep-alive` header → not present in wire format
-- [ ] `H2FH-005`: Custom header (`x-custom`) → present in wire format
+- [x] `H2FH-001`: `connection` header → not present in wire format
+- [x] `H2FH-002`: `transfer-encoding` header → not present in wire format
+- [x] `H2FH-003`: `upgrade` header → not present in wire format
+- [x] `H2FH-004`: `keep-alive` header → not present in wire format
+- [x] `H2FH-005`: Custom header (`x-custom`) → present in wire format
 
 ---
 
