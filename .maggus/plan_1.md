@@ -271,11 +271,11 @@
 **File:** `Http20/Http20EncoderStageRfcTests.cs`
 **RFC:** 9113 §4.1 — Frame Format (9-byte header)
 
-- [ ] `20E-RFC-001`: HEADERS frame → 9-byte header + HPACK payload
-- [ ] `20E-RFC-002`: DATA frame → 9-byte header + body payload
-- [ ] `20E-RFC-003`: Frame-length field (3 bytes) → correct payload length
-- [ ] `20E-RFC-004`: Frame type (1 byte): 0x0=DATA, 0x1=HEADERS
-- [ ] `20E-RFC-005`: Stream ID in big-endian (4 bytes), highest bit = 0
+- [x] `20E-RFC-001`: HEADERS frame → 9-byte header + HPACK payload
+- [x] `20E-RFC-002`: DATA frame → 9-byte header + body payload
+- [x] `20E-RFC-003`: Frame-length field (3 bytes) → correct payload length
+- [x] `20E-RFC-004`: Frame type (1 byte): 0x0=DATA, 0x1=HEADERS
+- [x] `20E-RFC-005`: Stream ID in big-endian (4 bytes), highest bit = 0
 
 ---
 
@@ -284,11 +284,11 @@
 **File:** `Http20/Http20DecoderStageRfcTests.cs`
 **RFC:** 9113 §4.1 — Frame Format
 
-- [ ] `20D-RFC-001`: Complete frame → correctly decoded
-- [ ] `20D-RFC-002`: Frame split across 2 TCP segments → reassembled
-- [ ] `20D-RFC-003`: 2 frames in one TCP segment → both decoded
-- [ ] `20D-RFC-004`: SETTINGS frame (Type 0x4) → flags and parameters correct
-- [ ] `20D-RFC-005`: DATA frame → stream ID and payload correct
+- [x] `20D-RFC-001`: Complete frame → correctly decoded
+- [x] `20D-RFC-002`: Frame split across 2 TCP segments → reassembled
+- [x] `20D-RFC-003`: 2 frames in one TCP segment → both decoded
+- [x] `20D-RFC-004`: SETTINGS frame (Type 0x4) → flags and parameters correct
+- [x] `20D-RFC-005`: DATA frame → stream ID and payload correct
 
 ---
 
