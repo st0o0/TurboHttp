@@ -63,12 +63,12 @@ internal sealed class
             SetHandler(http1XStage._out,
                 onPull: () =>
                 {
-                    if (!HasBeenPulled(http1XStage._responseIn))
+                    if (!IsClosed(http1XStage._responseIn) && !HasBeenPulled(http1XStage._responseIn))
                     {
                         Pull(http1XStage._responseIn);
                     }
 
-                    if (!HasBeenPulled(http1XStage._requestIn))
+                    if (!IsClosed(http1XStage._requestIn) && !HasBeenPulled(http1XStage._requestIn))
                     {
                         Pull(http1XStage._requestIn);
                     }
