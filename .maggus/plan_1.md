@@ -325,10 +325,10 @@
 **File:** `Http20/Http20ConnectionStagePingTests.cs`
 **RFC:** 9113 §6.7 — PING
 
-- [ ] `20CP-001`: PING without ACK → PING with ACK sent back
-- [ ] `20CP-002`: PING payload (8 bytes) → identical in ACK
-- [ ] `20CP-003`: PING with ACK flag → no new PING sent
-- [ ] `20CP-004`: PING on stream 0 → response on stream 0
+- [x] `20CP-001`: PING without ACK → PING with ACK sent back
+- [x] `20CP-002`: PING payload (8 bytes) → identical in ACK
+- [x] `20CP-003`: PING with ACK flag → no new PING sent
+- [x] `20CP-004`: PING on stream 0 → response on stream 0
 
 ---
 
@@ -337,9 +337,9 @@
 **File:** `Http20/Http20ConnectionStageGoAwayTests.cs`
 **RFC:** 9113 §6.8 — GOAWAY
 
-- [ ] `20CG-001`: GOAWAY received → `_goAwayReceived` flag set
-- [ ] `20CG-002`: GOAWAY frame forwarded downstream
-- [ ] `20CG-003`: After GOAWAY → new requests rejected (on stage extension)
+- [x] `20CG-001`: GOAWAY received → `_goAwayReceived` flag set
+- [x] `20CG-002`: GOAWAY frame forwarded downstream
+- [x] `20CG-003`: After GOAWAY → new requests rejected (on stage extension)
 
 ---
 

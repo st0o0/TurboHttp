@@ -67,6 +67,12 @@ public sealed class Http20ConnectionStage : GraphStage<BidiShape<Http2Frame, Htt
                 {
                     var frame = Grab(stage._inletRequest);
 
+                    if (_goAwayReceived)
+                    {
+                        FailStage(new Http2Exception("Connection received GOAWAY — new requests are not allowed"));
+                        return;
+                    }
+
                     switch (frame)
                     {
                         case DataFrame data:
