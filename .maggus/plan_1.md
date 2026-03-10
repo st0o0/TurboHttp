@@ -189,11 +189,11 @@
 **File:** `Http11/Http11EncoderStageRfcTests.cs`
 **RFC:** 9112 §3.2 — Request-Line, 9112 §7.2 — Host Header
 
-- [ ] `11E-RFC-001`: Request-line: `GET /path HTTP/1.1\r\n`
-- [ ] `11E-RFC-002`: Host header MUST be present (RFC 9112 §7.2)
-- [ ] `11E-RFC-003`: Host header value = `authority` of the URI
-- [ ] `11E-RFC-004`: POST → `Content-Length` or `Transfer-Encoding: chunked`
-- [ ] `11E-RFC-005`: Hop-by-hop headers (TE, Keep-Alive, Proxy-Connection) are stripped
+- [x] `11E-RFC-001`: Request-line: `GET /path HTTP/1.1\r\n`
+- [x] `11E-RFC-002`: Host header MUST be present (RFC 9112 §7.2)
+- [x] `11E-RFC-003`: Host header value = `authority` of the URI
+- [x] `11E-RFC-004`: POST → `Content-Length` or `Transfer-Encoding: chunked`
+- [x] `11E-RFC-005`: Hop-by-hop headers (TE, Keep-Alive, Proxy-Connection) are stripped
 
 ---
 
@@ -202,11 +202,11 @@
 **File:** `Http11/Http11DecoderStageChunkedRfcTests.cs`
 **RFC:** 9112 §7.1 — Chunked Transfer Coding
 
-- [ ] `11D-CH-001`: Single chunk `5\r\nhello\r\n0\r\n\r\n` → body = "hello"
-- [ ] `11D-CH-002`: Multiple chunks → bodies correctly concatenated
-- [ ] `11D-CH-003`: Zero-length terminator `0\r\n\r\n` → stream ends
-- [ ] `11D-CH-004`: Chunk extension (`;ext=val`) is ignored
-- [ ] `11D-CH-005`: Trailers after last chunk → correctly parsed or ignored
+- [x] `11D-CH-001`: Single chunk `5\r\nhello\r\n0\r\n\r\n` → body = "hello"
+- [x] `11D-CH-002`: Multiple chunks → bodies correctly concatenated
+- [x] `11D-CH-003`: Zero-length terminator `0\r\n\r\n` → stream ends
+- [x] `11D-CH-004`: Chunk extension (`;ext=val`) is ignored
+- [x] `11D-CH-005`: Trailers after last chunk → correctly parsed or ignored
 
 ---
 
