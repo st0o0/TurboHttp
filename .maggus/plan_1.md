@@ -348,15 +348,15 @@
 **File:** `Http20/Http20ConnectionStageFlowControlTests.cs`
 **RFC:** 9113 §6.9 — WINDOW_UPDATE
 
-- [ ] `20CW-001`: Inbound DATA → connection window decremented
-- [ ] `20CW-002`: Inbound DATA → stream window decremented
-- [ ] `20CW-003`: Inbound DATA → WINDOW_UPDATE(stream=0) sent
-- [ ] `20CW-004`: Inbound DATA → WINDOW_UPDATE(stream=N) sent
-- [ ] `20CW-005`: Connection window < 0 → stage fails with exception
-- [ ] `20CW-006`: Stream window < 0 → stage fails with exception
-- [ ] `20CW-007`: Outbound DATA → connection window decremented
-- [ ] `20CW-008`: WINDOW_UPDATE(stream=0) received → connection window incremented
-- [ ] `20CW-009`: WINDOW_UPDATE(stream=N) received → stream window incremented
+- [x] `20CW-001`: Inbound DATA → connection window decremented
+- [x] `20CW-002`: Inbound DATA → stream window decremented
+- [x] `20CW-003`: Inbound DATA → WINDOW_UPDATE(stream=0) sent
+- [x] `20CW-004`: Inbound DATA → WINDOW_UPDATE(stream=N) sent
+- [x] `20CW-005`: Connection window < 0 → stage fails with exception
+- [x] `20CW-006`: Stream window < 0 → stage fails with exception
+- [x] `20CW-007`: Outbound DATA → connection window decremented
+- [x] `20CW-008`: WINDOW_UPDATE(stream=0) received → connection window incremented
+- [x] `20CW-009`: WINDOW_UPDATE(stream=N) received → stream window incremented
 
 ---
 
