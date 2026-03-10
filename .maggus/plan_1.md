@@ -297,13 +297,13 @@
 **File:** `Http20/Http20StreamStageTests.cs`
 **RFC:** 9113 §8.1 — HTTP Request/Response Exchange
 
-- [ ] `20S-001`: HEADERS with END_STREAM → response without body
-- [ ] `20S-002`: HEADERS + DATA with END_STREAM → response with body
-- [ ] `20S-003`: HEADERS + CONTINUATION + DATA → header block reassembled
-- [ ] `20S-004`: Multiple streams (ID 1, 3) → separate responses
-- [ ] `20S-005`: `:status` pseudo-header → correct HttpStatusCode
-- [ ] `20S-006`: Content-Encoding header → decompression applied (gzip)
-- [ ] `20S-007`: Regular headers (non-pseudo) → present in Response.Headers
+- [x] `20S-001`: HEADERS with END_STREAM → response without body
+- [x] `20S-002`: HEADERS + DATA with END_STREAM → response with body
+- [x] `20S-003`: HEADERS + CONTINUATION + DATA → header block reassembled
+- [x] `20S-004`: Multiple streams (ID 1, 3) → separate responses
+- [x] `20S-005`: `:status` pseudo-header → correct HttpStatusCode
+- [x] `20S-006`: Content-Encoding header → decompression applied (gzip)
+- [x] `20S-007`: Regular headers (non-pseudo) → present in Response.Headers
 
 ---
 
