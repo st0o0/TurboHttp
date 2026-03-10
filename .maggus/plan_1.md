@@ -146,11 +146,11 @@
 **File:** `Http10/Http10StageRoundTripMethodTests.cs`
 **RFC:** 1945 §8 — Method Definitions
 
-- [ ] `10RT-M-001`: GET → 200 OK — request-line + response correct
-- [ ] `10RT-M-002`: POST with body → body in wire format + 200 response
-- [ ] `10RT-M-003`: HEAD → response without body, but with Content-Length header
-- [ ] `10RT-M-004`: DELETE → 204 No Content (empty body)
-- [ ] `10RT-M-005`: PUT → body correctly transmitted and response parsed
+- [x] `10RT-M-001`: GET → 200 OK — request-line + response correct
+- [x] `10RT-M-002`: POST with body → body in wire format + 200 response
+- [x] `10RT-M-003`: HEAD → response without body, but with Content-Length header
+- [x] `10RT-M-004`: DELETE → 204 No Content (empty body)
+- [x] `10RT-M-005`: PUT → body correctly transmitted and response parsed
 
 ---
 
@@ -159,11 +159,11 @@
 **File:** `Http10/Http10StageRoundTripBodyTests.cs`
 **RFC:** 1945 §7.2 — Entity Body, §10.4 — Content-Length
 
-- [ ] `10RT-B-001`: Empty body → `Content-Length: 0`
-- [ ] `10RT-B-002`: Large body (64 KB) → correctly serialized and deserialized
-- [ ] `10RT-B-003`: Binary body (bytes 0x00–0xFF) → byte-for-byte identical
-- [ ] `10RT-B-004`: Custom headers in request → present in wire format
-- [ ] `10RT-B-005`: Response with multiple headers → all correctly parsed
+- [x] `10RT-B-001`: Empty body → `Content-Length: 0`
+- [x] `10RT-B-002`: Large body (64 KB) → correctly serialized and deserialized
+- [x] `10RT-B-003`: Binary body (bytes 0x00–0xFF) → byte-for-byte identical
+- [x] `10RT-B-004`: Custom headers in request → present in wire format
+- [x] `10RT-B-005`: Response with multiple headers → all correctly parsed
 
 ---
 
