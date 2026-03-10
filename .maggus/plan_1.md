@@ -172,11 +172,11 @@
 **File:** `Http10/Http10StageFragmentationTests.cs`
 **RFC:** 1945 §4.1 — Message Framing (implicit: TCP segments)
 
-- [ ] `10F-001`: Response split into 3 TCP fragments → correctly reassembled
-- [ ] `10F-002`: Headers split across 2 fragments → correctly parsed
-- [ ] `10F-003`: Body fragment arrives in separate chunk → content complete
-- [ ] `10F-004`: 1-byte fragments → decoder handles gracefully
-- [ ] `10F-005`: Fragment boundary in the middle of `\r\n\r\n` → header end correctly detected
+- [x] `10F-001`: Response split into 3 TCP fragments → correctly reassembled
+- [x] `10F-002`: Headers split across 2 fragments → correctly parsed
+- [x] `10F-003`: Body fragment arrives in separate chunk → content complete
+- [x] `10F-004`: 1-byte fragments → decoder handles gracefully
+- [x] `10F-005`: Fragment boundary in the middle of `\r\n\r\n` → header end correctly detected
 
 ---
 
