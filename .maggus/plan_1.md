@@ -120,11 +120,11 @@
 **File:** `Http10/Http10EncoderStageRfcTests.cs`
 **RFC:** 1945 §5.1 — Request-Line
 
-- [ ] `10E-RFC-001`: Request-line format: `GET /path HTTP/1.0\r\n`
-- [ ] `10E-RFC-002`: POST with body → `Content-Length` header is set
-- [ ] `10E-RFC-003`: No `Host` header in HTTP/1.0 (not mandatory)
-- [ ] `10E-RFC-004`: `Connection: close` is not sent (no keep-alive in 1.0)
-- [ ] `10E-RFC-005`: Query string correctly in request target: `/search?q=foo`
+- [x] `10E-RFC-001`: Request-line format: `GET /path HTTP/1.0\r\n`
+- [x] `10E-RFC-002`: POST with body → `Content-Length` header is set
+- [x] `10E-RFC-003`: No `Host` header in HTTP/1.0 (not mandatory)
+- [x] `10E-RFC-004`: `Connection: close` is not sent (no keep-alive in 1.0)
+- [x] `10E-RFC-005`: Query string correctly in request target: `/search?q=foo`
 
 ---
 
