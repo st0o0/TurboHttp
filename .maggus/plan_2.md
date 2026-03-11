@@ -177,18 +177,18 @@ Wire all existing protocol handlers (RedirectHandler, CookieJar, RetryEvaluator,
 **Description:** As a test author, I want Kestrel fixture routes for cookie scenarios so that integration tests can verify cookie injection, storage, and attribute handling.
 
 **Acceptance Criteria:**
-- [ ] Routes added to both `KestrelFixture` and `KestrelH2Fixture`
-- [ ] `GET /cookie/set/{name}/{value}` — Set-Cookie: {name}={value}; Path=/
-- [ ] `GET /cookie/set-secure/{name}/{value}` — Set-Cookie with Secure flag
-- [ ] `GET /cookie/set-httponly/{name}/{value}` — Set-Cookie with HttpOnly flag
-- [ ] `GET /cookie/set-samesite/{name}/{value}/{policy}` — Set-Cookie with SameSite
-- [ ] `GET /cookie/set-expires/{name}/{value}/{seconds}` — Set-Cookie with Max-Age
-- [ ] `GET /cookie/set-domain/{name}/{value}/{domain}` — Set-Cookie with Domain
-- [ ] `GET /cookie/set-path/{name}/{value}/{path}` — Set-Cookie with Path
-- [ ] `GET /cookie/echo` — returns all received Cookie headers as JSON body
-- [ ] `GET /cookie/set-multiple` — multiple Set-Cookie headers
-- [ ] `GET /cookie/delete/{name}` — Set-Cookie with Max-Age=0
-- [ ] `dotnet build --configuration Release src/TurboHttp.sln` succeeds with zero errors
+- [x] Routes added to both `KestrelFixture` and `KestrelH2Fixture`
+- [x] `GET /cookie/set/{name}/{value}` — Set-Cookie: {name}={value}; Path=/
+- [x] `GET /cookie/set-secure/{name}/{value}` — Set-Cookie with Secure flag
+- [x] `GET /cookie/set-httponly/{name}/{value}` — Set-Cookie with HttpOnly flag
+- [x] `GET /cookie/set-samesite/{name}/{value}/{policy}` — Set-Cookie with SameSite
+- [x] `GET /cookie/set-expires/{name}/{value}/{seconds}` — Set-Cookie with Max-Age
+- [x] `GET /cookie/set-domain/{name}/{value}/{domain}` — Set-Cookie with Domain
+- [x] `GET /cookie/set-path/{name}/{value}/{path}` — Set-Cookie with Path
+- [x] `GET /cookie/echo` — returns all received Cookie headers as JSON body
+- [x] `GET /cookie/set-multiple` — multiple Set-Cookie headers
+- [x] `GET /cookie/delete/{name}` — Set-Cookie with Max-Age=0
+- [x] `dotnet build --configuration Release src/TurboHttp.sln` succeeds with zero errors
 
 ### TASK-014: Kestrel Retry Routes
 **Description:** As a test author, I want Kestrel fixture routes for retry scenarios so that integration tests can verify retry behavior with Retry-After, idempotency, and succeed-after-N patterns.

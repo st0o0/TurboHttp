@@ -480,6 +480,91 @@ public sealed class KestrelFixture : IAsyncLifetime
 
         // ── Redirect Routes ─────────────────────────────────────────────────
         RegisterRedirectRoutes(app);
+
+        // ── Cookie Routes ───────────────────────────────────────────────────
+        RegisterCookieRoutes(app);
+    }
+
+    internal static void RegisterCookieRoutes(WebApplication app)
+    {
+        // GET /cookie/set/{name}/{value} → Set-Cookie: {name}={value}; Path=/
+        app.MapGet("/cookie/set/{name}/{value}", (HttpContext ctx, string name, string value) =>
+        {
+            ctx.Response.Headers.Append("Set-Cookie", $"{name}={value}; Path=/");
+            return Results.Content("cookie-set", "text/plain");
+        });
+
+        // GET /cookie/set-secure/{name}/{value} → Set-Cookie with Secure flag
+        app.MapGet("/cookie/set-secure/{name}/{value}", (HttpContext ctx, string name, string value) =>
+        {
+            ctx.Response.Headers.Append("Set-Cookie", $"{name}={value}; Path=/; Secure");
+            return Results.Content("cookie-set-secure", "text/plain");
+        });
+
+        // GET /cookie/set-httponly/{name}/{value} → Set-Cookie with HttpOnly flag
+        app.MapGet("/cookie/set-httponly/{name}/{value}", (HttpContext ctx, string name, string value) =>
+        {
+            ctx.Response.Headers.Append("Set-Cookie", $"{name}={value}; Path=/; HttpOnly");
+            return Results.Content("cookie-set-httponly", "text/plain");
+        });
+
+        // GET /cookie/set-samesite/{name}/{value}/{policy} → Set-Cookie with SameSite
+        app.MapGet("/cookie/set-samesite/{name}/{value}/{policy}", (HttpContext ctx, string name, string value, string policy) =>
+        {
+            ctx.Response.Headers.Append("Set-Cookie", $"{name}={value}; Path=/; SameSite={policy}");
+            return Results.Content("cookie-set-samesite", "text/plain");
+        });
+
+        // GET /cookie/set-expires/{name}/{value}/{seconds} → Set-Cookie with Max-Age
+        app.MapGet("/cookie/set-expires/{name}/{value}/{seconds:int}", (HttpContext ctx, string name, string value, int seconds) =>
+        {
+            ctx.Response.Headers.Append("Set-Cookie", $"{name}={value}; Path=/; Max-Age={seconds}");
+            return Results.Content("cookie-set-expires", "text/plain");
+        });
+
+        // GET /cookie/set-domain/{name}/{value}/{domain} → Set-Cookie with Domain
+        app.MapGet("/cookie/set-domain/{name}/{value}/{domain}", (HttpContext ctx, string name, string value, string domain) =>
+        {
+            ctx.Response.Headers.Append("Set-Cookie", $"{name}={value}; Path=/; Domain={domain}");
+            return Results.Content("cookie-set-domain", "text/plain");
+        });
+
+        // GET /cookie/set-path/{name}/{value}/{*path} → Set-Cookie with Path
+        // Uses catch-all for path to support slashes in path values
+        app.MapGet("/cookie/set-path/{name}/{value}/{*path}", (HttpContext ctx, string name, string value, string path) =>
+        {
+            ctx.Response.Headers.Append("Set-Cookie", $"{name}={value}; Path=/{path}");
+            return Results.Content("cookie-set-path", "text/plain");
+        });
+
+        // GET /cookie/echo → returns all received Cookie headers as JSON body
+        app.MapGet("/cookie/echo", (HttpContext ctx) =>
+        {
+            var cookies = new Dictionary<string, string>();
+            foreach (var cookie in ctx.Request.Cookies)
+            {
+                cookies[cookie.Key] = cookie.Value;
+            }
+
+            var json = JsonSerializer.Serialize(cookies);
+            return Results.Content(json, "application/json");
+        });
+
+        // GET /cookie/set-multiple → multiple Set-Cookie headers
+        app.MapGet("/cookie/set-multiple", (HttpContext ctx) =>
+        {
+            ctx.Response.Headers.Append("Set-Cookie", "alpha=one; Path=/");
+            ctx.Response.Headers.Append("Set-Cookie", "beta=two; Path=/");
+            ctx.Response.Headers.Append("Set-Cookie", "gamma=three; Path=/");
+            return Results.Content("cookie-set-multiple", "text/plain");
+        });
+
+        // GET /cookie/delete/{name} → Set-Cookie with Max-Age=0
+        app.MapGet("/cookie/delete/{name}", (HttpContext ctx, string name) =>
+        {
+            ctx.Response.Headers.Append("Set-Cookie", $"{name}=; Path=/; Max-Age=0");
+            return Results.Content("cookie-deleted", "text/plain");
+        });
     }
 
     internal static void RegisterRedirectRoutes(WebApplication app)

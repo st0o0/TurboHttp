@@ -268,5 +268,8 @@ public sealed class KestrelH2Fixture : IAsyncLifetime
 
         // ── Redirect Routes ─────────────────────────────────────────────────
         KestrelFixture.RegisterRedirectRoutes(app);
+
+        // ── Cookie Routes ───────────────────────────────────────────────────
+        KestrelFixture.RegisterCookieRoutes(app);
     }
 }
