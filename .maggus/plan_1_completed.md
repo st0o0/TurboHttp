@@ -522,10 +522,10 @@
 **File:** `Http20/Http20StreamStageMemoryTests.cs`
 **RFC:** N/A — resource management
 
-- [ ] `MEM-001`: StreamState.Dispose() called after response emission
-- [ ] `MEM-002`: BodyBuffer grows correctly for large body (Rent → Copy → Dispose old buffer)
-- [ ] `MEM-003`: HeaderBuffer grows correctly for CONTINUATION frames
-- [ ] `MEM-004`: Stream dictionary cleaned up after response emission (`_streams.Remove`)
+- [x] `MEM-001`: StreamState.Dispose() called after response emission
+- [x] `MEM-002`: BodyBuffer grows correctly for large body (Rent → Copy → Dispose old buffer)
+- [x] `MEM-003`: HeaderBuffer grows correctly for CONTINUATION frames
+- [x] `MEM-004`: Stream dictionary cleaned up after response emission (`_streams.Remove`)
 
 ---
 
