@@ -207,9 +207,7 @@ public static class CacheControlParser
         var str = value.ToString();
 
         var fields = str
-            .Split(',')
-            .Select(part => part.Trim())
-            .Where(trimmed => trimmed.Length > 0)
+            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
             .ToList();
 
         return fields.Count > 0 ? fields : null;

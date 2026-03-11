@@ -1,5 +1,4 @@
 using System.Collections.Immutable;
-using Akka;
 using Akka.Streams;
 using Akka.Streams.Dsl;
 using TurboHttp.Protocol;

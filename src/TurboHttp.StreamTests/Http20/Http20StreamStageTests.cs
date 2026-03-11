@@ -1,4 +1,3 @@
-using System.Buffers;
 using System.IO.Compression;
 using System.Net;
 using Akka.Streams.Dsl;

@@ -12,7 +12,16 @@ internal static class TcpOptionsFactory
         var scheme = requestUri.Scheme;
         var isTls = string.Equals(scheme, "https", StringComparison.OrdinalIgnoreCase)
                     || string.Equals(scheme, "wss", StringComparison.OrdinalIgnoreCase);
-        var port = requestUri.Port != -1 ? requestUri.Port : isTls ? 443 : 80;
+        int port;
+        if (requestUri.Port is not -1)
+        {
+            port = requestUri.Port;
+        }
+        else
+        {
+            port = isTls ? 443 : 80;
+        }
+
         var af = AddressFamilyOf(requestUri.HostNameType);
 
         if (isTls)

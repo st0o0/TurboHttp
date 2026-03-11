@@ -471,11 +471,11 @@
 **File:** `Streams/EngineVersionRoutingTests.cs`
 **RFC:** N/A — architecture (partition-by-version)
 
-- [ ] `EROUTE-001`: HTTP/1.0 request → routed through Http10Engine
-- [ ] `EROUTE-002`: HTTP/1.1 request → routed through Http11Engine
-- [ ] `EROUTE-003`: HTTP/2.0 request → routed through Http20Engine
-- [ ] `EROUTE-004`: Mixed versions → each response has correct version
-- [ ] `EROUTE-005`: Unknown version → partition error (expected behavior)
+- [x] `EROUTE-001`: HTTP/1.0 request → routed through Http10Engine
+- [x] `EROUTE-002`: HTTP/1.1 request → routed through Http11Engine
+- [x] `EROUTE-003`: HTTP/2.0 request → routed through Http20Engine
+- [x] `EROUTE-004`: Mixed versions → each response has correct version
+- [x] `EROUTE-005`: Unknown version → partition error (expected behavior)
 
 ---
 
