@@ -371,9 +371,9 @@ Wire all existing protocol handlers (RedirectHandler, CookieJar, RetryEvaluator,
 > **Infra:** Reuses same retry routes as TASK-022 — see `KestrelFixture.RegisterRetryRoutes()` ([L663-L727](../src/TurboHttp.IntegrationTests/Shared/KestrelFixture.cs)).
 
 **Acceptance Criteria:**
-- [ ] File created: `src/TurboHttp.IntegrationTests/Http11/06_Http11RetryTests.cs`
-- [ ] 10 tests: GET 503, GET 408, HEAD 503, PUT 503, DELETE 503, POST no-retry, Retry-After seconds, Retry-After date, max count (3), succeed after 2
-- [ ] All tests pass: `dotnet test --filter "FullyQualifiedName~Http11RetryTests"`
+- [x] File created: `src/TurboHttp.IntegrationTests/Http11/06_Http11RetryTests.cs`
+- [x] 10 tests: GET 503, GET 408, HEAD 503, PUT 503, DELETE 503, POST no-retry, Retry-After seconds, Retry-After date, max count (3), succeed after 2
+- [x] All tests pass: `dotnet test --filter "FullyQualifiedName~Http11RetryTests"`
 
 ### TASK-030: Http11Engine Cache Integration Tests
 **Engine:** [`Http11Engine.cs`](../src/TurboHttp/Streams/Http11Engine.cs)

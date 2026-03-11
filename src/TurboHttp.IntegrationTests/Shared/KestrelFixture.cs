@@ -701,8 +701,8 @@ public sealed class KestrelFixture : IAsyncLifetime
             return Results.Empty;
         });
 
-        // GET /retry/503 → 503 Service Unavailable
-        app.MapGet("/retry/503", (HttpContext ctx) =>
+        // GET|HEAD /retry/503 → 503 Service Unavailable
+        app.MapMethods("/retry/503", ["GET", "HEAD"], (HttpContext ctx) =>
         {
             ctx.Response.StatusCode = 503;
             return Results.Empty;
@@ -748,6 +748,20 @@ public sealed class KestrelFixture : IAsyncLifetime
             {
                 ctx.Response.StatusCode = 503;
             }
+        });
+
+        // PUT /retry/503 → 503 Service Unavailable (idempotent — should be retried)
+        app.MapPut("/retry/503", (HttpContext ctx) =>
+        {
+            ctx.Response.StatusCode = 503;
+            return Results.Empty;
+        });
+
+        // DELETE /retry/503 → 503 Service Unavailable (idempotent — should be retried)
+        app.MapDelete("/retry/503", (HttpContext ctx) =>
+        {
+            ctx.Response.StatusCode = 503;
+            return Results.Empty;
         });
 
         // POST /retry/non-idempotent-503 → 503 on POST (should NOT be retried)
