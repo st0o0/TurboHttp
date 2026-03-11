@@ -3,6 +3,7 @@ using System.Net;
 using System.Net.Security;
 using System.Security.Authentication;
 using System.Security.Cryptography.X509Certificates;
+using TurboHttp.Protocol;
 
 namespace TurboHttp.Client;
 
@@ -21,4 +22,20 @@ public record TurboClientOptions
 
     public X509CertificateCollection? ClientCertificates { get; init; }
     public SslProtocols EnabledSslProtocols { get; init; } = SslProtocols.None;
+
+    // Pipeline feature flags — all default to false for backward compatibility
+    public bool EnableRedirectHandling { get; init; } = false;
+    public RedirectPolicy? RedirectPolicy { get; init; }
+
+    public bool EnableCookies { get; init; } = false;
+
+    public bool EnableRetry { get; init; } = false;
+    public RetryPolicy? RetryPolicy { get; init; }
+
+    public bool EnableCaching { get; init; } = false;
+    public CachePolicy? CachePolicy { get; init; }
+
+    public bool EnableDecompression { get; init; } = false;
+
+    public ConnectionPolicy? ConnectionPolicy { get; init; }
 }

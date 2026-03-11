@@ -125,12 +125,12 @@ Wire all existing protocol handlers (RedirectHandler, CookieJar, RetryEvaluator,
 **Description:** As a developer, I want feature flags on TurboClientOptions so that each pipeline stage can be enabled/disabled independently with backward compatibility.
 
 **Acceptance Criteria:**
-- [ ] File modified: `src/TurboHttp/Client/TurboClientOptions.cs`
-- [ ] Added properties: `EnableRedirectHandling`, `RedirectPolicy?`, `EnableCookies`, `EnableRetry`, `RetryPolicy?`, `EnableCaching`, `CachePolicy?`, `EnableDecompression`, `ConnectionPolicy?`
-- [ ] All flags default to `false` for backward compatibility
-- [ ] Existing tests continue to pass without modification
-- [ ] Unit tests written and successful
-- [ ] `dotnet build --configuration Release src/TurboHttp.sln` succeeds with zero errors
+- [x] File modified: `src/TurboHttp/Client/TurboClientOptions.cs`
+- [x] Added properties: `EnableRedirectHandling`, `RedirectPolicy?`, `EnableCookies`, `EnableRetry`, `RetryPolicy?`, `EnableCaching`, `CachePolicy?`, `EnableDecompression`, `ConnectionPolicy?`
+- [x] All flags default to `false` for backward compatibility
+- [x] Existing tests continue to pass without modification
+- [x] Unit tests written and successful
+- [x] `dotnet build --configuration Release src/TurboHttp.sln` succeeds with zero errors
 
 ### TASK-010: Engine.CreateFlow Pipeline Wiring
 **Description:** As a developer, I want Engine.CreateFlow to conditionally insert the new stages based on TurboClientOptions feature flags so that the full pipeline is assembled dynamically.
