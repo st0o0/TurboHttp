@@ -360,9 +360,9 @@ Wire all existing protocol handlers (RedirectHandler, CookieJar, RetryEvaluator,
 > **Infra:** Reuses same cookie routes as TASK-021 — see `KestrelFixture.RegisterCookieRoutes()` ([L489-L573](../src/TurboHttp.IntegrationTests/Shared/KestrelFixture.cs)). Also includes `/cookie/set-secure/...`, `/cookie/set-httponly/...`, `/cookie/set-samesite/...`.
 
 **Acceptance Criteria:**
-- [ ] File created: `src/TurboHttp.IntegrationTests/Http11/05_Http11CookieTests.cs`
-- [ ] 12 tests: store+send, accumulate, Path, Domain, Secure, HttpOnly, Max-Age=0, expired, multiple Set-Cookie, sorting, redirects, SameSite
-- [ ] All tests pass: `dotnet test --filter "FullyQualifiedName~Http11CookieTests"`
+- [x] File created: `src/TurboHttp.IntegrationTests/Http11/05_Http11CookieTests.cs`
+- [x] 12 tests: store+send, accumulate, Path, Domain, Secure, HttpOnly, Max-Age=0, expired, multiple Set-Cookie, sorting, redirects, SameSite
+- [x] All tests pass: `dotnet test --filter "FullyQualifiedName~Http11CookieTests"`
 
 ### TASK-029: Http11Engine Retry Integration Tests
 **Engine:** [`Http11Engine.cs`](../src/TurboHttp/Streams/Http11Engine.cs)
