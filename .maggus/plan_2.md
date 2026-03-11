@@ -23,12 +23,12 @@ Wire all existing protocol handlers (RedirectHandler, CookieJar, RetryEvaluator,
 **Description:** As a developer, I want a CookieInjectionStage that injects cookies from a CookieJar into outgoing requests so that cookies are automatically sent with each request.
 
 **Acceptance Criteria:**
-- [ ] File created: `src/TurboHttp/Streams/Stages/CookieInjectionStage.cs`
-- [ ] Implements `GraphStage<FlowShape<HttpRequestMessage, HttpRequestMessage>>`
-- [ ] On push: calls `CookieJar.AddCookiesToRequest(request.RequestUri, ref request)` then pushes downstream
-- [ ] Constructor takes `CookieJar` instance; when null, pass-through (no-op)
-- [ ] Unit tests written and successful
-- [ ] `dotnet build --configuration Release src/TurboHttp.sln` succeeds with zero errors
+- [x] File created: `src/TurboHttp/Streams/Stages/CookieInjectionStage.cs`
+- [x] Implements `GraphStage<FlowShape<HttpRequestMessage, HttpRequestMessage>>`
+- [x] On push: calls `CookieJar.AddCookiesToRequest(request.RequestUri, ref request)` then pushes downstream
+- [x] Constructor takes `CookieJar` instance; when null, pass-through (no-op)
+- [x] Unit tests written and successful
+- [x] `dotnet build --configuration Release src/TurboHttp.sln` succeeds with zero errors
 
 ### TASK-002: CookieStorageStage
 **Description:** As a developer, I want a CookieStorageStage that extracts Set-Cookie headers from responses and stores them in the CookieJar so that cookies accumulate across requests.
