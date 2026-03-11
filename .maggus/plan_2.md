@@ -45,15 +45,15 @@ Wire all existing protocol handlers (RedirectHandler, CookieJar, RetryEvaluator,
 **Description:** As a developer, I want a DecompressionStage that automatically decompresses gzip/deflate/brotli response bodies so that the consumer receives uncompressed content.
 
 **Acceptance Criteria:**
-- [ ] File created: `src/TurboHttp/Streams/Stages/DecompressionStage.cs`
-- [ ] Implements `GraphStage<FlowShape<HttpResponseMessage, HttpResponseMessage>>`
-- [ ] Reads `Content-Encoding` header, calls `ContentEncodingDecoder.Decompress(body, encoding)`
-- [ ] Replaces `response.Content` with decompressed `ByteArrayContent`
-- [ ] Removes `Content-Encoding` header, updates `Content-Length`
-- [ ] Pass-through if no `Content-Encoding` or `identity`
-- [ ] Handles: gzip, deflate, br (brotli), x-gzip
-- [ ] ~10 unit tests written and successful
-- [ ] `dotnet build --configuration Release src/TurboHttp.sln` succeeds with zero errors
+- [x] File created: `src/TurboHttp/Streams/Stages/DecompressionStage.cs`
+- [x] Implements `GraphStage<FlowShape<HttpResponseMessage, HttpResponseMessage>>`
+- [x] Reads `Content-Encoding` header, calls `ContentEncodingDecoder.Decompress(body, encoding)`
+- [x] Replaces `response.Content` with decompressed `ByteArrayContent`
+- [x] Removes `Content-Encoding` header, updates `Content-Length`
+- [x] Pass-through if no `Content-Encoding` or `identity`
+- [x] Handles: gzip, deflate, br (brotli), x-gzip
+- [x] ~10 unit tests written and successful
+- [x] `dotnet build --configuration Release src/TurboHttp.sln` succeeds with zero errors
 
 ### TASK-004: CacheLookupStage
 **Description:** As a developer, I want a CacheLookupStage that checks the in-memory cache before sending requests to the network so that fresh cached responses are served instantly.
