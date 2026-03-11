@@ -393,9 +393,9 @@ Wire all existing protocol handlers (RedirectHandler, CookieJar, RetryEvaluator,
 > **Infra:** Reuses same content encoding routes as TASK-023 — see `KestrelFixture.RegisterContentEncodingRoutes()` ([L865-L998](../src/TurboHttp.IntegrationTests/Shared/KestrelFixture.cs)).
 
 **Acceptance Criteria:**
-- [ ] File created: `src/TurboHttp.IntegrationTests/Http11/08_Http11ContentEncodingTests.cs`
-- [ ] 7 tests: gzip, deflate, brotli, identity, Content-Encoding removed, Accept-Encoding sent, large (500KB)
-- [ ] All tests pass: `dotnet test --filter "FullyQualifiedName~Http11ContentEncodingTests"`
+- [x] File created: `src/TurboHttp.IntegrationTests/Http11/08_Http11ContentEncodingTests.cs`
+- [x] 7 tests: gzip, deflate, brotli, identity, Content-Encoding removed, Accept-Encoding sent, large (500KB)
+- [x] All tests pass: `dotnet test --filter "FullyQualifiedName~Http11ContentEncodingTests"`
 
 ### TASK-032: Http20Engine Basic Integration Tests
 **Engine:** [`Http20Engine.cs`](../src/TurboHttp/Streams/Http20Engine.cs)
