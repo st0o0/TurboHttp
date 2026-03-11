@@ -445,9 +445,9 @@ Wire all existing protocol handlers (RedirectHandler, CookieJar, RetryEvaluator,
 **Description:** As a developer, I want integration tests for Http20Engine SETTINGS and PING so that handshake, MAX_CONCURRENT_STREAMS, INITIAL_WINDOW_SIZE, and PING round-trip are verified.
 
 **Acceptance Criteria:**
-- [ ] File created: `src/TurboHttp.IntegrationTests/Http20/05_Http20SettingsPingTests.cs`
-- [ ] 4 tests: SETTINGS exchange, MAX_CONCURRENT_STREAMS applied, INITIAL_WINDOW_SIZE propagated, PING round-trip
-- [ ] All tests pass: `dotnet test --filter "FullyQualifiedName~Http20SettingsPingTests"`
+- [x] File created: `src/TurboHttp.IntegrationTests/Http20/05_Http20SettingsPingTests.cs`
+- [x] 4 tests: SETTINGS exchange, MAX_CONCURRENT_STREAMS applied, INITIAL_WINDOW_SIZE propagated, PING round-trip
+- [x] All tests pass: `dotnet test --filter "FullyQualifiedName~Http20SettingsPingTests"`
 
 ### TASK-037: Http20Engine Redirect Integration Tests
 **Engine:** [`Http20Engine.cs`](../src/TurboHttp/Streams/Http20Engine.cs)
