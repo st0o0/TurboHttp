@@ -382,9 +382,9 @@ Wire all existing protocol handlers (RedirectHandler, CookieJar, RetryEvaluator,
 > **Infra:** Reuses cache routes from `KestrelFixture.RegisterCacheRoutes()` ([L729-L863](../src/TurboHttp.IntegrationTests/Shared/KestrelFixture.cs)): `/cache/max-age/{s}`, `/cache/no-cache`, `/cache/no-store`, `/cache/etag/{id}`, `/cache/last-modified/{id}`, `/cache/vary/{header}`, `/cache/must-revalidate`, `/cache/s-maxage/{s}`, `/cache/expires`, `/cache/private`. Also existing ETag routes: `/etag`, `/if-modified-since`.
 
 **Acceptance Criteria:**
-- [ ] File created: `src/TurboHttp.IntegrationTests/Http11/07_Http11CacheTests.cs`
-- [ ] 15 tests: cacheable stored, cached served, stale revalidation, 304 merge, ETag, Last-Modified, no-store, no-cache, Vary, POST invalidation, must-revalidate, HEAD cached, min-fresh, max-stale, LRU eviction
-- [ ] All tests pass: `dotnet test --filter "FullyQualifiedName~Http11CacheTests"`
+- [x] File created: `src/TurboHttp.IntegrationTests/Http11/07_Http11CacheTests.cs`
+- [x] 15 tests: cacheable stored, cached served, stale revalidation, 304 merge, ETag, Last-Modified, no-store, no-cache, Vary, POST invalidation, must-revalidate, HEAD cached, min-fresh, max-stale, LRU eviction
+- [x] All tests pass: `dotnet test --filter "FullyQualifiedName~Http11CacheTests"`
 
 ### TASK-031: Http11Engine Content Encoding Integration Tests
 **Engine:** [`Http11Engine.cs`](../src/TurboHttp/Streams/Http11Engine.cs)
