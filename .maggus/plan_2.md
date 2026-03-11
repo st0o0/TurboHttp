@@ -556,9 +556,9 @@ Wire all existing protocol handlers (RedirectHandler, CookieJar, RetryEvaluator,
 
 ## Open Questions
 
-- Should `RedirectStage` be implemented as a `GraphStage` with internal feedback loop, or as a `BidiShape` wrapping the engine? The feedback loop approach is simpler but may have back-pressure issues.
-- Should caching be per-host or global? Currently `HttpCacheStore` is per-client, but RFC 9111 allows shared caches.
-- Should `RetryStage` delay be implemented via `Task.Delay` inside the stage or via Akka.Streams' built-in `DelayFlow`?
-- What should the default max redirect count be? .NET's `HttpClient` uses 50, browsers typically use 20.
-- Should `ConnectionReuseStage` signal via actor messages or via a shared concurrent data structure?
-- Do we need HTTP/2 GOAWAY-triggered retry in `RetryStage`, or should that be handled within `Http20Engine` internally?
+- Should `RedirectStage` be implemented as a `GraphStage` with internal feedback loop, or as a `BidiShape` wrapping the engine? The feedback loop approach is simpler but may have back-pressure issues. I would prefer Bidishape.
+- Should caching be per-host or global? Currently `HttpCacheStore` is per-client, but RFC 9111 allows shared caches. I would prefer per client
+- Should `RetryStage` delay be implemented via `Task.Delay` inside the stage or via Akka.Streams' built-in `DelayFlow`? I would prefer DelayFlow.
+- What should the default max redirect count be? .NET's `HttpClient` uses 50, browsers typically use 20. I would prefer 50
+- Should `ConnectionReuseStage` signal via actor messages or via a shared concurrent data structure? I would prefer shared structures.
+- Do we need HTTP/2 GOAWAY-triggered retry in `RetryStage`, or should that be handled within `Http20Engine` internally? Would prefer in the Http20Engine

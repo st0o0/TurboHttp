@@ -486,10 +486,10 @@
 **File:** `Stages/EncoderStageBufferTests.cs`
 **RFC:** N/A — performance & correctness
 
-- [ ] `BUF-001`: Small request (< 4 KB) → adaptive buffer starts small
-- [ ] `BUF-002`: Large request (> 64 KB) → buffer grows (no overflow)
-- [ ] `BUF-003`: Sequential requests → buffer reuse (no memory leak)
-- [ ] `BUF-004`: Binary body → bytes passed through correctly
+- [x] `BUF-001`: Small request (< 4 KB) → adaptive buffer starts small
+- [x] `BUF-002`: Large request (> 64 KB) → buffer grows (no overflow)
+- [x] `BUF-003`: Sequential requests → buffer reuse (no memory leak)
+- [x] `BUF-004`: Binary body → bytes passed through correctly
 
 ---
 
@@ -498,10 +498,10 @@
 **File:** `Stages/DecoderStagePartialTests.cs`
 **RFC:** 9113 §4.1 — Frame Format (partial receive)
 
-- [ ] `PART-001`: HTTP/1.x — incomplete header → decoder waits for next chunk
-- [ ] `PART-002`: HTTP/1.x — body fragment → accumulates until Content-Length reached
-- [ ] `PART-003`: HTTP/2 — 5 of 9 header bytes → frame waits for remainder
-- [ ] `PART-004`: HTTP/2 — frame payload spread across 3 chunks → correctly reassembled
+- [x] `PART-001`: HTTP/1.x — incomplete header → decoder waits for next chunk
+- [x] `PART-002`: HTTP/1.x — body fragment → accumulates until Content-Length reached
+- [x] `PART-003`: HTTP/2 — 5 of 9 header bytes → frame waits for remainder
+- [x] `PART-004`: HTTP/2 — frame payload spread across 3 chunks → correctly reassembled
 
 ---
 

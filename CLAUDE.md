@@ -195,7 +195,7 @@ Integration tests: `src/TurboHttp.IntegrationTests/Shared/` — Kestrel fixtures
 - **Client graph not materialized**: `TurboClientStreamManager` has graph construction commented out. `TurboHttpClient.SendAsync` does not work end-to-end yet.
 - **No business logic stages**: Missing Akka.Streams stages for redirect looping, cookie injection/storage, retry, cache lookup/store, and decompression (except partial HTTP/2 decompression in `Http20StreamStage`).
 - **No end-to-end integration tests**: Kestrel fixtures are defined with 60+ routes but no test classes consume them.
-- **See `TODO.md`** for the full migration plan to wire everything together.
+
 
 ## Dependencies
 
@@ -212,7 +212,7 @@ Four project-specific agents are available via `/agent-name` or the Agent tool:
 | Agent | When to use |
 |-------|-------------|
 | `rfc-test-writer` | Generate a new RFC test file following exact project conventions |
-| `akka-stage-builder` | Implement a new Akka.Streams `GraphStage` (Phase 1 TODO.md stages) |
+| `akka-stage-builder` | Implement a new Akka.Streams `GraphStage` |
 | `build-guardian` | Run full build + tests; produce RFC-breakdown coverage report |
 
 # Agent Guidance: dotnet-skills
