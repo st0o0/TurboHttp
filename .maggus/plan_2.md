@@ -327,9 +327,9 @@ Wire all existing protocol handlers (RedirectHandler, CookieJar, RetryEvaluator,
 > **Infra:** Chunked routes already in `KestrelFixture` ([L204-L280](../src/TurboHttp.IntegrationTests/Shared/KestrelFixture.cs)): `/chunked/{kb}`, `/chunked/exact/{count}/{chunkBytes}`, `POST /echo/chunked`, `/chunked/trailer`, `/chunked/md5`. Uses `StartAsync()` to force chunked encoding.
 
 **Acceptance Criteria:**
-- [ ] File created: `src/TurboHttp.IntegrationTests/Http11/02_Http11ChunkedTests.cs`
-- [ ] 8 tests: chunked decoded, multi-chunk, chunked POST, zero-length final, trailers, large (100KB), HEAD for chunked, MD5 trailer
-- [ ] All tests pass: `dotnet test --filter "FullyQualifiedName~Http11ChunkedTests"`
+- [x] File created: `src/TurboHttp.IntegrationTests/Http11/02_Http11ChunkedTests.cs`
+- [x] 8 tests: chunked decoded, multi-chunk, chunked POST, zero-length final, trailers, large (100KB), HEAD for chunked, MD5 trailer
+- [x] All tests pass: `dotnet test --filter "FullyQualifiedName~Http11ChunkedTests"`
 
 ### TASK-026: Http11Engine Connection Integration Tests
 **Engine:** [`Http11Engine.cs`](../src/TurboHttp/Streams/Http11Engine.cs)
