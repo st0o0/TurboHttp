@@ -72,14 +72,14 @@ Wire all existing protocol handlers (RedirectHandler, CookieJar, RetryEvaluator,
 **Description:** As a developer, I want a CacheStorageStage that stores cacheable responses and merges 304 Not Modified responses with cached entries so that the cache stays up-to-date.
 
 **Acceptance Criteria:**
-- [ ] File created: `src/TurboHttp/Streams/Stages/CacheStorageStage.cs`
-- [ ] Implements `GraphStage<FlowShape<HttpResponseMessage, HttpResponseMessage>>`
-- [ ] If `304 Not Modified`: merges with cached entry via `CacheValidationRequestBuilder.MergeNotModifiedResponse`
-- [ ] If `2xx`: calls `HttpCacheStore.Put(request, response, body, requestTime, responseTime)`
-- [ ] If unsafe method (POST/PUT/DELETE/PATCH): calls `HttpCacheStore.Invalidate(uri)`
-- [ ] Pushes response downstream (possibly merged 200 from 304)
-- [ ] ~10 unit tests written and successful
-- [ ] `dotnet build --configuration Release src/TurboHttp.sln` succeeds with zero errors
+- [x] File created: `src/TurboHttp/Streams/Stages/CacheStorageStage.cs`
+- [x] Implements `GraphStage<FlowShape<HttpResponseMessage, HttpResponseMessage>>`
+- [x] If `304 Not Modified`: merges with cached entry via `CacheValidationRequestBuilder.MergeNotModifiedResponse`
+- [x] If `2xx`: calls `HttpCacheStore.Put(request, response, body, requestTime, responseTime)`
+- [x] If unsafe method (POST/PUT/DELETE/PATCH): calls `HttpCacheStore.Invalidate(uri)`
+- [x] Pushes response downstream (possibly merged 200 from 304)
+- [x] ~10 unit tests written and successful
+- [x] `dotnet build --configuration Release src/TurboHttp.sln` succeeds with zero errors
 
 ### TASK-006: RedirectStage
 **Description:** As a developer, I want a RedirectStage that automatically follows HTTP redirects (301/302/303/307/308) with correct method rewriting, loop detection, and cross-origin header stripping so that redirects are handled transparently.
