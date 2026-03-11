@@ -432,11 +432,11 @@
 **File:** `Http10/Http10EngineRfcRoundTripTests.cs`
 **RFC:** 1945 (combined)
 
-- [ ] `10ENG-001`: GET → 200 with body — version 1.0 in response
-- [ ] `10ENG-002`: POST with body → request body in wire, 200 response with body
-- [ ] `10ENG-003`: 404 response → StatusCode correct, ReasonPhrase present
-- [ ] `10ENG-004`: Custom request header → in wire and available in response
-- [ ] `10ENG-005`: Response correlation: `response.RequestMessage` == sent request
+- [x] `10ENG-001`: GET → 200 with body — version 1.0 in response
+- [x] `10ENG-002`: POST with body → request body in wire, 200 response with body
+- [x] `10ENG-003`: 404 response → StatusCode correct, ReasonPhrase present
+- [x] `10ENG-004`: Custom request header → in wire and available in response
+- [x] `10ENG-005`: Response correlation: `response.RequestMessage` == sent request
 
 ---
 
