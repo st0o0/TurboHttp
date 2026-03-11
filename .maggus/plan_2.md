@@ -112,14 +112,14 @@ Wire all existing protocol handlers (RedirectHandler, CookieJar, RetryEvaluator,
 **Description:** As a developer, I want a ConnectionReuseStage that evaluates whether a TCP connection can be reused based on HTTP version and Connection headers so that connections are pooled efficiently.
 
 **Acceptance Criteria:**
-- [ ] File created: `src/TurboHttp/Streams/Stages/ConnectionReuseStage.cs`
-- [ ] Implements `GraphStage<FlowShape<HttpResponseMessage, HttpResponseMessage>>`
-- [ ] On push: calls `ConnectionReuseEvaluator.Evaluate(response, version, bodyFullyConsumed)`
-- [ ] If `CanReuse` → signals connection pool to keep connection alive
-- [ ] If not → signals connection pool to close connection
-- [ ] Side-effect: signals via `ITransportItem` or actor message to `ClientManager`
-- [ ] ~8 unit tests written and successful
-- [ ] `dotnet build --configuration Release src/TurboHttp.sln` succeeds with zero errors
+- [x] File created: `src/TurboHttp/Streams/Stages/ConnectionReuseStage.cs`
+- [x] Implements `GraphStage<FlowShape<HttpResponseMessage, HttpResponseMessage>>`
+- [x] On push: calls `ConnectionReuseEvaluator.Evaluate(response, version, bodyFullyConsumed)`
+- [x] If `CanReuse` → signals connection pool to keep connection alive
+- [x] If not → signals connection pool to close connection
+- [x] Side-effect: signals via `ITransportItem` or actor message to `ClientManager`
+- [x] ~8 unit tests written and successful
+- [x] `dotnet build --configuration Release src/TurboHttp.sln` succeeds with zero errors
 
 ### TASK-009: TurboClientOptions Extension
 **Description:** As a developer, I want feature flags on TurboClientOptions so that each pipeline stage can be enabled/disabled independently with backward compatibility.
