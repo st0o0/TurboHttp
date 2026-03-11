@@ -425,9 +425,9 @@ Wire all existing protocol handlers (RedirectHandler, CookieJar, RetryEvaluator,
 **Description:** As a developer, I want integration tests for Http20Engine flow control so that large POST bodies, WINDOW_UPDATE, connection/stream-level independence, and small initial windows are verified.
 
 **Acceptance Criteria:**
-- [ ] File created: `src/TurboHttp.IntegrationTests/Http20/03_Http20FlowControlTests.cs`
-- [ ] 4 tests: large POST respects windows, WINDOW_UPDATE increases, independent levels, response despite small window
-- [ ] All tests pass: `dotnet test --filter "FullyQualifiedName~Http20FlowControlTests"`
+- [x] File created: `src/TurboHttp.IntegrationTests/Http20/03_Http20FlowControlTests.cs`
+- [x] 4 tests: large POST respects windows, WINDOW_UPDATE increases, independent levels, response despite small window
+- [x] All tests pass: `dotnet test --filter "FullyQualifiedName~Http20FlowControlTests"`
 
 ### TASK-035: Http20Engine HPACK Integration Tests
 **Engine:** [`Http20Engine.cs`](../src/TurboHttp/Streams/Http20Engine.cs)
