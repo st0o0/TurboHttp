@@ -334,11 +334,11 @@ private void HandleReconnect(Reconnect msg)
 **Description:** As a developer, I want tests for sending data through the connection so that outbound channel writes are verified.
 
 **Acceptance Criteria:**
-- [ ] Test: `DataItem` is written to `_outbound` via `TryWrite`
-- [ ] Test: `DataItem` when `_outbound` is null → `Memory.Dispose()` called (no crash)
-- [ ] Test: `DataItem` when `TryWrite` returns false → `Memory.Dispose()` called
-- [ ] Test: After successful `ClientConnected`, DataItem flows through outbound channel
-- [ ] All tests green
+- [x] Test: `DataItem` is written to `_outbound` via `TryWrite`
+- [x] Test: `DataItem` when `_outbound` is null → `Memory.Dispose()` called (no crash)
+- [x] Test: `DataItem` when `TryWrite` returns false → `Memory.Dispose()` called
+- [x] Test: After successful `ClientConnected`, DataItem flows through outbound channel
+- [x] All tests green
 
 ---
 

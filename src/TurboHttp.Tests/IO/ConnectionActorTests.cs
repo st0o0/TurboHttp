@@ -1,5 +1,6 @@
 using System;
 using System.Buffers;
+using System.Net;
 using System.Threading.Channels;
 using System.Threading.Tasks;
 using Akka.Actor;
@@ -180,5 +181,111 @@ public sealed class ConnectionActorTests : TestKit
         actor.Tell(new DataItem(owner3, 16));
         var written = await outbound2.Reader.ReadAsync();
         Assert.Equal(16, written.Item2);
+    }
+
+    // ── TASK-014: Data Send ──────────────────────────────────────────
+
+    [Fact(DisplayName = "CA-007: DataItem is written to outbound via TryWrite")]
+    public async Task CA_007_DataItem_WrittenToOutbound()
+    {
+        var actor = CreateConnectionActor();
+        ExpectMsg<ClientManager.CreateTcpRunner>();
+
+        var (_, outbound, connMsg) = MakeConnectedMessage();
+        actor.Tell(connMsg, TestActor);
+
+        var owner = MemoryPool<byte>.Shared.Rent(32);
+        // Write a known byte so we can verify identity
+        owner.Memory.Span[0] = 0xAB;
+        actor.Tell(new DataItem(owner, 32));
+
+        var (mem, len) = await outbound.Reader.ReadAsync();
+        Assert.Equal(32, len);
+        Assert.Equal(0xAB, mem.Memory.Span[0]);
+        mem.Dispose();
+    }
+
+    [Fact(DisplayName = "CA-008: DataItem when outbound is null disposes Memory without crash")]
+    public void CA_008_DataItem_OutboundNull_DisposesMemory()
+    {
+        var actor = CreateConnectionActor();
+        ExpectMsg<ClientManager.CreateTcpRunner>();
+
+        // Do NOT send ClientConnected — _outbound remains null
+        var owner = new TrackingMemoryOwner(MemoryPool<byte>.Shared.Rent(16));
+        actor.Tell(new DataItem(owner, 16));
+
+        // Give actor time to process
+        ExpectNoMsg(TimeSpan.FromMilliseconds(300));
+
+        Assert.True(owner.Disposed, "Memory should be disposed when _outbound is null");
+    }
+
+    [Fact(DisplayName = "CA-009: DataItem when TryWrite returns false disposes Memory")]
+    public void CA_009_DataItem_TryWriteFails_DisposesMemory()
+    {
+        var actor = CreateConnectionActor();
+        ExpectMsg<ClientManager.CreateTcpRunner>();
+
+        // Create a bounded channel with capacity 1 and use a completed writer to force TryWrite=false
+        var outbound = Channel.CreateBounded<(IMemoryOwner<byte>, int)>(1);
+        outbound.Writer.Complete(); // TryWrite will always return false on a completed writer
+
+        var inbound = Channel.CreateUnbounded<(IMemoryOwner<byte>, int)>();
+        var endpoint = new IPEndPoint(IPAddress.Loopback, 8080);
+        var connMsg = new ClientRunner.ClientConnected(endpoint, inbound.Reader, outbound.Writer);
+        actor.Tell(connMsg, TestActor);
+
+        var owner = new TrackingMemoryOwner(MemoryPool<byte>.Shared.Rent(16));
+        actor.Tell(new DataItem(owner, 16));
+
+        // Give actor time to process
+        ExpectNoMsg(TimeSpan.FromMilliseconds(300));
+
+        Assert.True(owner.Disposed, "Memory should be disposed when TryWrite returns false");
+    }
+
+    [Fact(DisplayName = "CA-010: After ClientConnected, DataItem flows through outbound channel")]
+    public async Task CA_010_AfterConnected_DataFlowsThroughOutbound()
+    {
+        var actor = CreateConnectionActor();
+        ExpectMsg<ClientManager.CreateTcpRunner>();
+
+        var (_, outbound, connMsg) = MakeConnectedMessage();
+        actor.Tell(connMsg, TestActor);
+
+        // Send multiple DataItems and verify they all flow through
+        for (var i = 0; i < 3; i++)
+        {
+            var owner = MemoryPool<byte>.Shared.Rent(8);
+            owner.Memory.Span[0] = (byte)(i + 1);
+            actor.Tell(new DataItem(owner, 8));
+        }
+
+        for (var i = 0; i < 3; i++)
+        {
+            var (mem, len) = await outbound.Reader.ReadAsync();
+            Assert.Equal(8, len);
+            Assert.Equal((byte)(i + 1), mem.Memory.Span[0]);
+            mem.Dispose();
+        }
+    }
+
+    /// <summary>
+    /// Wrapper around IMemoryOwner that tracks whether Dispose was called.
+    /// </summary>
+    private sealed class TrackingMemoryOwner : IMemoryOwner<byte>
+    {
+        private readonly IMemoryOwner<byte> _inner;
+        public bool Disposed { get; private set; }
+
+        public TrackingMemoryOwner(IMemoryOwner<byte> inner) => _inner = inner;
+        public Memory<byte> Memory => _inner.Memory;
+
+        public void Dispose()
+        {
+            Disposed = true;
+            _inner.Dispose();
+        }
     }
 }
