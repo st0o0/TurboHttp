@@ -1,5 +1,6 @@
 using System.Net;
 using TurboHttp.Protocol;
+using TurboHttp.Protocol.RFC6265;
 
 namespace TurboHttp.Tests.Integration;
 

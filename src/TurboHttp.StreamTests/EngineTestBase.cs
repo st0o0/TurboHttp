@@ -9,6 +9,7 @@ using Akka.Streams.Stage;
 using Akka.TestKit.Xunit2;
 using TurboHttp.IO.Stages;
 using TurboHttp.Protocol;
+using TurboHttp.Protocol.RFC9113;
 using TurboHttp.Streams.Stages;
 
 namespace TurboHttp.StreamTests;

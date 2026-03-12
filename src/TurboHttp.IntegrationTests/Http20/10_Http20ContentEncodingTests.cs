@@ -7,6 +7,7 @@ using Akka.Streams.Dsl;
 using TurboHttp.IntegrationTests.Shared;
 using TurboHttp.IO;
 using TurboHttp.IO.Stages;
+using TurboHttp.Protocol.RFC9113;
 using TurboHttp.Streams.Stages;
 
 namespace TurboHttp.IntegrationTests.Http20;
@@ -34,7 +35,7 @@ public sealed class Http20ContentEncodingTests : TestKit, IClassFixture<KestrelH
     /// </summary>
     private Flow<HttpRequestMessage, HttpResponseMessage, NotUsed> BuildFlow()
     {
-        var requestEncoder = new Protocol.Http2RequestEncoder();
+        var requestEncoder = new Http2RequestEncoder();
         var tcpOptions = new TcpOptions
         {
             Host = "127.0.0.1",

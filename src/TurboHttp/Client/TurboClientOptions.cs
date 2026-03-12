@@ -4,6 +4,9 @@ using System.Net.Security;
 using System.Security.Authentication;
 using System.Security.Cryptography.X509Certificates;
 using TurboHttp.Protocol;
+using TurboHttp.Protocol.RFC9110;
+using TurboHttp.Protocol.RFC9111;
+using TurboHttp.Protocol.RFC9112;
 
 namespace TurboHttp.Client;
 

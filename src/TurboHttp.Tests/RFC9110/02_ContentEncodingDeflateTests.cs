@@ -1,6 +1,9 @@
 using System.IO.Compression;
 using System.Text;
 using TurboHttp.Protocol;
+using TurboHttp.Protocol.RFC1945;
+using TurboHttp.Protocol.RFC7541;
+using TurboHttp.Protocol.RFC9112;
 
 namespace TurboHttp.Tests.RFC9110;
 

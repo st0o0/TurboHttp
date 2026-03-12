@@ -4,6 +4,7 @@ using System.Linq;
 using System.Net;
 using System.Net.Http;
 using System.Text;
+using TurboHttp.Protocol.RFC7541;
 
 namespace TurboHttp.Protocol;
 

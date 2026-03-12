@@ -1,6 +1,10 @@
 using System.Net;
 using System.Text;
 using TurboHttp.Protocol;
+using TurboHttp.Protocol.RFC1945;
+using TurboHttp.Protocol.RFC7541;
+using TurboHttp.Protocol.RFC9112;
+using TurboHttp.Protocol.RFC9113;
 
 namespace TurboHttp.Tests.Integration;
 
@@ -66,7 +70,7 @@ public sealed class TcpFragmentationTests
     /// Byte layout: [length:3=0][type=0x04][flags=0x00][streamId:4=0]
     /// </summary>
     private static byte[] SettingsFrame9() =>
-        new Protocol.SettingsFrame(new List<(SettingsParameter, uint)>()).Serialize();
+        new SettingsFrame(new List<(SettingsParameter, uint)>()).Serialize();
 
     private static byte[] Combine(params byte[][] parts)
     {
@@ -350,9 +354,9 @@ public sealed class TcpFragmentationTests
         // followed by DATA (stream 1, endStream=true, body="hello world").
         var hpack = new HpackEncoder(useHuffman: false);
         var headerBlock = hpack.Encode(new List<(string, string)> { (":status", "200") });
-        var headersFrame = new Protocol.HeadersFrame(1, headerBlock, endStream: false, endHeaders: true).Serialize();
+        var headersFrame = new HeadersFrame(1, headerBlock, endStream: false, endHeaders: true).Serialize();
         var bodyBytes = "hello world"u8.ToArray();
-        var dataFrame = new Protocol.DataFrame(1, bodyBytes, endStream: true).Serialize();
+        var dataFrame = new DataFrame(1, bodyBytes, endStream: true).Serialize();
 
         var combined = Combine(headersFrame, dataFrame);
         var session = new Http2ProtocolSession();
@@ -384,7 +388,7 @@ public sealed class TcpFragmentationTests
             ("content-type", "text/plain"),
             ("x-trace-id", "frag-006-test"),
         });
-        var headersFrame = new Protocol.HeadersFrame(1, headerBlock, endStream: true, endHeaders: true).Serialize();
+        var headersFrame = new HeadersFrame(1, headerBlock, endStream: true, endHeaders: true).Serialize();
 
         // Ensure the HPACK payload is large enough to split
         Assert.True(headerBlock.Length >= 2, "Need multi-byte HPACK block for mid-stream split");
@@ -418,8 +422,8 @@ public sealed class TcpFragmentationTests
         var firstPart = fullBlock[..1];
         var secondPart = fullBlock[1..];
 
-        var headersFrame = new Protocol.HeadersFrame(1, firstPart, endStream: true, endHeaders: false).Serialize();
-        var contFrame = new Protocol.ContinuationFrame(1, secondPart, endHeaders: true).Serialize();
+        var headersFrame = new HeadersFrame(1, firstPart, endStream: true, endHeaders: false).Serialize();
+        var contFrame = new ContinuationFrame(1, secondPart, endHeaders: true).Serialize();
 
         var session = new Http2ProtocolSession();
 
@@ -438,12 +442,12 @@ public sealed class TcpFragmentationTests
     [Fact(DisplayName = "FRAG-2-008: Two complete HTTP/2 frames in one read both processed")]
     public void Should_ProcessBothFrames_When_TwoCompleteFramesInOneBuffer()
     {
-        var settings1 = new Protocol.SettingsFrame(new List<(SettingsParameter, uint)>
+        var settings1 = new SettingsFrame(new List<(SettingsParameter, uint)>
         {
             (SettingsParameter.MaxConcurrentStreams, 100u),
         }).Serialize();
 
-        var settings2 = new Protocol.SettingsFrame(new List<(SettingsParameter, uint)>
+        var settings2 = new SettingsFrame(new List<(SettingsParameter, uint)>
         {
             (SettingsParameter.InitialWindowSize, 32768u),
         }).Serialize();
@@ -467,8 +471,8 @@ public sealed class TcpFragmentationTests
         var block1 = hpack1.Encode(new List<(string, string)> { (":status", "200") }); // 1 byte: 0x88
 
         // Each HEADERS frame = 9-byte header + 1-byte HPACK payload = 10 bytes
-        var stream1Frame = new Protocol.HeadersFrame(1, block1, endStream: true, endHeaders: true).Serialize();
-        var stream3Frame = new Protocol.HeadersFrame(3, block1, endStream: true, endHeaders: true).Serialize();
+        var stream1Frame = new HeadersFrame(1, block1, endStream: true, endHeaders: true).Serialize();
+        var stream3Frame = new HeadersFrame(3, block1, endStream: true, endHeaders: true).Serialize();
 
         var session = new Http2ProtocolSession();
 

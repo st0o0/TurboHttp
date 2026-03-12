@@ -6,6 +6,9 @@ using System.Net.Http;
 using Akka.Streams;
 using Akka.Streams.Stage;
 using TurboHttp.Protocol;
+using TurboHttp.Protocol.RFC7541;
+using TurboHttp.Protocol.RFC9110;
+using TurboHttp.Protocol.RFC9113;
 
 namespace TurboHttp.Streams.Stages;
 

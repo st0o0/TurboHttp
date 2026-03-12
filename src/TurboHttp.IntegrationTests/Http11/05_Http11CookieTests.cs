@@ -7,6 +7,8 @@ using TurboHttp.IntegrationTests.Shared;
 using TurboHttp.IO;
 using TurboHttp.IO.Stages;
 using TurboHttp.Protocol;
+using TurboHttp.Protocol.RFC6265;
+using TurboHttp.Protocol.RFC9110;
 using TurboHttp.Streams;
 using TurboHttp.Streams.Stages;
 

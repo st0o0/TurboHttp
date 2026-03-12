@@ -29,7 +29,8 @@ public sealed class ConnectionPoolStage : GraphStage<FlowShape<RoutedTransportIt
         Func<IGraph<FlowShape<ITransportItem, (IMemoryOwner<byte>, int)>, NotUsed>> connectionFlowFactory,
         PoolConfig config)
     {
-        _connectionFlowFactory = connectionFlowFactory ?? throw new ArgumentNullException(nameof(connectionFlowFactory));
+        _connectionFlowFactory =
+            connectionFlowFactory ?? throw new ArgumentNullException(nameof(connectionFlowFactory));
         _config = config ?? throw new ArgumentNullException(nameof(config));
         Shape = new FlowShape<RoutedTransportItem, RoutedDataItem>(_inlet, _outlet);
     }
@@ -129,6 +130,7 @@ public sealed class ConnectionPoolStage : GraphStage<FlowShape<RoutedTransportIt
                     {
                         Pull(_stage._inlet);
                     }
+
                     break;
 
                 default:
@@ -218,12 +220,11 @@ public sealed class ConnectionPoolStage : GraphStage<FlowShape<RoutedTransportIt
             var bestCount = int.MaxValue;
             foreach (var conn in pool.Connections)
             {
-                if (conn.Active && conn.Idle && conn.PendingRequestCount < bestCount)
-                {
-                    best = conn;
-                    bestCount = conn.PendingRequestCount;
-                }
+                if (conn is not { Active: true, Idle: true } || conn.PendingRequestCount >= bestCount) continue;
+                best = conn;
+                bestCount = conn.PendingRequestCount;
             }
+
             return best;
         }
 
@@ -243,7 +244,7 @@ public sealed class ConnectionPoolStage : GraphStage<FlowShape<RoutedTransportIt
                 var index = pool.RoundRobinIndex % connections.Count;
                 pool.RoundRobinIndex = index + 1;
                 var slot = connections[index];
-                if (slot.Active && slot.Idle)
+                if (slot is { Active: true, Idle: true })
                 {
                     return slot;
                 }
@@ -364,7 +365,7 @@ public sealed class ConnectionPoolStage : GraphStage<FlowShape<RoutedTransportIt
                 return;
             }
 
-            var poolKey = key.Substring("reconnect:".Length);
+            var poolKey = key["reconnect:".Length..];
             if (_stopping || !_hostPools.TryGetValue(poolKey, out var pool))
             {
                 return;
@@ -377,7 +378,8 @@ public sealed class ConnectionPoolStage : GraphStage<FlowShape<RoutedTransportIt
             DrainPendingQueue(poolKey, pool);
 
             // If outlet is waiting and we have no pending responses, pull inlet
-            if (!HasBeenPulled(_stage._inlet) && !_stopping && IsAvailable(_stage._outlet) && _pendingResponses.Count == 0)
+            if (!HasBeenPulled(_stage._inlet) && !_stopping && IsAvailable(_stage._outlet) &&
+                _pendingResponses.Count == 0)
             {
                 Pull(_stage._inlet);
             }
@@ -465,16 +467,15 @@ public sealed class ConnectionPoolStage : GraphStage<FlowShape<RoutedTransportIt
             {
                 foreach (var slot in pool.Connections)
                 {
-                    if (slot.Id == response.slotId && slot.PendingRequestCount > 0)
+                    if (slot.Id != response.slotId || slot.PendingRequestCount <= 0) continue;
+                    slot.PendingRequestCount--;
+                    slot.LastActivityUtc = DateTime.UtcNow;
+                    if (slot.PendingRequestCount == 0)
                     {
-                        slot.PendingRequestCount--;
-                        slot.LastActivityUtc = DateTime.UtcNow;
-                        if (slot.PendingRequestCount == 0)
-                        {
-                            slot.Idle = true;
-                        }
-                        break;
+                        slot.Idle = true;
                     }
+
+                    break;
                 }
 
                 // Drain queued items: dispatch to any now-idle slot
@@ -548,7 +549,7 @@ public sealed class ConnectionPoolStage : GraphStage<FlowShape<RoutedTransportIt
     private sealed class HostPool
     {
         public TcpOptions Options { get; }
-        public List<ConnectionSlot> Connections { get; } = new();
+        public List<ConnectionSlot> Connections { get; } = [];
         public int ConnectionCounter { get; set; }
 
         /// <summary>

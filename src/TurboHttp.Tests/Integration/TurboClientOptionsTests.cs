@@ -1,5 +1,8 @@
 using TurboHttp.Client;
 using TurboHttp.Protocol;
+using TurboHttp.Protocol.RFC9110;
+using TurboHttp.Protocol.RFC9111;
+using TurboHttp.Protocol.RFC9112;
 
 namespace TurboHttp.Tests.Integration;
 

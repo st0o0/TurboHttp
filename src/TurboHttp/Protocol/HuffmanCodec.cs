@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using TurboHttp.Protocol.RFC7541;
 
 namespace TurboHttp.Protocol;
 

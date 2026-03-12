@@ -2,6 +2,9 @@ using System.IO.Compression;
 using System.Net;
 using System.Text;
 using TurboHttp.Protocol;
+using TurboHttp.Protocol.RFC6265;
+using TurboHttp.Protocol.RFC9110;
+using TurboHttp.Protocol.RFC9112;
 
 namespace TurboHttp.Tests.Integration;
 

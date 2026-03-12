@@ -1,3 +1,5 @@
+using TurboHttp.Protocol.RFC9112;
+
 namespace TurboHttp.Protocol;
 
 public readonly struct HttpDecodeResult

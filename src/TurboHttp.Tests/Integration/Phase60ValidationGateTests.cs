@@ -1,6 +1,8 @@
 using System.Net;
 using System.Text;
 using TurboHttp.Protocol;
+using TurboHttp.Protocol.RFC9112;
+using TurboHttp.Protocol.RFC9113;
 
 namespace TurboHttp.Tests.Integration;
 
