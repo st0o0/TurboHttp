@@ -78,10 +78,10 @@ plan_3 (Stage-based):                    plan_5 (Actor-based):
 **Description:** As a developer, I want the `PoolRouterActor` in its own file with only its message records, so that routing responsibility is clearly isolated.
 
 **Acceptance Criteria:**
-- [ ] `PoolRouterActor.cs` in `src/TurboHttp/IO/` contains only `PoolRouterActor` and its records: `RegisterHost`, `SendRequest`, `Response`, `ConnectionIdle`, `ConnectionFailed`
-- [ ] Uses `Context.ResolveChildActor<HostPoolActor>()` for child creation (Servus.Akka pattern)
-- [ ] Only required `using` statements
-- [ ] Build passes
+- [x] `PoolRouterActor.cs` in `src/TurboHttp/IO/` contains only `PoolRouterActor` and its records: `RegisterHost`, `SendRequest`, `Response`, `ConnectionIdle`, `ConnectionFailed`
+- [x] Uses `Context.ResolveChildActor<HostPoolActor>()` for child creation (Servus.Akka pattern)
+- [x] Only required `using` statements
+- [x] Build passes
 
 ---
 
