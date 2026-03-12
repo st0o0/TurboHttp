@@ -140,23 +140,54 @@ public sealed class ConnectionPoolStage : GraphStage<FlowShape<RoutedTransportIt
         private void RouteDataItem(string poolKey, DataItem data)
         {
             var pool = _hostPools[poolKey];
-            var slot = GetOrCreateSlot(poolKey, pool);
+            var slot = FindOrCreateSlot(poolKey, pool);
 
+            if (slot is not null)
+            {
+                SendToSlot(poolKey, slot, data);
+            }
+            else
+            {
+                // All connections busy and at max — queue internally (backpressure)
+                pool.PendingDataItems.Enqueue(data);
+            }
+        }
+
+        private void SendToSlot(string poolKey, ConnectionSlot slot, DataItem data)
+        {
             _inFlightCount++;
             slot.PendingRequestCount++;
             slot.Idle = false;
             slot.Queue.OfferAsync(data);
         }
 
-        private ConnectionSlot GetOrCreateSlot(string poolKey, HostPool pool)
+        /// <summary>
+        /// Finds an idle connection, or creates a new one if under the limit.
+        /// Returns null when all connections are busy and the max has been reached.
+        /// </summary>
+        private ConnectionSlot? FindOrCreateSlot(string poolKey, HostPool pool)
         {
-            // TASK-002: single connection per host
-            if (pool.Connections.Count > 0 && pool.Connections[0].Active)
+            // 1. Prefer an idle (non-busy) active connection
+            foreach (var conn in pool.Connections)
             {
-                return pool.Connections[0];
+                if (conn.Active && conn.Idle)
+                {
+                    return conn;
+                }
             }
 
-            // Materialise a new ConnectionStage sub-graph using SubFusingActorMaterializer
+            // 2. If under the limit, materialise a new connection
+            if (pool.Connections.Count < _stage._config.MaxConnectionsPerHost)
+            {
+                return MaterialiseNewSlot(poolKey, pool);
+            }
+
+            // 3. All connections busy and at max — return null to signal queuing
+            return null;
+        }
+
+        private ConnectionSlot MaterialiseNewSlot(string poolKey, HostPool pool)
+        {
             var connectionFlow = _stage._connectionFlowFactory();
             var capturedPoolKey = poolKey;
             var capturedCallback = _onResponseCallback!;
@@ -190,7 +221,7 @@ public sealed class ConnectionPoolStage : GraphStage<FlowShape<RoutedTransportIt
 
             _inFlightCount--;
 
-            // Update slot status
+            // Update slot status and drain per-host queue
             if (_hostPools.TryGetValue(response.poolKey, out var pool))
             {
                 foreach (var slot in pool.Connections)
@@ -205,6 +236,9 @@ public sealed class ConnectionPoolStage : GraphStage<FlowShape<RoutedTransportIt
                         break;
                     }
                 }
+
+                // Drain queued items: dispatch to any now-idle slot
+                DrainPendingQueue(response.poolKey, pool);
             }
 
             var item = new RoutedDataItem(response.poolKey, response.memory, response.length);
@@ -217,6 +251,24 @@ public sealed class ConnectionPoolStage : GraphStage<FlowShape<RoutedTransportIt
             else
             {
                 _pendingResponses.Enqueue(item);
+            }
+        }
+
+        /// <summary>
+        /// Dispatches queued DataItems to idle connections for the given host.
+        /// </summary>
+        private void DrainPendingQueue(string poolKey, HostPool pool)
+        {
+            while (pool.PendingDataItems.Count > 0)
+            {
+                var slot = FindOrCreateSlot(poolKey, pool);
+                if (slot is null)
+                {
+                    break; // Still all busy
+                }
+
+                var queued = pool.PendingDataItems.Dequeue();
+                SendToSlot(poolKey, slot, queued);
             }
         }
 
@@ -258,6 +310,12 @@ public sealed class ConnectionPoolStage : GraphStage<FlowShape<RoutedTransportIt
         public TcpOptions Options { get; }
         public List<ConnectionSlot> Connections { get; } = new();
         public int ConnectionCounter { get; set; }
+
+        /// <summary>
+        /// DataItems waiting for a free connection slot. Drained when a response arrives
+        /// and a slot becomes idle, or when a new slot is materialised.
+        /// </summary>
+        public Queue<DataItem> PendingDataItems { get; } = new();
 
         public HostPool(TcpOptions options)
         {

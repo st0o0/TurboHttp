@@ -67,16 +67,16 @@ The key architectural insight: rather than bypassing `ConnectionStage`, the pool
 **Description:** As a developer, I want the pool to automatically create additional ConnectionStage instances for a host when existing connections are saturated.
 
 **Acceptance Criteria:**
-- [ ] `PoolConfig.MaxConnectionsPerHost` limits the maximum number of ConnectionStage instances per host
-- [ ] When all existing connections for a host are "busy", a new ConnectionStage is materialised (up to the limit)
-- [ ] "Busy" definition for HTTP/1.x: connection has a pending request without a response
-- [ ] HTTP/2 busy status is managed by H2-Connection-Stage itself (pool does not track stream count)
-- [ ] When max reached and all busy → DataItem is queued internally (backpressure)
-- [ ] New connection uses the same `TcpOptions` from the original ConnectItem
-- [ ] Each new ConnectionStage is a fresh materialisation with independent state
-- [ ] Unit tests: 3 parallel requests → 3 ConnectionStage instances (HTTP/1.x, MaxConnections=3)
-- [ ] Unit tests: 4 requests with MaxConnections=2 → 2 connections, 2 queued
-- [ ] Typecheck/build passes
+- [x] `PoolConfig.MaxConnectionsPerHost` limits the maximum number of ConnectionStage instances per host
+- [x] When all existing connections for a host are "busy", a new ConnectionStage is materialised (up to the limit)
+- [x] "Busy" definition for HTTP/1.x: connection has a pending request without a response
+- [x] HTTP/2 busy status is managed by H2-Connection-Stage itself (pool does not track stream count)
+- [x] When max reached and all busy → DataItem is queued internally (backpressure)
+- [x] New connection uses the same `TcpOptions` from the original ConnectItem
+- [x] Each new ConnectionStage is a fresh materialisation with independent state
+- [x] Unit tests: 3 parallel requests → 3 ConnectionStage instances (HTTP/1.x, MaxConnections=3)
+- [x] Unit tests: 4 requests with MaxConnections=2 → 2 connections, 2 queued
+- [x] Typecheck/build passes
 
 ### TASK-004: Load Balancing Across Connections
 

@@ -1,4 +1,6 @@
 using System.Buffers;
+using System.Collections.Concurrent;
+using System.Threading;
 using Akka;
 using Akka.Streams;
 using Akka.Streams.Dsl;
@@ -11,6 +13,7 @@ namespace TurboHttp.StreamTests.Stages;
 /// Tests for <see cref="ConnectionPoolStage"/>.
 /// TASK-001: Foundation — ConnectItem registration, unknown PoolKey rejection, empty pass-through.
 /// TASK-002: Per-host connection lifecycle — sub-graph materialisation, single-host roundtrip.
+/// TASK-003: Multi-connection per host — dynamic scaling, backpressure queuing.
 /// </summary>
 public sealed class ConnectionPoolStageTests : StreamTestBase
 {
@@ -32,12 +35,65 @@ public sealed class ConnectionPoolStageTests : StreamTestBase
     }
 
     /// <summary>
+    /// Creates an echo flow factory that counts how many times it has been invoked.
+    /// Each invocation represents a new ConnectionStage materialisation.
+    /// </summary>
+    private static (Func<IGraph<FlowShape<ITransportItem, (IMemoryOwner<byte>, int)>, NotUsed>> factory, Func<int> getCount)
+        CreateCountingEchoFlowFactory()
+    {
+        var count = 0;
+        IGraph<FlowShape<ITransportItem, (IMemoryOwner<byte>, int)>, NotUsed> Factory()
+        {
+            Interlocked.Increment(ref count);
+            return CreateEchoFlow();
+        }
+        return (Factory, () => Volatile.Read(ref count));
+    }
+
+    /// <summary>
+    /// Creates a gated flow factory. Each materialised flow holds DataItems until the
+    /// corresponding gate is released. This simulates busy connections for testing backpressure.
+    /// </summary>
+    private static (
+        Func<IGraph<FlowShape<ITransportItem, (IMemoryOwner<byte>, int)>, NotUsed>> factory,
+        ConcurrentQueue<TaskCompletionSource<bool>> gates,
+        Func<int> getCount)
+        CreateGatedFlowFactory()
+    {
+        var gates = new ConcurrentQueue<TaskCompletionSource<bool>>();
+        var count = 0;
+
+        IGraph<FlowShape<ITransportItem, (IMemoryOwner<byte>, int)>, NotUsed> Factory()
+        {
+            Interlocked.Increment(ref count);
+            return Flow.Create<ITransportItem>()
+                .Where(x => x is DataItem)
+                .SelectAsync(1, async x =>
+                {
+                    var gate = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+                    gates.Enqueue(gate);
+                    await gate.Task;
+                    var data = (DataItem)x;
+                    return (data.Memory, data.Length);
+                });
+        }
+        return (Factory, gates, () => Volatile.Read(ref count));
+    }
+
+    /// <summary>
     /// Creates a ConnectionPoolStage with an echo flow factory.
     /// The echo flow passes DataItems through and filters ConnectItems.
     /// </summary>
     private static ConnectionPoolStage CreateStage()
     {
         return new ConnectionPoolStage(CreateEchoFlow, DefaultConfig);
+    }
+
+    private static ConnectionPoolStage CreateStage(
+        Func<IGraph<FlowShape<ITransportItem, (IMemoryOwner<byte>, int)>, NotUsed>> factory,
+        PoolConfig? config = null)
+    {
+        return new ConnectionPoolStage(factory, config ?? DefaultConfig);
     }
 
     private static TcpOptions TestOptions(string host = "example.com", int port = 443)
@@ -252,5 +308,213 @@ public sealed class ConnectionPoolStageTests : StreamTestBase
         Assert.All(results, r => Assert.Equal(poolKey, r.PoolKey));
         Assert.Equal(payload1.Length, results[0].Length);
         Assert.Equal(payload2.Length, results[1].Length);
+    }
+
+    // ── TASK-003: Multi-Connection per Host — Dynamic Scaling ──────────────────
+
+    // ── POOL-011: 3 parallel requests → 3 ConnectionStage instances (MaxConnections=3) ──
+
+    [Fact(Timeout = 10_000,
+        DisplayName = "POOL-011: 3 parallel requests create 3 connections (HTTP/1.x, MaxConnections=3)")]
+    public async Task POOL_011_ThreeParallelRequests_ThreeConnections()
+    {
+        // Use gated flow: each request blocks until we release the gate.
+        // This ensures all 3 connections are created because each prior one is "busy".
+        var (factory, gates, getCount) = CreateGatedFlowFactory();
+        var config = new PoolConfig(MaxConnectionsPerHost: 3);
+        var stage = CreateStage(factory, config);
+        const string poolKey = "https:example.com:443:1.1";
+
+        var items = new List<RoutedTransportItem>
+        {
+            new(poolKey, new ConnectItem(TestOptions())),
+            new(poolKey, new DataItem(new SimpleMemoryOwner(new byte[] { 0x01 }), 1)),
+            new(poolKey, new DataItem(new SimpleMemoryOwner(new byte[] { 0x02 }), 1)),
+            new(poolKey, new DataItem(new SimpleMemoryOwner(new byte[] { 0x03 }), 1))
+        };
+
+        var resultTask = Source.From(items)
+            .Via(Flow.FromGraph(stage))
+            .RunWith(Sink.Seq<RoutedDataItem>(), Materializer);
+
+        // Wait for all 3 gates to appear (meaning 3 connections were created)
+        await WaitForConditionAsync(() => gates.Count >= 3, timeout: TimeSpan.FromSeconds(5));
+        Assert.Equal(3, getCount());
+
+        // Release all gates so the stream can complete
+        while (gates.TryDequeue(out var gate))
+        {
+            gate.SetResult(true);
+        }
+
+        var results = await resultTask;
+        Assert.Equal(3, results.Count);
+    }
+
+    // ── POOL-012: 4 requests with MaxConnections=2 → 2 connections, 2 queued ──
+
+    [Fact(Timeout = 10_000,
+        DisplayName = "POOL-012: 4 requests with MaxConnections=2 → 2 connections, 2 queued then drained")]
+    public async Task POOL_012_FourRequests_MaxTwo_TwoQueuedThenDrained()
+    {
+        var (factory, gates, getCount) = CreateGatedFlowFactory();
+        var config = new PoolConfig(MaxConnectionsPerHost: 2);
+        var stage = CreateStage(factory, config);
+        const string poolKey = "https:example.com:443:1.1";
+
+        var items = new List<RoutedTransportItem>
+        {
+            new(poolKey, new ConnectItem(TestOptions())),
+            new(poolKey, new DataItem(new SimpleMemoryOwner(new byte[] { 0x01 }), 1)),
+            new(poolKey, new DataItem(new SimpleMemoryOwner(new byte[] { 0x02 }), 1)),
+            new(poolKey, new DataItem(new SimpleMemoryOwner(new byte[] { 0x03 }), 1)),
+            new(poolKey, new DataItem(new SimpleMemoryOwner(new byte[] { 0x04 }), 1))
+        };
+
+        var resultTask = Source.From(items)
+            .Via(Flow.FromGraph(stage))
+            .RunWith(Sink.Seq<RoutedDataItem>(), Materializer);
+
+        // Wait for 2 gates (max connections = 2). Items 3 and 4 are queued internally.
+        await WaitForConditionAsync(() => gates.Count >= 2, timeout: TimeSpan.FromSeconds(5));
+        Assert.Equal(2, getCount());
+
+        // Give a moment for all items to be consumed by the inlet
+        await Task.Delay(200);
+
+        // Only 2 connections should exist (not 3 or 4)
+        Assert.Equal(2, getCount());
+
+        // Release gates one at a time — each release frees a slot, the pool drains queued items
+        // to that slot, which creates a new gate. Repeat until all 4 are done.
+        var totalReleased = 0;
+        while (totalReleased < 4)
+        {
+            await WaitForConditionAsync(() => gates.Count >= 1, timeout: TimeSpan.FromSeconds(5));
+            Assert.True(gates.TryDequeue(out var gate));
+            gate.SetResult(true);
+            totalReleased++;
+        }
+
+        var results = await resultTask;
+        Assert.Equal(4, results.Count);
+
+        // Still only 2 connections were ever created
+        Assert.Equal(2, getCount());
+    }
+
+    // ── POOL-013: MaxConnectionsPerHost=1 enforces single connection ──────────
+
+    [Fact(Timeout = 10_000,
+        DisplayName = "POOL-013: MaxConnectionsPerHost=1 enforces single connection with queuing")]
+    public async Task POOL_013_MaxOne_SingleConnectionWithQueuing()
+    {
+        var (factory, gates, getCount) = CreateGatedFlowFactory();
+        var config = new PoolConfig(MaxConnectionsPerHost: 1);
+        var stage = CreateStage(factory, config);
+        const string poolKey = "https:example.com:443:1.1";
+
+        var items = new List<RoutedTransportItem>
+        {
+            new(poolKey, new ConnectItem(TestOptions())),
+            new(poolKey, new DataItem(new SimpleMemoryOwner(new byte[] { 0x01 }), 1)),
+            new(poolKey, new DataItem(new SimpleMemoryOwner(new byte[] { 0x02 }), 1))
+        };
+
+        var resultTask = Source.From(items)
+            .Via(Flow.FromGraph(stage))
+            .RunWith(Sink.Seq<RoutedDataItem>(), Materializer);
+
+        // Wait for first gate
+        await WaitForConditionAsync(() => gates.Count >= 1, timeout: TimeSpan.FromSeconds(5));
+        Assert.Equal(1, getCount());
+
+        // Release first gate — queued item gets dispatched
+        Assert.True(gates.TryDequeue(out var firstGate));
+        firstGate.SetResult(true);
+
+        // Wait for second gate (the queued item)
+        await WaitForConditionAsync(() => gates.Count >= 1, timeout: TimeSpan.FromSeconds(5));
+
+        // Release second gate
+        Assert.True(gates.TryDequeue(out var secondGate));
+        secondGate.SetResult(true);
+
+        var results = await resultTask;
+        Assert.Equal(2, results.Count);
+        Assert.Equal(1, getCount()); // Only 1 connection ever created
+    }
+
+    // ── POOL-014: New connection uses same TcpOptions from ConnectItem ─────────
+
+    [Fact(Timeout = 10_000,
+        DisplayName = "POOL-014: Each new ConnectionStage receives a ConnectItem with original TcpOptions")]
+    public async Task POOL_014_NewConnections_UseSameTcpOptions()
+    {
+        // Track ConnectItems received by each sub-graph to verify TcpOptions propagation
+        var receivedConnectItems = new ConcurrentBag<ConnectItem>();
+
+        IGraph<FlowShape<ITransportItem, (IMemoryOwner<byte>, int)>, NotUsed> Factory()
+        {
+            return Flow.Create<ITransportItem>()
+                .Select(x =>
+                {
+                    if (x is ConnectItem ci)
+                    {
+                        receivedConnectItems.Add(ci);
+                    }
+                    return x;
+                })
+                .Where(x => x is DataItem)
+                .Select(x =>
+                {
+                    var data = (DataItem)x;
+                    return (data.Memory, data.Length);
+                });
+        }
+
+        var config = new PoolConfig(MaxConnectionsPerHost: 3);
+        var stage = CreateStage(Factory, config);
+        const string poolKey = "https:example.com:443:1.1";
+        var options = TestOptions("example.com", 8080);
+
+        var items = new List<RoutedTransportItem>
+        {
+            new(poolKey, new ConnectItem(options)),
+            new(poolKey, new DataItem(new SimpleMemoryOwner(new byte[] { 0x01 }), 1)),
+            new(poolKey, new DataItem(new SimpleMemoryOwner(new byte[] { 0x02 }), 1)),
+            new(poolKey, new DataItem(new SimpleMemoryOwner(new byte[] { 0x03 }), 1))
+        };
+
+        var results = await Source.From(items)
+            .Via(Flow.FromGraph(stage))
+            .RunWith(Sink.Seq<RoutedDataItem>(), Materializer);
+
+        Assert.Equal(3, results.Count);
+
+        // Each sub-graph should have received a ConnectItem with the same TcpOptions
+        // (at least 1 connection; the echo flow responds instantly so some may reuse idle slots)
+        Assert.NotEmpty(receivedConnectItems);
+        Assert.All(receivedConnectItems, ci =>
+        {
+            Assert.Equal("example.com", ci.Options.Host);
+            Assert.Equal(8080, ci.Options.Port);
+        });
+    }
+
+    /// <summary>
+    /// Polls a condition until it becomes true or the timeout expires.
+    /// </summary>
+    private static async Task WaitForConditionAsync(Func<bool> condition, TimeSpan timeout)
+    {
+        var deadline = DateTime.UtcNow + timeout;
+        while (!condition())
+        {
+            if (DateTime.UtcNow > deadline)
+            {
+                throw new TimeoutException($"Condition not met within {timeout}");
+            }
+            await Task.Delay(25);
+        }
     }
 }
