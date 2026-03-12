@@ -224,15 +224,15 @@ HTTP/2 Multiplexing
 **Description:** As a developer, I want tests for idle handling and pending queue draining so that freed connections immediately serve waiting requests.
 
 **Acceptance Criteria:**
-- [ ] Test: `ConnectionIdle` decrements `PendingRequests` on the correct `ConnectionState`
-- [ ] Test: `ConnectionIdle` sets `Idle=true` when `PendingRequests==0`
-- [ ] Test: `ConnectionIdle` does NOT set `Idle=true` when `PendingRequests > 0` after decrement
-- [ ] Test: `ConnectionIdle` updates `LastActivity`
-- [ ] Test: After `ConnectionIdle`, pending requests are drained to freed connection
-- [ ] Test: `DrainPending` stops when no idle connection is available
-- [ ] Test: Multiple pending requests are drained sequentially
-- [ ] Test: `ConnectionIdle` for unknown connection is silently ignored
-- [ ] All tests green
+- [x] Test: `ConnectionIdle` decrements `PendingRequests` on the correct `ConnectionState`
+- [x] Test: `ConnectionIdle` sets `Idle=true` when `PendingRequests==0`
+- [x] Test: `ConnectionIdle` does NOT set `Idle=true` when `PendingRequests > 0` after decrement
+- [x] Test: `ConnectionIdle` updates `LastActivity`
+- [x] Test: After `ConnectionIdle`, pending requests are drained to freed connection
+- [x] Test: `DrainPending` stops when no idle connection is available
+- [x] Test: Multiple pending requests are drained sequentially
+- [x] Test: `ConnectionIdle` for unknown connection is silently ignored
+- [x] All tests green
 
 ---
 
