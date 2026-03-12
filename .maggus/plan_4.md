@@ -390,11 +390,11 @@ private void HandleReconnect(Reconnect msg)
 **Description:** As a developer, I want stream tests for the GraphStage outlet so that responses are correctly pushed as `RoutedDataItem`.
 
 **Acceptance Criteria:**
-- [ ] Test: `PoolRouterActor.Response` received via StageActor → converted to `RoutedDataItem` → pushed to outlet
-- [ ] Test: Response buffered when outlet has no demand (no pull yet)
-- [ ] Test: Multiple responses pushed in order when demand arrives
-- [ ] Test: Response with correct PoolKey correlation (response PoolKey matches request PoolKey)
-- [ ] All tests green
+- [x] Test: `PoolRouterActor.Response` received via StageActor → converted to `RoutedDataItem` → pushed to outlet
+- [x] Test: Response buffered when outlet has no demand (no pull yet)
+- [x] Test: Multiple responses pushed in order when demand arrives
+- [x] Test: Response with correct PoolKey correlation (response PoolKey matches request PoolKey)
+- [x] All tests green
 
 ---
 
