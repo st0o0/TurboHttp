@@ -361,12 +361,12 @@ private void HandleReconnect(Reconnect msg)
 **Description:** As a developer, I want the `ConnectionPoolStageTest` GraphStage renamed to `ConnectionPoolStage` and placed in its own file, as it is the production bridge between streams and actors.
 
 **Acceptance Criteria:**
-- [ ] `ConnectionPoolStage.cs` in `src/TurboHttp/IO/Stages/` created
-- [ ] Class renamed from `ConnectionPoolStageTest` to `ConnectionPoolStage`
-- [ ] `GraphStage<FlowShape<RoutedTransportItem, RoutedDataItem>>` shape preserved
-- [ ] Constructor takes `IActorRef router` (the `PoolRouterActor`)
-- [ ] All references updated
-- [ ] Build passes
+- [x] `ConnectionPoolStage.cs` in `src/TurboHttp/IO/Stages/` created
+- [x] Class renamed from `ConnectionPoolStageTest` to `ConnectionPoolStage`
+- [x] `GraphStage<FlowShape<RoutedTransportItem, RoutedDataItem>>` shape preserved
+- [x] Constructor takes `IActorRef router` (the `PoolRouterActor`)
+- [x] All references updated
+- [x] Build passes
 
 ---
 
