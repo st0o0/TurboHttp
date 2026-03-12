@@ -332,6 +332,152 @@ public sealed class HostPoolActorTests : TestKit
         ExpectNoMsg(TimeSpan.FromMilliseconds(500));
     }
 
+    // ================================================================
+    // TASK-009: Connection Failure & Reconnect
+    // ================================================================
+
+    private IActorRef CreateHostPoolWithReconnect(
+        int maxConnections = 10,
+        TimeSpan? reconnectInterval = null,
+        IActorRef? streamPublisher = null)
+    {
+        var options = MakeOptions();
+        var config = new PoolConfig(
+            MaxConnectionsPerHost: maxConnections,
+            IdleCheckInterval: TimeSpan.FromHours(1),
+            ReconnectInterval: reconnectInterval ?? TimeSpan.FromMilliseconds(200));
+
+        return Sys.ActorOf(Props.Create(() =>
+            new HostPoolActor(options, config, streamPublisher ?? TestActor)));
+    }
+
+    [Fact(DisplayName = "HPA-030: ConnectionFailed marks ConnectionState.Active=false — connection not reused")]
+    public void HPA_030_ConnectionFailed_MarksActiveFlase()
+    {
+        Sys.EventStream.Subscribe(TestActor, typeof(UnhandledMessage));
+        var pool = CreateHostPoolWithReconnect(maxConnections: 2);
+
+        // Spawn connection via request
+        pool.Tell(new HostPoolActor.Incoming(MakeDataItem()));
+        var connectionRef = ExpectConnectionSpawned();
+
+        // Mark connection idle so it would be selected for reuse
+        pool.Tell(new HostPoolActor.ConnectionIdle(connectionRef));
+
+        // Fail the connection — Active=false
+        pool.Tell(new HostPoolActor.ConnectionFailed(connectionRef));
+
+        // Send a new request. If Active=false, the dead connection is skipped.
+        // Since maxConnections=2 and only 1 exists (dead), a new connection should spawn.
+        pool.Tell(new HostPoolActor.Incoming(MakeDataItem()));
+        var conn2 = ExpectConnectionSpawned();
+
+        Assert.NotEqual(connectionRef, conn2);
+    }
+
+    [Fact(DisplayName = "HPA-031: ConnectionFailed schedules Reconnect after PoolConfig.ReconnectInterval")]
+    public void HPA_031_ConnectionFailed_SchedulesReconnect()
+    {
+        Sys.EventStream.Subscribe(TestActor, typeof(UnhandledMessage));
+        var pool = CreateHostPoolWithReconnect(maxConnections: 1, reconnectInterval: TimeSpan.FromMilliseconds(300));
+
+        // Spawn connection
+        pool.Tell(new HostPoolActor.Incoming(MakeDataItem()));
+        var connectionRef = ExpectConnectionSpawned();
+
+        // Fail it — should schedule Reconnect after 300ms
+        pool.Tell(new HostPoolActor.ConnectionFailed(connectionRef));
+
+        // No immediate spawn — reconnect is delayed
+        ExpectNoMsg(TimeSpan.FromMilliseconds(100));
+
+        // After ReconnectInterval, Reconnect fires → removes dead connection, spawns new one
+        var newConn = ExpectConnectionSpawned(TimeSpan.FromSeconds(3));
+        Assert.NotEqual(connectionRef, newConn);
+    }
+
+    [Fact(DisplayName = "HPA-032: ConnectionFailed for unknown connection is silently ignored")]
+    public void HPA_032_ConnectionFailed_UnknownConnection_SilentlyIgnored()
+    {
+        Sys.EventStream.Subscribe(TestActor, typeof(UnhandledMessage));
+        var pool = CreateHostPoolWithReconnect(maxConnections: 1);
+
+        // Spawn a connection so the pool has state
+        pool.Tell(new HostPoolActor.Incoming(MakeDataItem()));
+        var connectionRef = ExpectConnectionSpawned();
+
+        // Send ConnectionFailed for an unknown actor
+        var unknownRef = CreateTestProbe().Ref;
+        pool.Tell(new HostPoolActor.ConnectionFailed(unknownRef));
+
+        // Pool is still alive and functional — idle the real connection and reuse it
+        pool.Tell(new HostPoolActor.ConnectionIdle(connectionRef));
+        pool.Tell(new HostPoolActor.Incoming(MakeDataItem()));
+
+        // No new spawn — real connection reused, pool not crashed
+        ExpectNoMsg(TimeSpan.FromMilliseconds(500));
+    }
+
+    [Fact(DisplayName = "HPA-033: Reconnect spawns a new ConnectionActor to replace the dead one")]
+    public void HPA_033_Reconnect_SpawnsNewConnection()
+    {
+        Sys.EventStream.Subscribe(TestActor, typeof(UnhandledMessage));
+        var pool = CreateHostPoolWithReconnect(maxConnections: 1, reconnectInterval: TimeSpan.FromMilliseconds(200));
+
+        // Spawn connection
+        pool.Tell(new HostPoolActor.Incoming(MakeDataItem()));
+        var connectionRef = ExpectConnectionSpawned();
+
+        // Fail it — triggers scheduled Reconnect
+        pool.Tell(new HostPoolActor.ConnectionFailed(connectionRef));
+
+        // Wait for Reconnect to fire — a new connection should spawn
+        var newConn = ExpectConnectionSpawned(TimeSpan.FromSeconds(3));
+        Assert.NotNull(newConn);
+        Assert.NotEqual(connectionRef, newConn);
+
+        // Verify the new connection is functional — idle it and send a request
+        pool.Tell(new HostPoolActor.ConnectionIdle(newConn));
+        pool.Tell(new HostPoolActor.Incoming(MakeDataItem()));
+
+        // Should reuse the new connection, no additional spawn
+        ExpectNoMsg(TimeSpan.FromMilliseconds(500));
+    }
+
+    [Fact(DisplayName = "HPA-034: Reconnect for already-removed connection is silently ignored")]
+    public void HPA_034_Reconnect_AlreadyRemovedConnection_Ignored()
+    {
+        Sys.EventStream.Subscribe(TestActor, typeof(UnhandledMessage));
+
+        var options = MakeOptions();
+        var config = new PoolConfig(
+            MaxConnectionsPerHost: 2,
+            IdleCheckInterval: TimeSpan.FromHours(1),
+            IdleTimeout: TimeSpan.FromMilliseconds(50),
+            ReconnectInterval: TimeSpan.FromMilliseconds(500));
+
+        var pool = Sys.ActorOf(Props.Create(() =>
+            new HostPoolActor(options, config, TestActor)));
+
+        // Spawn two connections (need 2 so idle eviction is allowed — min 1 preserved)
+        pool.Tell(new HostPoolActor.Incoming(MakeDataItem()));
+        var conn1 = ExpectConnectionSpawned();
+        pool.Tell(new HostPoolActor.Incoming(MakeDataItem()));
+        var conn2 = ExpectConnectionSpawned();
+
+        // Fail conn1 — schedules Reconnect in 500ms
+        pool.Tell(new HostPoolActor.ConnectionFailed(conn1));
+
+        // Manually send Reconnect for conn1 before the scheduled one fires.
+        // First Reconnect removes the dead conn1 and spawns a replacement.
+        pool.Tell(new HostPoolActor.Reconnect(conn1));
+        var replacement = ExpectConnectionSpawned();
+
+        // Now the scheduled Reconnect will fire for conn1, but conn1 is already removed.
+        // It should be silently ignored — no additional spawn.
+        ExpectNoMsg(TimeSpan.FromSeconds(2));
+    }
+
     [Fact(DisplayName = "HPA-027: ConnectionIdle for unknown connection is silently ignored")]
     public void HPA_027_ConnectionIdle_UnknownConnection_SilentlyIgnored()
     {

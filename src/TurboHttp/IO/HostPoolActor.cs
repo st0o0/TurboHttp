@@ -148,9 +148,10 @@ public sealed class HostPoolActor : ReceiveActor
     {
         var conn = Find(msg.Connection);
 
-        if (conn != null)
+        if (conn == null)
             return;
 
+        _connections.Remove(conn);
         SpawnConnection();
     }
 

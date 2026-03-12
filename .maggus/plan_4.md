@@ -243,12 +243,12 @@ HTTP/2 Multiplexing
 **Equivalent to plan_3 TASK-005 (Connection Health Monitoring and Auto-Reconnect)**
 
 **Acceptance Criteria:**
-- [ ] Test: `ConnectionFailed` marks `ConnectionState.Active=false`
-- [ ] Test: `ConnectionFailed` schedules a `Reconnect` message after `PoolConfig.ReconnectInterval`
-- [ ] Test: `ConnectionFailed` for unknown connection is silently ignored
-- [ ] Test: `Reconnect` spawns a new `ConnectionActor` to replace the dead one
-- [ ] Test: Reconnect for already-removed connection is ignored
-- [ ] All tests green
+- [x] Test: `ConnectionFailed` marks `ConnectionState.Active=false`
+- [x] Test: `ConnectionFailed` schedules a `Reconnect` message after `PoolConfig.ReconnectInterval`
+- [x] Test: `ConnectionFailed` for unknown connection is silently ignored
+- [x] Test: `Reconnect` spawns a new `ConnectionActor` to replace the dead one
+- [x] Test: Reconnect for already-removed connection is ignored
+- [x] All tests green
 
 ---
 
@@ -273,13 +273,13 @@ private void HandleReconnect(Reconnect msg)
 2. If connection not found → already removed (e.g. by eviction) → do nothing
 
 **Acceptance Criteria:**
-- [ ] Bug documented with before/after code
-- [ ] Fix: `if (conn == null) return;` — ignore reconnect for already-removed connections
-- [ ] Fix: Remove dead connection from `_connections`, then `SpawnConnection()`
-- [ ] Test: `HandleFailure` → wait `ReconnectInterval` → dead connection removed, new one spawned
-- [ ] Test: Connection removed before reconnect timer fires → reconnect is no-op
+- [x] Bug documented with before/after code
+- [x] Fix: `if (conn == null) return;` — ignore reconnect for already-removed connections
+- [x] Fix: Remove dead connection from `_connections`, then `SpawnConnection()`
+- [x] Test: `HandleFailure` → wait `ReconnectInterval` → dead connection removed, new one spawned
+- [x] Test: Connection removed before reconnect timer fires → reconnect is no-op
 - [ ] Test: New connection after reconnect is `Active=true`, `Idle=true`
-- [ ] Build + all tests green
+- [x] Build + all tests green
 
 ---
 
