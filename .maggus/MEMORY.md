@@ -61,6 +61,15 @@
 - Http30Engine stub fixed: uses `BidiFlow.FromFlows` with `NotSupportedException` instead of empty GraphDsl
 - CLIENT-008 uses sequential (not parallel) requests — HTTP/1.1 single-pipeline limitation
 
+### Version Negotiation Integration Tests (TASK-044)
+- Location: `src/TurboHttp.IntegrationTests/Shared/02_VersionNegotiationTests.cs`
+- Pattern: `TestKit` + `IClassFixture<KestrelFixture>` + `IClassFixture<KestrelH2Fixture>` (both fixtures)
+- HTTP/1.0 and HTTP/1.1 tests use `TurboHttpClient.SendAsync()` (full client pipeline)
+- HTTP/2 tests use `Http20Engine` directly with `SendH2Async()` helper (same pattern as Http20BasicTests)
+- **Known limitation**: `Engine.BuildConnectionFlow<Http20Engine>` does NOT inject `PrependPrefaceStage`, so HTTP/2 through `TurboHttpClient` times out. HTTP/2 must be tested at engine level.
+- **Known limitation**: `Http20StreamStage` assembles responses with default `Version = 1.1` — cannot assert `response.Version == 2.0` on HTTP/2 responses.
+- Tests: VERNEG-001 (HTTP/1.0), VERNEG-002 (HTTP/1.1), VERNEG-003 (HTTP/2.0), VERNEG-004 (mixed demux), VERNEG-005 (DefaultRequestVersion override)
+
 ## Build Notes
 - `COMMIT.md` is in `.gitignore` — use `git add -f COMMIT.md` to stage it
 - `BenchmarkDotNet.Artifacts` also gitignored

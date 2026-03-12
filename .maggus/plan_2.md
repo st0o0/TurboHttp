@@ -527,9 +527,9 @@ Wire all existing protocol handlers (RedirectHandler, CookieJar, RetryEvaluator,
 **Description:** As a developer, I want integration tests for version negotiation so that HTTP/1.0, 1.1, and 2.0 requests are routed to the correct engine and mixed-version demultiplexing works.
 
 **Acceptance Criteria:**
-- [ ] File created: `src/TurboHttp.IntegrationTests/Shared/02_VersionNegotiationTests.cs`
-- [ ] 5 tests: HTTP/1.0 → Http10Engine, HTTP/1.1 → Http11Engine, HTTP/2 → Http20Engine, mixed demux, DefaultRequestVersion override
-- [ ] All tests pass: `dotnet test --filter "FullyQualifiedName~VersionNegotiationTests"`
+- [x] File created: `src/TurboHttp.IntegrationTests/Shared/02_VersionNegotiationTests.cs`
+- [x] 5 tests: HTTP/1.0 → Http10Engine, HTTP/1.1 → Http11Engine, HTTP/2 → Http20Engine, mixed demux, DefaultRequestVersion override
+- [x] All tests pass: `dotnet test --filter "FullyQualifiedName~VersionNegotiationTests"`
 
 ### TASK-045: Cross-Feature Interaction Integration Tests
 **Description:** As a developer, I want integration tests for cross-feature interactions so that combinations like redirect+cookies, cache+redirect, decompression+cache, and all-features-enabled are verified.
