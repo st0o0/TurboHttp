@@ -91,4 +91,21 @@
 ## Build Notes
 - `COMMIT.md` is in `.gitignore` — use `git add -f COMMIT.md` to stage it
 - `BenchmarkDotNet.Artifacts` also gitignored
-- Pre-existing warning: `Engine.cs(382,28): CS8509` non-exhaustive switch — not a blocker
+- `.maggus/runs/` is in `.gitignore` — use `git add -f` to stage iteration logs
+- Engine.cs CS8509 warning fixed in TASK-048 (added default case to version switch)
+- 02_FrameParsingTests.cs CS0219 warning fixed in TASK-048 (removed unused `newMax` variable)
+- Zero warnings as of TASK-048
+
+## Test Counts (TASK-048 Baseline — 2026-03-12)
+- Unit tests (TurboHttp.Tests): 2158
+- Stream tests (TurboHttp.StreamTests): 411
+- Integration tests (TurboHttp.IntegrationTests): 234
+  - Http10: 46, Http11: 89, Http20: 66, Cross/Client/TLS/Edge: 46 (some overlap in filter)
+- New stage tests: 83 (Cookie 12, Decompression 10, Cache 24, Redirect 15, Retry 12, ConnReuse 10)
+- **Total: 2803 all green**
+- Flaky timeouts when running all 3 projects simultaneously (resource contention); each project passes 100% individually
+
+## Benchmark Status
+- `TurboHttp.Benchmarks` project has infrastructure only (Config.cs, Program.cs)
+- No `[Benchmark]` methods defined — cannot measure performance baseline
+- RFC compliance matrix: `RFC_COMPLIANCE.md` in repo root

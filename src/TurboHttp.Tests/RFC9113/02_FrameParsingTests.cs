@@ -175,7 +175,6 @@ public sealed class Http2FrameParsingCoreTests
     {
         // Build a SETTINGS frame that increases max frame size
         // Then build a larger SETTINGS frame that would normally exceed default limit
-        const int newMax = 32768;
         const int payloadLen = 32766; // closest multiple of 6 ≤ 32768
 
         var buf = new byte[9 + payloadLen];

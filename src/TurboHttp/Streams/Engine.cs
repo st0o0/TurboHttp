@@ -476,7 +476,8 @@ public class Engine
                 { Major: 3, Minor: 0 } => 3,
                 { Major: 2, Minor: 0 } => 2,
                 { Major: 1, Minor: 1 } => 1,
-                { Major: 1, Minor: 0 } => 0
+                { Major: 1, Minor: 0 } => 0,
+                _ => throw new ArgumentOutOfRangeException(nameof(msg), msg.Version, $"Unsupported HTTP version: {msg.Version}")
             });
     }
 }
