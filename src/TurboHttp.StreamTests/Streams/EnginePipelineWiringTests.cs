@@ -4,6 +4,7 @@ using System.Net;
 using Akka;
 using Akka.Streams.Dsl;
 using TurboHttp.Client;
+using TurboHttp.IO.Stages;
 using TurboHttp.Protocol;
 using TurboHttp.Streams;
 using TurboHttp.Streams.Stages;

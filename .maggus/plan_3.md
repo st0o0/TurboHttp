@@ -1,338 +1,373 @@
-# Plan 3: Test Audit — RFC Compliance, Direct Production Code Testing, Http2ProtocolSession Removal
+# Plan: Dynamic Connection Pool — ConnectionPoolStage
 
 ## Introduction
 
-The TurboHttp test suite has three structural problems:
+Build a dynamic connection pool layer for TurboHttp that manages per-host connection lifecycles using Akka.Streams. The pool orchestrates multiple `ConnectionStage` instances per host, scales dynamically when needed (e.g. when HTTP/2 stream limits are reached or HTTP/1.x needs parallel requests), and provides idle eviction, health monitoring, auto-retry on connection loss, load balancing, and per-host backpressure.
 
-1. **`Http2ProtocolSession`** (700 lines, test-only) is a standalone mini HTTP/2 stack that tests production code _indirectly_ instead of directly. 24 test files in RFC9113 route through this wrapper instead of calling `Http2FrameDecoder`, `HpackDecoder`, and the Frame classes directly.
-2. **DisplayNames are missing RFC references** in Integration tests (`CM-001`, `RE-001`, `RH-001`), RFC9113 tests (`SEC-h2-003`), and almost all StreamTests (`COR1X-001`, `11D-CH-001`, `EROUTE-001`).
-3. **RFC folder structure is missing** in `TurboHttp.StreamTests/` (currently sorted by HTTP version) and in `TurboHttp.Tests/Integration/` (flat).
+The key architectural insight: rather than bypassing `ConnectionStage`, the pool **wraps and orchestrates** multiple `ConnectionStage` instances — each one materialised as an independent Akka.Streams sub-graph with its own TCP connection lifecycle.
 
-Goal: tests exercise production code directly, all DisplayNames carry RFC references, all three projects are sorted into RFC folders, and `Http2ProtocolSession` is deleted.
+### Design Decisions (from clarifying questions)
 
----
+| Question | Answer |
+|----------|--------|
+| Connection creation | **Explicit** — ConnectItem must arrive before DataItems |
+| Dynamism granularity | **Maximal** — full lifecycle + load balancing across connections |
+| Integration with ConnectionStage | **Orchestration** — pool manages multiple ConnectionStage instances |
+| Scope | **Full** — multi-connection, idle eviction, health, retry, backpressure |
+| HTTP/2 stream tracking | **Delegated** — H2-Connection-Stage manages itself |
 
 ## Goals
 
-- Audit report created and maintained as `docs/test-audit-report.md`
-- `Http2ProtocolSession.cs` and `Http2StreamLifecycleState.cs` deleted (after all dependent tests are migrated)
-- Every `[Fact]`/`[Theory]` test across all three projects has an RFC reference in its `DisplayName`
-- `TurboHttp.StreamTests/` restructured into RFC folders (RFC1945/, RFC9112/, RFC9113/, Streams/)
-- `TurboHttp.Tests/Integration/` dissolved into RFC folders (RFC6265/, RFC9110/, RFC9112/)
-- `dotnet test` runs green with 0 compile errors and 0 regressions
-- Progress tracked in `.maggus/PROGRESS_3.md` after every task
-
----
+- Dynamic per-host connection management instead of static partition slots
+- Explicit connection setup via `ConnectItem` — connections created only after ConnectItem arrives
+- Multiple connections per host when needed (HTTP/2 stream limits, HTTP/1.x parallelism)
+- Load balancing across active connections of a host (round-robin or least-loaded)
+- Idle connection eviction after configurable timeout
+- Connection health monitoring with automatic retry on loss
+- Per-host backpressure — a slow host must not block other hosts
+- Clean integration into the existing Engine pipeline
+- HTTP/2 stream tracking stays in `Http20ConnectionStage` — pool only queries status
 
 ## User Stories
 
-### TASK-ANA-001: Create the Audit Report
-**Description:** As a developer, I want a complete audit report of all tests so that I know which tests go through `Http2ProtocolSession`, which RFC references are missing, and how the folder structure needs to be corrected.
+### TASK-001: ConnectionPoolStage — Custom GraphStage Foundation
+
+**Description:** As a developer, I want a `ConnectionPoolStage` custom `GraphStage<FlowShape<RoutedTransportItem, RoutedDataItem>>` that serves as the central entry point for all connection pool operations, orchestrating `ConnectionStage` instances internally.
 
 **Acceptance Criteria:**
-- [ ] File `docs/test-audit-report.md` created
-- [ ] Section 1: All test files that use `Http2ProtocolSession`, listed with test count and which RFC sections they cover
-- [ ] Section 2: Which RFC sections `Http2ProtocolSession` internally covers (§5.1 Stream States, §6.5 Settings, §6.7 Ping, §6.8 GoAway, §6.9 Flow Control, §8.2/§8.3 Headers/Pseudo-Headers)
-- [ ] Section 3: List of all tests missing an RFC reference in DisplayName, grouped by project and file
-- [ ] Section 4: Mapping table — which Integration test file belongs in which RFC folder
-- [ ] Section 5: Mapping table — which StreamTests file belongs in which RFC folder
-- [ ] `dotnet build` remains green (no code changes in this task)
-- [ ] `.maggus/PROGRESS_3.md` created with the status of this task
+- [ ] `ConnectionPoolStage` inherits from `GraphStage<FlowShape<RoutedTransportItem, RoutedDataItem>>`
+- [ ] Inner `Logic` class with correct inlet/outlet handling (Pull/Push)
+- [ ] Constructor takes `Func<ConnectionStage> connectionStageFactory` and `PoolConfig`
+- [ ] Stage uses `StageActor` for async actor communication (same pattern as `ConnectionStage`)
+- [ ] ConnectItem on inlet → registered in internal state (host known, no connection yet)
+- [ ] DataItem on inlet without prior ConnectItem for that PoolKey → stage failure with descriptive error
+- [ ] Empty pass-through (only ConnectItems, no DataItems) completes without error
+- [ ] Unit tests for foundation (connect registers host, unknown key is rejected)
+- [ ] Typecheck/build passes
 
----
+### TASK-002: Per-Host Connection Lifecycle — First Connection via ConnectionStage
 
-### TASK-PSS-001: Replace Http2ProtocolSession — Stream State Tests (RFC9113 §5.1)
-**Description:** As a developer, I want RFC9113-§5.1 stream state tests to call `Http2FrameDecoder` directly so that `Http2ProtocolSession` is no longer needed as an intermediary.
-
-Affected file: `03_StreamStateMachineTests.cs`
-
-**Background:** `Http2ProtocolSession.HandleHeaders()` and `HandleData()` track stream states. In production this logic lives in `Http20StreamStage` / `Http20ConnectionStage`. `Http2FrameDecoder` itself is stateless — it only decodes bytes → frames. Tests should verify: (a) the decoder produces correct frames, (b) invalid frames throw the correct exceptions.
+**Description:** As a developer, I want the pool to materialise a `ConnectionStage` instance for a host on the first DataItem after a ConnectItem, and route data through it.
 
 **Acceptance Criteria:**
-- [ ] `03_StreamStateMachineTests.cs` only calls production classes: `Http2FrameDecoder`, `Http2Frame` subclasses, `HpackDecoder`
-- [ ] No import of `Http2ProtocolSession` in this file
-- [ ] Every test DisplayName contains `RFC-9113-§5.1`
-- [ ] At minimum these RFC scenarios covered: Idle→Open (HEADERS), Open→Closed (DATA+END_STREAM), HEADERS on stream 0 → Exception, DATA on idle stream → Exception
-- [ ] `dotnet test --filter FullyQualifiedName~StreamStateMachine` green
-- [ ] `.maggus/PROGRESS_3.md` updated
+- [ ] After ConnectItem + first DataItem, a new `ConnectionStage` is materialised as a sub-graph
+- [ ] Sub-graph materialisation uses `SubFusingActorMaterializer` from the stage's `Materializer` (available via `GraphStageLogic`)
+- [ ] The materialised `ConnectionStage` flow is driven by `Source.Queue` (inlet) and `Sink.ForEach` (outlet) — pool pushes items into it and reads results
+- [ ] DataItem is forwarded to the ConnectionStage's materialised source
+- [ ] Response data from ConnectionStage is emitted as `RoutedDataItem` with correct PoolKey
+- [ ] Internal state tracks: `Dictionary<string, HostPool>` with list of active connections
+- [ ] `HostPool` contains: `TcpOptions` (from ConnectItem), `List<ConnectionSlot>`, connection counter
+- [ ] `ConnectionSlot` wraps: materialised ConnectionStage (Source.Queue + completion), active/idle status, pending request count
+- [ ] Single host, single connection, request-response works end-to-end
+- [ ] Unit tests: single-host single-connection roundtrip with fake ConnectionStage
+- [ ] Typecheck/build passes
 
----
+### TASK-003: Multi-Connection per Host — Dynamic Scaling
 
-### TASK-PSS-002: Replace Http2ProtocolSession — Settings Tests (RFC9113 §6.5)
-**Description:** As a developer, I want §6.5 SETTINGS tests to call `SettingsFrame` and `Http2FrameDecoder` directly.
-
-Affected file: `04_SettingsTests.cs`
-
-**Background:** `Http2ProtocolSession.HandleSettings()` / `ApplySettingsParameters()` contains validation logic (MAX_FRAME_SIZE range, ENABLE_PUSH 0/1, INITIAL_WINDOW_SIZE ≤ 2^31-1). In production this validation belongs to `Http20ConnectionStage`. `Http2FrameDecoder` is the direct test candidate.
-
-**Acceptance Criteria:**
-- [ ] `04_SettingsTests.cs` only uses: `SettingsFrame`, `Http2FrameDecoder`, `SettingsParameter`
-- [ ] No import of `Http2ProtocolSession`
-- [ ] Every test DisplayName contains `RFC-9113-§6.5`
-- [ ] RFC scenarios covered: ACK flag, parameter parsing, MAX_FRAME_SIZE range, ENABLE_PUSH value, INITIAL_WINDOW_SIZE overflow
-- [ ] `dotnet test --filter FullyQualifiedName~SettingsTests` green
-- [ ] `.maggus/PROGRESS_3.md` updated
-
----
-
-### TASK-PSS-003: Replace Http2ProtocolSession — Flow Control Tests (RFC9113 §6.9)
-**Description:** As a developer, I want §6.9 flow control tests to call `WindowUpdateFrame` and `Http2FrameDecoder` directly.
-
-Affected files: `05_FlowControlTests.cs`, `13_DecoderStreamFlowControlTests.cs`
-
-**Background:** Flow control logic (window size, overflow checks) belongs to `Http20ConnectionStage`. The decoder only decodes `WindowUpdateFrame` bytes. Tests should exercise the decoder directly: correct frame fields, increment value, stream-0 vs stream-N.
+**Description:** As a developer, I want the pool to automatically create additional ConnectionStage instances for a host when existing connections are saturated.
 
 **Acceptance Criteria:**
-- [ ] Both files only use: `WindowUpdateFrame`, `DataFrame`, `Http2FrameDecoder`
-- [ ] No import of `Http2ProtocolSession`
-- [ ] Every test DisplayName contains `RFC-9113-§6.9`
-- [ ] RFC scenarios covered: connection window (stream 0), stream window (stream N), increment values
-- [ ] Tests green
-- [ ] `.maggus/PROGRESS_3.md` updated
+- [ ] `PoolConfig.MaxConnectionsPerHost` limits the maximum number of ConnectionStage instances per host
+- [ ] When all existing connections for a host are "busy", a new ConnectionStage is materialised (up to the limit)
+- [ ] "Busy" definition for HTTP/1.x: connection has a pending request without a response
+- [ ] HTTP/2 busy status is managed by H2-Connection-Stage itself (pool does not track stream count)
+- [ ] When max reached and all busy → DataItem is queued internally (backpressure)
+- [ ] New connection uses the same `TcpOptions` from the original ConnectItem
+- [ ] Each new ConnectionStage is a fresh materialisation with independent state
+- [ ] Unit tests: 3 parallel requests → 3 ConnectionStage instances (HTTP/1.x, MaxConnections=3)
+- [ ] Unit tests: 4 requests with MaxConnections=2 → 2 connections, 2 queued
+- [ ] Typecheck/build passes
 
----
+### TASK-004: Load Balancing Across Connections
 
-### TASK-PSS-004: Replace Http2ProtocolSession — GoAway/Ping/RST Tests (RFC9113 §6.4/§6.7/§6.8)
-**Description:** As a developer, I want GoAway, Ping, and RST_STREAM tests to call the frame classes directly.
-
-Affected files: `07_ErrorHandlingTests.cs`, `08_GoAwayTests.cs`
-
-**Background:** `Http2ProtocolSession.HandleGoAway()`, `HandlePing()`, `HandleRst()` are test-only logic. In production: `Http20ConnectionStage`. Tests should verify: `GoAwayFrame`, `PingFrame`, `RstStreamFrame` decoded correctly, fields correct (LastStreamId, ErrorCode, Data).
-
-**Acceptance Criteria:**
-- [ ] Both files only use: `GoAwayFrame`, `PingFrame`, `RstStreamFrame`, `Http2FrameDecoder`
-- [ ] No import of `Http2ProtocolSession`
-- [ ] DisplayNames: `RFC-9113-§6.8` (GoAway), `RFC-9113-§6.7` (Ping), `RFC-9113-§6.4` (RST_STREAM)
-- [ ] Tests green
-- [ ] `.maggus/PROGRESS_3.md` updated
-
----
-
-### TASK-PSS-005: Replace Http2ProtocolSession — Header/Pseudo-Header Tests (RFC9113 §8.2/§8.3)
-**Description:** As a developer, I want §8.2/§8.3 tests to call `HpackDecoder` and `HeadersFrame` directly.
-
-Affected files: `06_HeadersTests.cs`, `09_ContinuationFrameTests.cs`, `11_DecoderStreamValidationTests.cs`
-
-**Background:** Header validation (uppercase errors, forbidden connection headers, duplicate :status) is production logic in `Http20StreamStage`. `HpackDecoder` itself has RFC-7541 compliance. Tests should: exercise HPACK decoding directly, verify `HeadersFrame` fields.
+**Description:** As a developer, I want incoming DataItems to be intelligently distributed across available ConnectionStage instances for a host.
 
 **Acceptance Criteria:**
-- [ ] All three files only use: `HpackDecoder`, `HpackEncoder`, `HeadersFrame`, `ContinuationFrame`, `Http2FrameDecoder`
-- [ ] No import of `Http2ProtocolSession`
-- [ ] DisplayNames: `RFC-9113-§8.2` or `RFC-9113-§8.3`
-- [ ] Scenarios covered: END_HEADERS flag, CONTINUATION chain, header block decoding
-- [ ] Tests green
-- [ ] `.maggus/PROGRESS_3.md` updated
+- [ ] Load balancing strategy is configurable in `PoolConfig` (enum: `RoundRobin`, `LeastLoaded`)
+- [ ] `RoundRobin`: cycles through all active connections of a host
+- [ ] `LeastLoaded`: selects connection with fewest pending requests
+- [ ] Default strategy: `LeastLoaded`
+- [ ] Idle connections are preferred (don't create a new connection when one is idle)
+- [ ] Unit tests: multiple requests are distributed evenly across connections
+- [ ] Typecheck/build passes
 
----
+### TASK-005: Connection Health Monitoring and Auto-Reconnect
 
-### TASK-PSS-006: Replace Http2ProtocolSession — Security/Fuzz/Concurrency Tests
-**Description:** As a developer, I want security, fuzz, and concurrency tests to call production classes directly.
-
-Affected files: `Http2SecurityTests.cs`, `Http2FuzzHarnessTests.cs`, `Http2ResourceExhaustionTests.cs`, `Http2HighConcurrencyTests.cs`, `Http2MaxConcurrentStreamsTests.cs`, `Http2CrossComponentValidationTests.cs`
-
-**Background:** These tests verify attack protection (CONTINUATION flood, RST Rapid Reset, PING flood, SETTINGS flood). In production this protection belongs to `Http20ConnectionStage`. Tests should use real stage tests (via `Http2StageTestHelper` or direct classes) or `Http2FrameDecoder` with explicit exception assertions.
+**Description:** As a developer, I want the pool to detect dead connections and automatically replace them with fresh ConnectionStage instances.
 
 **Acceptance Criteria:**
-- [ ] All 6 files have no `Http2ProtocolSession` import
-- [ ] Security tests call `Http20ConnectionStage` or `Http2FrameDecoder` directly
-- [ ] DisplayNames contain RFC references (e.g. `RFC-9113-§6.5` for SETTINGS flood, `RFC-9113-§5.1` for RST Rapid Reset protection)
-- [ ] `SEC-h2-XXX` codes replaced or prefixed with RFC references
-- [ ] Tests green
-- [ ] `.maggus/PROGRESS_3.md` updated
+- [ ] Materialised ConnectionStage completion/failure is detected (via `WatchTermination` on the materialised graph)
+- [ ] Dead ConnectionSlot is marked as `Dead` and removed from the active list
+- [ ] Pending requests on a dead connection are re-routed to another ConnectionSlot or queued for retry
+- [ ] If no other connection is available → a new ConnectionStage is materialised (retry)
+- [ ] `PoolConfig.MaxReconnectAttempts` limits retry attempts per host
+- [ ] `PoolConfig.ReconnectInterval` defines wait time between retries (via `ScheduleOnce` timer)
+- [ ] After MaxReconnectAttempts → stage fails with `ConnectionPoolException`
+- [ ] Unit tests: connection dies → retry → new request works
+- [ ] Unit tests: connection dies → max retries reached → exception
+- [ ] Typecheck/build passes
 
----
+### TASK-006: Idle Connection Eviction
 
-### TASK-PSS-007: Delete Http2ProtocolSession and Http2StreamLifecycleState
-**Description:** As a developer, I want to delete `Http2ProtocolSession.cs` and `Http2StreamLifecycleState.cs` from the project after all dependent tests have been migrated.
-
-**Prerequisite:** TASK-PSS-001 through TASK-PSS-006 all completed.
-
-**Acceptance Criteria:**
-- [ ] `grep -r "Http2ProtocolSession" src/ --include="*.cs"` → 0 matches (excluding deleted file)
-- [ ] `src/TurboHttp.Tests/Http2ProtocolSession.cs` deleted
-- [ ] `src/TurboHttp.Tests/Http2StreamLifecycleState.cs` deleted
-- [ ] `dotnet build ./src/TurboHttp.sln` → 0 errors
-- [ ] `dotnet test ./src/TurboHttp.sln` → all tests green
-- [ ] `.maggus/PROGRESS_3.md` updated
-
----
-
-### TASK-DISP-001: Add RFC References to Integration Test DisplayNames
-**Description:** As a developer, I want all `TurboHttp.Tests/Integration/` tests to have RFC references in their DisplayName.
-
-**Mapping:**
-| File | RFC | Example prefix |
-|------|-----|----------------|
-| `CookieJarTests.cs` | RFC 6265 | `RFC-6265-§5.3-CJ-001:` |
-| `RetryEvaluatorTests.cs` | RFC 9110 §9.2 | `RFC-9110-§9.2-RE-001:` |
-| `RedirectHandlerTests.cs` | RFC 9110 §15.4 | `RFC-9110-§15.4-RH-001:` |
-| `ConnectionReuseEvaluatorTests.cs` | RFC 9112 §9 | `RFC-9112-§9-CM-001:` |
-| `TcpFragmentationTests.cs` | RFC 1945 / RFC 9112 | `RFC-1945-FRAG-001:` / `RFC-9112-FRAG-001:` |
-| `HttpDecodeErrorMessagesTests.cs` | RFC 9112 | `RFC-9112-§4-34-msg-001:` |
-| `PerHostConnectionLimiterTests.cs` | RFC 9110 | `RFC-9110-CONN-001:` |
-| `CrossFeatureIntegrityTests.cs` | RFC 9112 / RFC 9113 | appropriate RFC refs |
-| `Phase60ValidationGateTests.cs` | per content | appropriate RFC refs |
+**Description:** As a developer, I want unused ConnectionStage instances to be automatically shut down after a timeout to free resources.
 
 **Acceptance Criteria:**
-- [ ] Every `[Fact]`/`[Theory]` in `Integration/` has an RFC reference in its DisplayName
-- [ ] Existing short codes (e.g. `CM-001`) are preserved; RFC prefix is prepended
-- [ ] `dotnet test --filter "FullyQualifiedName~Integration"` green
-- [ ] `.maggus/PROGRESS_3.md` updated
+- [ ] `PoolConfig.IdleTimeout` (default 5 minutes) defines maximum idle time
+- [ ] Periodic timer (via `ScheduleRepeatedly` in GraphStageLogic) checks for idle connections
+- [ ] Connection without traffic for > IdleTimeout is gracefully shut down (complete the materialised source)
+- [ ] At least one connection per host is preserved (no complete eviction while host is registered)
+- [ ] Activity timestamp is updated on every request and response
+- [ ] `ConnectionReuseEvaluator` results feed into eviction decisions (Keep-Alive timeout overrides IdleTimeout)
+- [ ] Unit tests: connection idle > timeout → shut down
+- [ ] Unit tests: connection with traffic → preserved
+- [ ] Unit tests: last connection per host → preserved despite idle
+- [ ] Typecheck/build passes
 
----
+### TASK-007: Per-Host Backpressure
 
-### TASK-DISP-002: Add RFC References to RFC9113 Tests Without Prefix
-**Description:** As a developer, I want all RFC9113 test files that lack an RFC prefix in their DisplayName (`Http2SecurityTests`, `Http2FrameTests`, `Http2EncoderSensitiveHeaderTests`, `Http2EncoderPseudoHeaderValidationTests`) to receive RFC references.
-
-**Mapping:**
-| File | RFC section |
-|------|-------------|
-| `Http2SecurityTests.cs` | RFC-9113-§6.5/§6.7/§6.8/§5.1 |
-| `Http2FrameTests.cs` | RFC-9113-§4.1 (frame format) |
-| `Http2EncoderSensitiveHeaderTests.cs` | RFC-7541-§7.1 |
-| `Http2EncoderPseudoHeaderValidationTests.cs` | RFC-9113-§8.3 |
+**Description:** As a developer, I want a slow host to not block other hosts — backpressure should be isolated per host.
 
 **Acceptance Criteria:**
-- [ ] Every `[Fact]`/`[Theory]` in the listed files has an RFC reference in its DisplayName
-- [ ] `SEC-h2-XXX` codes receive an RFC prefix (e.g. `RFC-9113-§6.5-SEC-h2-003:`)
-- [ ] Tests green
-- [ ] `.maggus/PROGRESS_3.md` updated
+- [ ] Each HostPool has its own internal queue with configurable size (`PoolConfig.PerHostQueueSize`)
+- [ ] When all connections for a host are busy and the queue is full → incoming DataItems for that host are buffered
+- [ ] Other hosts can continue to send requests
+- [ ] Queue overflow strategy configurable: `DropOldest`, `DropNewest`, `Fail` (default: `Fail`)
+- [ ] When a connection becomes free → queue is drained
+- [ ] Global inlet pull continues as long as at least one host can accept items
+- [ ] Unit tests: Host-A slow, Host-B fast → Host-B not blocked
+- [ ] Typecheck/build passes
 
----
+**Note:** Per-host backpressure in a single-inlet GraphStage requires internal buffering. The inlet can only be globally pulled/not-pulled. Solution: internal per-host queues with a configurable global buffer limit. The inlet is pulled as long as total buffered items < global limit.
 
-### TASK-DISP-003: Add RFC References to StreamTests DisplayNames
-**Description:** As a developer, I want all `TurboHttp.StreamTests/` tests to have RFC references in their DisplayName.
+### TASK-008: PerHostConnectionLimiter Integration
 
-**Affected files missing RFC refs (excerpt):**
-- `Http11/CorrelationHttp1XStageTests.cs` → `COR1X-001` → `RFC-9112-§9.3-COR1X-001:`
-- `Http11/Http11DecoderStageChunkedRfcTests.cs` → `11D-CH-001` → `RFC-9112-§7.1-11D-CH-001:`
-- `Http11/Http11StageConnectionMgmtTests.cs` → RFC-9112-§9
-- `Http20/CorrelationHttp20StageTests.cs` → RFC-9113-§5.1
-- `Http20/PrependPrefaceStageTests.cs` → RFC-9113-§3.5
-- `Http20/StreamIdAllocatorStageTests.cs` → RFC-9113-§5.1.1
-- `Http20/Request2FrameStageTests.cs` → RFC-9113-§8.1
-- `Streams/EngineVersionRoutingTests.cs` → `EROUTE-001` → RFC-9112/RFC-9113 version selection
-- `Streams/RequestEnricherStageTests.cs` → RFC-9110-§7.1 (URI resolution)
+**Description:** As a developer, I want the existing `PerHostConnectionLimiter` integrated into the pool for connection limit enforcement.
 
 **Acceptance Criteria:**
-- [ ] Every `[Fact]`/`[Theory]` in `TurboHttp.StreamTests/` has an RFC reference or at minimum an RFC-adjacent code (for purely internal stages)
-- [ ] Existing codes preserved; RFC prefix prepended
-- [ ] Tests green
-- [ ] `.maggus/PROGRESS_3.md` updated
+- [ ] `PerHostConnectionLimiter` is used inside the pool instead of custom counting
+- [ ] `TryAcquire()` is called before materialising a new ConnectionStage
+- [ ] `Release()` is called when a ConnectionStage is shut down
+- [ ] If `TryAcquire()` returns false → no new connection, request is queued
+- [ ] `PerHostConnectionLimiter` max and `PoolConfig.MaxConnectionsPerHost` are kept consistent
+- [ ] Unit tests: limiter blocks connection → request waits
+- [ ] Typecheck/build passes
 
----
+### TASK-009: ConnectionReuseEvaluator Integration
 
-### TASK-SORT-001: Move Integration Test Files into RFC Folders (TurboHttp.Tests)
-**Description:** As a developer, I want `TurboHttp.Tests/Integration/` dissolved and all files moved to their matching RFC folders.
-
-**Target structure:**
-```
-TurboHttp.Tests/
-  RFC6265/
-    CookieJarTests.cs
-  RFC9110/
-    (01_..03_ already present)
-    04_RetryEvaluatorTests.cs
-    05_RedirectHandlerTests.cs
-    06_PerHostConnectionLimiterTests.cs
-    07_CrossFeatureIntegrityTests.cs
-  RFC9112/
-    (01_..21_ already present)
-    22_ConnectionReuseEvaluatorTests.cs
-    23_HttpDecodeErrorMessagesTests.cs
-    24_TcpFragmentationTests.cs
-  RFC9113/
-    (already present)
-    22_Phase60ValidationGateTests.cs  ← or RFC9112 depending on content
-```
+**Description:** As a developer, I want connection reuse decisions (Keep-Alive, Close) to flow back into the pool.
 
 **Acceptance Criteria:**
-- [ ] `TurboHttp.Tests/Integration/` folder no longer exists (empty or deleted)
-- [ ] All moved files: namespace updated to `TurboHttp.Tests` (without `.Integration`)
-- [ ] `dotnet build` → 0 errors
-- [ ] `dotnet test` → all tests green
-- [ ] `.maggus/PROGRESS_3.md` updated
+- [ ] After each response, `ConnectionReuseEvaluator.Evaluate()` is called
+- [ ] `ConnectionReuseDecision.CanReuse == false` → ConnectionStage is shut down after response
+- [ ] `ConnectionReuseDecision.KeepAliveTimeout` → overrides `PoolConfig.IdleTimeout` for that connection slot
+- [ ] `ConnectionReuseDecision.MaxRequests` → ConnectionStage is shut down after N requests
+- [ ] Request counter per ConnectionSlot
+- [ ] Unit tests: "Connection: close" response → ConnectionStage shut down
+- [ ] Unit tests: "Keep-Alive: timeout=10" → idle timeout set to 10s
+- [ ] Typecheck/build passes
 
----
+### TASK-010: Engine Pipeline Integration
 
-### TASK-SORT-002: Restructure StreamTests into RFC Folders
-**Description:** As a developer, I want `TurboHttp.StreamTests/` sorted by RFC folder instead of by HTTP version.
-
-**Current → Target structure:**
-```
-Current:          Target:
-Http10/    →      RFC1945/
-Http11/    →      RFC9112/
-Http20/    →      RFC9113/
-Streams/   →      Streams/  (unchanged — internal stages without RFC mapping)
-```
+**Description:** As a developer, I want the new ConnectionPoolStage integrated into the Engine pipeline, replacing the current direct ConnectionStage usage.
 
 **Acceptance Criteria:**
-- [ ] Folders `Http10/`, `Http11/`, `Http20/` no longer exist
-- [ ] Folders `RFC1945/`, `RFC9112/`, `RFC9113/`, `Streams/` exist
-- [ ] All files moved, namespaces updated
-- [ ] No duplicate file names
-- [ ] `TurboHttp.StreamTests.csproj` contains no hard paths to old folders
-- [ ] `dotnet build ./src/TurboHttp.StreamTests/` → 0 errors
-- [ ] `dotnet test ./src/TurboHttp.StreamTests/` → all tests green
-- [ ] `.maggus/PROGRESS_3.md` updated
+- [ ] `Engine.BuildConnectionFlow<TEngine>()` uses `ConnectionPoolStage` instead of direct `ConnectionStage`
+- [ ] `BuildProtocolFlow<TEngine>()` `Balance(N)` is replaced by the pool (pool manages parallelism)
+- [ ] `Engine.CreateFlow()` test overload accepts a ConnectionStage factory for the pool
+- [ ] HTTP/1.0 and HTTP/1.1: pool with MaxConnectionsPerHost=4 (same as current Balance(4))
+- [ ] HTTP/2: pool with MaxConnectionsPerHost=1 (multiplexing via streams)
+- [ ] Existing `EngineVersionRoutingTests` remain green
+- [ ] Existing `StreamTests` remain green
+- [ ] New integration test: full Engine → Pool → ConnectionStage → Response
+- [ ] Typecheck/build passes
 
----
+### TASK-011: PoolConfig Extension and Validation
 
-### TASK-SORT-003: Clean Up Loose Helper Files in TurboHttp.Tests Root
-**Description:** As a developer, I want root-level helper files in `TurboHttp.Tests/` moved into appropriate folders.
-
-**Affected files in the root of `TurboHttp.Tests/`:**
-- `Http2StageTestHelper.cs` → `RFC9113/` (helper for stage tests)
-- `Http2ProtocolSession.cs` → deleted (TASK-PSS-007)
-- `Http2StreamLifecycleState.cs` → deleted (TASK-PSS-007)
+**Description:** As a developer, I want a complete `PoolConfig` with all required parameters and validation.
 
 **Acceptance Criteria:**
-- [ ] `Http2StageTestHelper.cs` moved to `RFC9113/Http2StageTestHelper.cs` (if still needed after PSS tasks)
-- [ ] No `.cs` files directly in the root of `TurboHttp.Tests/` except `GlobalUsings.cs` / `*.csproj`
-- [ ] `dotnet build` → 0 errors
-- [ ] `dotnet test` → all tests green
-- [ ] `.maggus/PROGRESS_3.md` final update (all tasks checked off)
+- [ ] `PoolConfig` extended with:
+  - `MaxConnectionsPerHost` (default 10)
+  - `IdleTimeout` (default 5 min)
+  - `ConnectionTimeout` (default 30s)
+  - `MaxReconnectAttempts` (default 3)
+  - `ReconnectInterval` (default 5s)
+  - `PerHostQueueSize` (default 100)
+  - `LoadBalancingStrategy` (enum, default LeastLoaded)
+  - `QueueOverflowStrategy` (enum, default Fail)
+- [ ] Validation: no negative values, MaxConnections >= 1, Timeouts > 0
+- [ ] Invalid config → `ArgumentException` in constructor
+- [ ] Unit tests for all defaults and validation
+- [ ] Typecheck/build passes
 
----
+### TASK-012: Cleanup and Migration
+
+**Description:** As a developer, I want the old static partition-based pool removed and replaced by the new dynamic pool.
+
+**Acceptance Criteria:**
+- [ ] Old `ConnectionPool` static class code (partition-based) is removed
+- [ ] `ConnectionPoolTests` are migrated to new `ConnectionPoolStage`
+- [ ] All existing tests remain green
+- [ ] No dead code in `ConnectionDemuxStage.cs`
+- [ ] File renamed to `ConnectionPoolStage.cs` if appropriate
+- [ ] Typecheck/build passes
 
 ## Functional Requirements
 
-- FR-1: No test file may import `Http2ProtocolSession` after TASK-PSS-007 — the class will not exist
-- FR-2: Every `[Fact]` and `[Theory]` must have a `DisplayName` attribute containing an RFC reference (format: `RFC-XXXX-§Y.Z-TAG-NNN: description`)
-- FR-3: `TurboHttp.Tests/Integration/` must not exist after TASK-SORT-001
-- FR-4: `TurboHttp.StreamTests/Http10/`, `Http11/`, `Http20/` must not exist after TASK-SORT-002
-- FR-5: After each completed task `.maggus/PROGRESS_3.md` is updated with status, date, and a short note
-- FR-6: Tests that exercise production code directly must not use test-infrastructure classes as intermediaries — only production classes plus xUnit assertions
-- FR-7: `dotnet test ./src/TurboHttp.sln` runs green after every task — no regressions
+- **FR-1:** The pool must manage a separate connection lifecycle per PoolKey (host:port)
+- **FR-2:** A ConnectItem must arrive before the first DataItem for a PoolKey; otherwise the DataItem is rejected
+- **FR-3:** The pool must dynamically create new ConnectionStage instances when existing ones are saturated (up to MaxConnectionsPerHost)
+- **FR-4:** The pool must close connections after IdleTimeout automatically (at least one per host is preserved)
+- **FR-5:** The pool must detect dead connections and automatically re-route or retry requests
+- **FR-6:** The pool must isolate backpressure per host — a slow host must not block other hosts
+- **FR-7:** The pool must load-balance across active connections of a host
+- **FR-8:** HTTP/2 stream tracking is delegated to H2-Connection-Stage — the pool treats H2 connections as black boxes
+- **FR-9:** `ConnectionReuseEvaluator` results must feed into connection lifecycle decisions
+- **FR-10:** The pool must interact with the existing `ClientManager`/`ClientRunner` actor system through `ConnectionStage`
 
 ## Non-Goals
 
-- No new features or production code changes in this plan
-- No deleting tests — every RFC section tested before must remain tested afterwards
-- No restructuring of `TurboHttp.IntegrationTests/` (Kestrel fixtures) — only `TurboHttp.Tests/` and `TurboHttp.StreamTests/`
-- No changes to the `RFC7541/` folder in `TurboHttp.Tests/` — already well structured
-- No changes to production classes (`Http2FrameDecoder`, `HpackDecoder`, etc.)
+- **No** HTTP/2 stream-level routing in the pool — stays in `Http20ConnectionStage`
+- **No** DNS resolution caching or DNS-based load balancing
+- **No** connection pre-warming (connections created only on demand)
+- **No** cross-host connection sharing (each host has its own pool)
+- **No** persistence of pool state across process restarts
+- **No** circuit breaker pattern (may come as a separate stage later)
+- **No** changes to `ClientManager`/`ClientRunner` — pool only orchestrates them via `ConnectionStage`
 
 ## Technical Considerations
 
-- **Order:** ANA-001 → PSS-001..006 (can run in parallel) → PSS-007 → DISP-001..003 (can run in parallel) → SORT-001..003 (sequential to avoid namespace conflicts)
-- **Http2StageTestHelper.cs:** Keep as a helper class; after PSS tasks verify whether it is still needed
-- **`Http2StreamLifecycleState`:** Enum with comment "Test-only copy" — if no test depends on it after PSS tasks, delete together with `Http2ProtocolSession`
-- **Namespace convention:** After moving, all tests use `namespace TurboHttp.Tests;` or `namespace TurboHttp.StreamTests;` (file-scoped, flat — verify against existing pattern before changing)
-- **RFC tag format:** The established format in StreamTests is `RFC-9113-§6.9-20CW-001:` — apply this same format across all tests
-- **Build after every task:** `dotnet build --configuration Release ./src/TurboHttp.sln` must produce 0 errors
+### Why ConnectionStage Orchestration (not bypass)
+
+The `ConnectionStage` already handles:
+- Actor communication with `ClientManager` (connection creation via `CreateTcpRunner`)
+- `ClientRunner.ClientConnected` / `ClientDisconnected` message handling
+- Pending write/read queues during connection establishment
+- Graceful shutdown (`DoClose` to runner, channel completion)
+- Auto-reconnect on disconnect
+
+Replicating all of this in the pool stage would be duplication. Instead, the pool **materialises multiple ConnectionStage flows** as independent sub-graphs, each with its own TCP connection.
+
+### Sub-Graph Materialisation Pattern
+
+Each `ConnectionSlot` materialises a `ConnectionStage` flow independently:
+
+```csharp
+// Inside ConnectionPoolStage.Logic
+var connectionFlow = Flow.FromGraph(connectionStageFactory());
+// Type: Flow<ITransportItem, (IMemoryOwner<byte>, int), NotUsed>
+
+// Materialise with Source.Queue as inlet, Sink callback as outlet
+var (queue, completion) = Source.Queue<ITransportItem>(bufferSize, OverflowStrategy.Backpressure)
+    .Via(connectionFlow)
+    .ToMaterialized(
+        Sink.ForEach<(IMemoryOwner<byte>, int)>(tuple => responseCallback(poolKey, tuple)),
+        Keep.Both)
+    .Run(subFusingMaterializer);
+
+// Store in ConnectionSlot
+slot.Queue = queue;           // push ITransportItem into this
+slot.Completion = completion;  // watch for failure/completion
+```
+
+This gives each slot:
+- Its own `ConnectionStage` instance with independent TCP state
+- A `ISourceQueueWithComplete<ITransportItem>` to push items
+- A `Task` completion to detect connection death
+
+### Architecture Diagram
+
+```
+                    ConnectionPoolStage (single GraphStage)
+                    ┌──────────────────────────────────────────────┐
+                    │                                              │
+  RoutedTransportItem → [Inlet Handler]                           │
+                    │       │                                      │
+                    │       ├─ ConnectItem → register HostPool     │
+                    │       │                                      │
+                    │       └─ DataItem → find/create slot         │
+                    │              │                                │
+                    │    ┌─────────┼──────────────┐                │
+                    │    │HostPool │HostPool      │ HostPool       │
+                    │    │ host-a  │ host-b       │ host-c         │
+                    │    │         │              │                │
+                    │    │ ┌─────────────────┐    │                │
+                    │    │ │ ConnectionSlot  │    │                │
+                    │    │ │ Source.Queue ──→│    │                │
+                    │    │ │ ConnectionStage │    │ ...            │
+                    │    │ │ ──→ Sink.ForEach│    │                │
+                    │    │ └─────────────────┘    │                │
+                    │    │ ┌─────────────────┐    │                │
+                    │    │ │ ConnectionSlot  │    │                │
+                    │    │ │ (scaled up)     │    │                │
+                    │    │ └─────────────────┘    │                │
+                    │    └───────────┬────────────┘                │
+                    │                │                              │
+                    │    [Async callbacks from Sink.ForEach]        │
+                    │                │                              │
+                    │                ↓                              │
+                    │    RoutedDataItem → [Outlet Push]             │
+                    └──────────────────────────────────────────────┘
+```
+
+### Why Not GroupBy + Via
+
+| Aspect | GroupBy + Via | Custom GraphStage + ConnectionStage |
+|--------|-------------|-------------------------------------|
+| Per-host state | Shared (bug) | Isolated (each ConnectionStage is independent) |
+| Dynamic connections | Not possible | Full control via sub-graph materialisation |
+| Connection scaling | No | Yes, materialise additional ConnectionStages |
+| Idle eviction | Not possible | Via TimerMessages |
+| Health monitoring | Not possible | Via WatchTermination on sub-graphs |
+| Load balancing | No | Yes, configurable |
+| ConnectionStage reuse | N/A | Yes, leverages existing TCP lifecycle code |
+
+### Concurrency Model
+
+- **GraphStageLogic** is single-threaded (Akka guarantee) — no locking needed for internal state
+- **Async callbacks** (`GetAsyncCallback<T>`) for sub-graph responses (Sink.ForEach → pool outlet)
+- **TimerMessages** for idle eviction scheduling
+- **Sub-graph materialisation** happens on the stage's `Materializer` — each sub-graph runs independently
+
+### Existing Classes Reused
+
+| Class | Usage in Pool |
+|-------|--------------|
+| `ConnectionStage` | **Wrapped as sub-graph** — each ConnectionSlot materialises one instance |
+| `ClientManager` | Used indirectly through ConnectionStage |
+| `ClientRunner` | Used indirectly through ConnectionStage |
+| `PerHostConnectionLimiter` | Integrated for connection limit enforcement |
+| `ConnectionReuseEvaluator` | Integrated for Keep-Alive/Close decisions |
+| `PoolConnectionManager` | Integrated for activity tracking |
+| `PoolConfig` | Extended with new parameters |
+
+### Integration with Engine
+
+```
+Engine.BuildConnectionFlow<TEngine>()
+  ├── current: ExtractOptions → [ConnectItem + BidiFlow] → ConnectionStage (single)
+  └── new:     ExtractOptions → [ConnectItem + BidiFlow] → ConnectionPoolStage
+                                                              ├── ConnectionStage 1 (materialised sub-graph)
+                                                              ├── ConnectionStage 2 (materialised sub-graph)
+                                                              └── ConnectionStage N (materialised sub-graph)
+
+Engine.BuildProtocolFlow<TEngine>()
+  ├── current: Balance(4) → 4x BuildConnectionFlow → Merge(4)
+  └── new:     1x BuildConnectionFlow with pool (pool manages parallelism internally)
+```
 
 ## Success Metrics
 
-- `grep -r "Http2ProtocolSession" src/ --include="*.cs"` → 0 matches
-- `grep -rn "DisplayName" src/ --include="*.cs" | grep -v "RFC-\|RFC " | wc -l` → 0 (all have RFC ref)
-- `dotnet test ./src/TurboHttp.sln` → all tests green, no new failures
-- `docs/test-audit-report.md` exists and is complete
-- `.maggus/PROGRESS_3.md` shows all tasks completed
+- All existing stream tests and integration tests remain green
+- ConnectionPool tests cover: single-host, multi-host, multi-connection, eviction, retry, backpressure
+- Performance: no measurable overhead vs direct ConnectionStage for single-connection scenarios
+- Dynamic scaling verifiable: N parallel requests → N ConnectionStage instances (up to limit)
+- Idle eviction verifiable: ConnectionStage instance shut down after timeout
 
 ## Open Questions
 
-- Does `Phase60ValidationGateTests.cs` belong to RFC9112 or RFC9113? → determine in ANA-001
-- `EngineVersionRoutingTests.cs` tests internal routing logic without a direct RFC clause — is an internal code tag like `EROUTE-` sufficient, or should RFC-9112/RFC-9113 version negotiation be referenced?
-- Should `Http2StageTestHelper.cs` still exist after TASK-PSS-007, or can it also be deleted?
+1. **Timer granularity:** How often should the idle eviction timer fire? Every second? Every 30 seconds? Configurable? Configurable!
+2. **Graceful shutdown:** How should the pool behave on stage shutdown? Drain all pending requests or abort immediately? drain all pending requests
+3. **Error propagation:** If a host is permanently unreachable (MaxReconnect exhausted) — should only that host fail or the entire stage? only host has to fail
+4. **HTTP/2 connection signaling:** How does the pool learn that an H2 ConnectionStage has reached its stream limit, given that tracking lives inside the H2 stage? Do we need a callback/signal interface? 
+5. **Pool key semantics:** Is `host:port` sufficient as pool key, or must the scheme (http/https) also be included? (Relevant for HTTP→HTTPS redirects). Must be `schema:host:port:httpversion`

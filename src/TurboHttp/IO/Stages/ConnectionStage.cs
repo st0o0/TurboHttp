@@ -5,13 +5,18 @@ using System.Threading.Tasks;
 using Akka.Actor;
 using Akka.Streams;
 using Akka.Streams.Stage;
-using TurboHttp.IO;
 
-namespace TurboHttp.Streams.Stages;
+namespace TurboHttp.IO.Stages;
 
 public interface ITransportItem
 {
     bool IsTls { get; }
+}
+
+public interface IDataItem
+{
+    IMemoryOwner<byte> Memory { get; }
+    int Length { get; }
 }
 
 public record ConnectItem(TcpOptions Options) : ITransportItem
@@ -19,7 +24,7 @@ public record ConnectItem(TcpOptions Options) : ITransportItem
     public bool IsTls => Options is TlsOptions;
 }
 
-public record DataItem(IMemoryOwner<byte> Memory, int Length, bool IsTls = false) : ITransportItem;
+public record DataItem(IMemoryOwner<byte> Memory, int Length, bool IsTls = false) : ITransportItem, IDataItem;
 
 public sealed class ConnectionStage : GraphStage<FlowShape<ITransportItem, (IMemoryOwner<byte>, int)>>
 {
@@ -158,6 +163,7 @@ public sealed class ConnectionStage : GraphStage<FlowShape<ITransportItem, (IMem
         {
             var pushCallback = GetAsyncCallback<(IMemoryOwner<byte>, int)>(chunk =>
             {
+                //var item = new DataItem(chunk.Item1, chunk.Item2);
                 if (IsAvailable(_stage._outlet))
                 {
                     Push(_stage._outlet, chunk);
@@ -203,3 +209,4 @@ public sealed class ConnectionStage : GraphStage<FlowShape<ITransportItem, (IMem
         }
     }
 }
+

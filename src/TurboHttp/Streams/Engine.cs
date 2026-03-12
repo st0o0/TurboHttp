@@ -9,6 +9,7 @@ using Akka.Streams;
 using Akka.Streams.Dsl;
 using TurboHttp.Client;
 using TurboHttp.IO;
+using TurboHttp.IO.Stages;
 using TurboHttp.Protocol;
 using TurboHttp.Streams.Stages;
 
