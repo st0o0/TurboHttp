@@ -8,6 +8,27 @@ public sealed record RoutedTransportItem(string PoolKey, ITransportItem Item);
 public sealed record RoutedDataItem(string PoolKey, IMemoryOwner<byte> Memory, int Length);
 
 /// <summary>
+/// Strategy for handling queue overflow when a per-host backpressure queue is full.
+/// </summary>
+public enum QueueOverflowStrategy
+{
+    /// <summary>
+    /// Fail the stage when the per-host queue overflows. This is the default.
+    /// </summary>
+    Fail,
+
+    /// <summary>
+    /// Drop the oldest item in the queue to make room for the new item.
+    /// </summary>
+    DropOldest,
+
+    /// <summary>
+    /// Drop the newest (incoming) item when the queue is full.
+    /// </summary>
+    DropNewest
+}
+
+/// <summary>
 /// Strategy for distributing requests across active connections for a host.
 /// </summary>
 public enum LoadBalancingStrategy
@@ -32,7 +53,9 @@ public sealed record PoolConfig(
     LoadBalancingStrategy Strategy = LoadBalancingStrategy.LeastLoaded,
     int MaxReconnectAttempts = 3,
     TimeSpan ReconnectInterval = default,
-    TimeSpan IdleCheckInterval = default)
+    TimeSpan IdleCheckInterval = default,
+    int PerHostQueueSize = 100,
+    QueueOverflowStrategy OverflowStrategy = QueueOverflowStrategy.Fail)
 {
     public TimeSpan IdleTimeout { get; init; } =
         IdleTimeout == TimeSpan.Zero ? TimeSpan.FromMinutes(5) : IdleTimeout;

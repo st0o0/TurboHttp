@@ -128,14 +128,14 @@ The key architectural insight: rather than bypassing `ConnectionStage`, the pool
 **Description:** As a developer, I want a slow host to not block other hosts — backpressure should be isolated per host.
 
 **Acceptance Criteria:**
-- [ ] Each HostPool has its own internal queue with configurable size (`PoolConfig.PerHostQueueSize`)
-- [ ] When all connections for a host are busy and the queue is full → incoming DataItems for that host are buffered
-- [ ] Other hosts can continue to send requests
-- [ ] Queue overflow strategy configurable: `DropOldest`, `DropNewest`, `Fail` (default: `Fail`)
-- [ ] When a connection becomes free → queue is drained
-- [ ] Global inlet pull continues as long as at least one host can accept items
-- [ ] Unit tests: Host-A slow, Host-B fast → Host-B not blocked
-- [ ] Typecheck/build passes
+- [x] Each HostPool has its own internal queue with configurable size (`PoolConfig.PerHostQueueSize`)
+- [x] When all connections for a host are busy and the queue is full → incoming DataItems for that host are buffered
+- [x] Other hosts can continue to send requests
+- [x] Queue overflow strategy configurable: `DropOldest`, `DropNewest`, `Fail` (default: `Fail`)
+- [x] When a connection becomes free → queue is drained
+- [x] Global inlet pull continues as long as at least one host can accept items
+- [x] Unit tests: Host-A slow, Host-B fast → Host-B not blocked
+- [x] Typecheck/build passes
 
 **Note:** Per-host backpressure in a single-inlet GraphStage requires internal buffering. The inlet can only be globally pulled/not-pulled. Solution: internal per-host queues with a configurable global buffer limit. The inlet is pulled as long as total buffered items < global limit.
 
@@ -144,13 +144,13 @@ The key architectural insight: rather than bypassing `ConnectionStage`, the pool
 **Description:** As a developer, I want the existing `PerHostConnectionLimiter` integrated into the pool for connection limit enforcement.
 
 **Acceptance Criteria:**
-- [ ] `PerHostConnectionLimiter` is used inside the pool instead of custom counting
-- [ ] `TryAcquire()` is called before materialising a new ConnectionStage
-- [ ] `Release()` is called when a ConnectionStage is shut down
-- [ ] If `TryAcquire()` returns false → no new connection, request is queued
-- [ ] `PerHostConnectionLimiter` max and `PoolConfig.MaxConnectionsPerHost` are kept consistent
-- [ ] Unit tests: limiter blocks connection → request waits
-- [ ] Typecheck/build passes
+- [x] `PerHostConnectionLimiter` is used inside the pool instead of custom counting
+- [x] `TryAcquire()` is called before materialising a new ConnectionStage
+- [x] `Release()` is called when a ConnectionStage is shut down
+- [x] If `TryAcquire()` returns false → no new connection, request is queued
+- [x] `PerHostConnectionLimiter` max and `PoolConfig.MaxConnectionsPerHost` are kept consistent
+- [x] Unit tests: limiter blocks connection → request waits
+- [x] Typecheck/build passes
 
 ### TASK-009: ConnectionReuseEvaluator Integration
 

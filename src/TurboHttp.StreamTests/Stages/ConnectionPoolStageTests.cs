@@ -6,6 +6,7 @@ using Akka.Streams;
 using Akka.Streams.Dsl;
 using TurboHttp.IO;
 using TurboHttp.IO.Stages;
+using TurboHttp.Protocol.RFC9112;
 
 namespace TurboHttp.StreamTests.Stages;
 
@@ -91,9 +92,10 @@ public sealed class ConnectionPoolStageTests : StreamTestBase
 
     private static ConnectionPoolStage CreateStage(
         Func<IGraph<FlowShape<ITransportItem, (IMemoryOwner<byte>, int)>, NotUsed>> factory,
-        PoolConfig? config = null)
+        PoolConfig? config = null,
+        PerHostConnectionLimiter? limiter = null)
     {
-        return new ConnectionPoolStage(factory, config ?? DefaultConfig);
+        return new ConnectionPoolStage(factory, config ?? DefaultConfig, limiter);
     }
 
     private static TcpOptions TestOptions(string host = "example.com", int port = 443)
@@ -1238,6 +1240,557 @@ public sealed class ConnectionPoolStageTests : StreamTestBase
         // Verify KeepAliveTimeout default
         var defaultConfig = new PoolConfig();
         Assert.Equal(TimeSpan.FromSeconds(30), defaultConfig.IdleCheckInterval);
+    }
+
+    // ── TASK-007: Per-Host Backpressure ──────────────────────────────────────
+
+    // ── POOL-033: Host-A slow, Host-B fast → Host-B not blocked ───────────
+
+    [Fact(Timeout = 10_000,
+        DisplayName = "POOL-033: Slow host-A does not block fast host-B — per-host backpressure isolation")]
+    public async Task POOL_033_SlowHostA_DoesNotBlock_FastHostB()
+    {
+        // Use separate gated flows per host so we can control them independently.
+        // Host-A gates are never released (simulating a slow host).
+        // Host-B uses an echo flow (instant responses).
+        var hostAGates = new ConcurrentQueue<TaskCompletionSource<bool>>();
+        var hostBResponseCount = 0;
+
+        IGraph<FlowShape<ITransportItem, (IMemoryOwner<byte>, int)>, NotUsed> MixedFactory()
+        {
+            // Each materialised flow checks its first ConnectItem to decide behaviour.
+            // Since ConnectionPoolStage sends ConnectItem first, we use it to route.
+            return Flow.Create<ITransportItem>()
+                .SelectAsync(1, async item =>
+                {
+                    if (item is DataItem data)
+                    {
+                        // Check if this is a "slow" item (payload starts with 0xAA = host-A marker)
+                        if (data.Memory.Memory.Span[0] == 0xAA)
+                        {
+                            var gate = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+                            hostAGates.Enqueue(gate);
+                            await gate.Task;
+                        }
+                        else
+                        {
+                            Interlocked.Increment(ref hostBResponseCount);
+                        }
+
+                        return ((IMemoryOwner<byte>)data.Memory, data.Length);
+                    }
+
+                    // ConnectItem — skip
+                    return ((IMemoryOwner<byte>)null!, 0);
+                })
+                .Where(x => x.Item1 is not null);
+        }
+
+        var config = new PoolConfig(MaxConnectionsPerHost: 1, PerHostQueueSize: 10);
+        var stage = CreateStage(MixedFactory, config);
+
+        const string hostA = "https:slow-host.com:443:1.1";
+        const string hostB = "https:fast-host.com:443:1.1";
+
+        var items = new List<RoutedTransportItem>
+        {
+            new(hostA, new ConnectItem(TestOptions("slow-host.com", 443))),
+            new(hostB, new ConnectItem(TestOptions("fast-host.com", 443))),
+            // Host-A: 2 requests that will block
+            new(hostA, new DataItem(new SimpleMemoryOwner(new byte[] { 0xAA, 0x01 }), 2)),
+            new(hostA, new DataItem(new SimpleMemoryOwner(new byte[] { 0xAA, 0x02 }), 2)),
+            // Host-B: 3 requests that should complete immediately
+            new(hostB, new DataItem(new SimpleMemoryOwner(new byte[] { 0xBB, 0x01 }), 2)),
+            new(hostB, new DataItem(new SimpleMemoryOwner(new byte[] { 0xBB, 0x02 }), 2)),
+            new(hostB, new DataItem(new SimpleMemoryOwner(new byte[] { 0xBB, 0x03 }), 2)),
+        };
+
+        var resultTask = Source.From(items)
+            .Via(Flow.FromGraph(stage))
+            .RunWith(Sink.Seq<RoutedDataItem>(), Materializer);
+
+        // Wait for host-B to process all 3 requests while host-A is blocked
+        await WaitForConditionAsync(() => Volatile.Read(ref hostBResponseCount) >= 3,
+            timeout: TimeSpan.FromSeconds(5));
+
+        // Host-A is still blocked — at least 1 gate should be waiting
+        Assert.True(hostAGates.Count >= 1, "Host-A should have at least 1 blocked gate");
+        Assert.Equal(3, Volatile.Read(ref hostBResponseCount));
+
+        // Release host-A gates to let the stream complete
+        while (hostAGates.TryDequeue(out var gate))
+        {
+            gate.SetResult(true);
+        }
+
+        // Wait for any remaining host-A gates (from queued items draining)
+        await WaitForConditionAsync(() =>
+        {
+            while (hostAGates.TryDequeue(out var g))
+            {
+                g.SetResult(true);
+            }
+
+            return resultTask.IsCompleted;
+        }, timeout: TimeSpan.FromSeconds(5));
+
+        var results = await resultTask;
+        // All 5 requests should have completed: 2 from host-A + 3 from host-B
+        Assert.Equal(5, results.Count);
+    }
+
+    // ── POOL-034: PerHostQueueSize is configurable and enforced ──────────
+
+    [Fact(Timeout = 10_000,
+        DisplayName = "POOL-034: PerHostQueueSize limits internal queue — Fail strategy fails stage on overflow")]
+    public async Task POOL_034_PerHostQueueSize_FailStrategy_FailsOnOverflow()
+    {
+        // Two hosts: host-A will overflow, host-B has capacity so the inlet keeps pulling.
+        // This ensures the overflow item for host-A actually arrives at RouteDataItem.
+        var (factory, gates, getCount) = CreateGatedFlowFactory();
+        var config = new PoolConfig(
+            MaxConnectionsPerHost: 1,
+            PerHostQueueSize: 2,
+            OverflowStrategy: QueueOverflowStrategy.Fail);
+        var stage = CreateStage(factory, config);
+        const string hostA = "https:full-host.com:443:1.1";
+        const string hostB = "https:spare-host.com:443:1.1";
+
+        // Host-A: 1 in slot + 2 queued (full) + 1 overflow.
+        // Host-B keeps inlet alive by having capacity.
+        var items = new List<RoutedTransportItem>
+        {
+            new(hostA, new ConnectItem(TestOptions("full-host.com", 443))),
+            new(hostB, new ConnectItem(TestOptions("spare-host.com", 443))),
+            new(hostA, new DataItem(new SimpleMemoryOwner(new byte[] { 0x01 }), 1)), // slot
+            new(hostA, new DataItem(new SimpleMemoryOwner(new byte[] { 0x02 }), 1)), // queued (1)
+            new(hostA, new DataItem(new SimpleMemoryOwner(new byte[] { 0x03 }), 1)), // queued (2)
+            new(hostA, new DataItem(new SimpleMemoryOwner(new byte[] { 0x04 }), 1)), // overflow → Fail
+        };
+
+        var ex = await Assert.ThrowsAnyAsync<Exception>(async () =>
+            await Source.From(items)
+                .Via(Flow.FromGraph(stage))
+                .RunWith(Sink.Seq<RoutedDataItem>(), Materializer));
+
+        var inner = ex is AggregateException agg ? agg.InnerException! : ex;
+        Assert.IsType<ConnectionPoolException>(inner);
+        Assert.Contains("queue overflow", inner.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    // ── POOL-035: DropOldest overflow strategy ──────────────────────────
+
+    [Fact(Timeout = 10_000,
+        DisplayName = "POOL-035: DropOldest strategy drops oldest queued item on overflow")]
+    public async Task POOL_035_DropOldest_DropsOldestOnOverflow()
+    {
+        var (factory, gates, getCount) = CreateGatedFlowFactory();
+        var config = new PoolConfig(
+            MaxConnectionsPerHost: 1,
+            PerHostQueueSize: 1,
+            OverflowStrategy: QueueOverflowStrategy.DropOldest);
+        var stage = CreateStage(factory, config);
+        const string poolKey = "https:example.com:443:1.1";
+
+        // 1 in slot + 1 queued + 1 overflows (drops oldest queued) + stream completes
+        var items = new List<RoutedTransportItem>
+        {
+            new(poolKey, new ConnectItem(TestOptions())),
+            new(poolKey, new DataItem(new SimpleMemoryOwner(new byte[] { 0x01 }), 1)),
+            new(poolKey, new DataItem(new SimpleMemoryOwner(new byte[] { 0x02 }), 1)), // queued
+            new(poolKey, new DataItem(new SimpleMemoryOwner(new byte[] { 0x03 }), 1)), // drops 0x02, queues 0x03
+        };
+
+        var resultTask = Source.From(items)
+            .Via(Flow.FromGraph(stage))
+            .RunWith(Sink.Seq<RoutedDataItem>(), Materializer);
+
+        // Wait for the first gate (slot is busy)
+        await WaitForConditionAsync(() => gates.Count >= 1, timeout: TimeSpan.FromSeconds(5));
+
+        // Release gates one by one
+        var totalReleased = 0;
+        while (totalReleased < 2) // 1 in-slot + 1 queued (0x03, the survivor)
+        {
+            await WaitForConditionAsync(() => gates.Count >= 1, timeout: TimeSpan.FromSeconds(5));
+            Assert.True(gates.TryDequeue(out var gate));
+            gate.SetResult(true);
+            totalReleased++;
+        }
+
+        var results = await resultTask;
+        // 2 results: the first in-slot item (0x01) + the surviving queued item (0x03)
+        Assert.Equal(2, results.Count);
+    }
+
+    // ── POOL-036: DropNewest overflow strategy ──────────────────────────
+
+    [Fact(Timeout = 10_000,
+        DisplayName = "POOL-036: DropNewest strategy drops incoming item on overflow")]
+    public async Task POOL_036_DropNewest_DropsIncomingOnOverflow()
+    {
+        var (factory, gates, getCount) = CreateGatedFlowFactory();
+        var config = new PoolConfig(
+            MaxConnectionsPerHost: 1,
+            PerHostQueueSize: 1,
+            OverflowStrategy: QueueOverflowStrategy.DropNewest);
+        var stage = CreateStage(factory, config);
+        const string poolKey = "https:example.com:443:1.1";
+
+        // 1 in slot + 1 queued + 1 dropped (newest) + stream completes
+        var items = new List<RoutedTransportItem>
+        {
+            new(poolKey, new ConnectItem(TestOptions())),
+            new(poolKey, new DataItem(new SimpleMemoryOwner(new byte[] { 0x01 }), 1)),
+            new(poolKey, new DataItem(new SimpleMemoryOwner(new byte[] { 0x02 }), 1)), // queued
+            new(poolKey, new DataItem(new SimpleMemoryOwner(new byte[] { 0x03 }), 1)), // dropped (newest)
+        };
+
+        var resultTask = Source.From(items)
+            .Via(Flow.FromGraph(stage))
+            .RunWith(Sink.Seq<RoutedDataItem>(), Materializer);
+
+        // Wait for the first gate (slot is busy)
+        await WaitForConditionAsync(() => gates.Count >= 1, timeout: TimeSpan.FromSeconds(5));
+
+        // Release gates one by one
+        var totalReleased = 0;
+        while (totalReleased < 2) // 1 in-slot + 1 queued (0x02, the original)
+        {
+            await WaitForConditionAsync(() => gates.Count >= 1, timeout: TimeSpan.FromSeconds(5));
+            Assert.True(gates.TryDequeue(out var gate));
+            gate.SetResult(true);
+            totalReleased++;
+        }
+
+        var results = await resultTask;
+        // 2 results: the first in-slot item (0x01) + the surviving queued item (0x02)
+        Assert.Equal(2, results.Count);
+    }
+
+    // ── POOL-037: Queue drains when connection becomes free ──────────────
+
+    [Fact(Timeout = 10_000,
+        DisplayName = "POOL-037: Queued items drain to freed connections")]
+    public async Task POOL_037_QueueDrains_WhenConnectionBecomesFree()
+    {
+        var (factory, gates, getCount) = CreateGatedFlowFactory();
+        var config = new PoolConfig(MaxConnectionsPerHost: 1, PerHostQueueSize: 5);
+        var stage = CreateStage(factory, config);
+        const string poolKey = "https:example.com:443:1.1";
+
+        // 1 in-slot + 3 queued
+        var items = new List<RoutedTransportItem>
+        {
+            new(poolKey, new ConnectItem(TestOptions())),
+            new(poolKey, new DataItem(new SimpleMemoryOwner(new byte[] { 0x01 }), 1)),
+            new(poolKey, new DataItem(new SimpleMemoryOwner(new byte[] { 0x02 }), 1)),
+            new(poolKey, new DataItem(new SimpleMemoryOwner(new byte[] { 0x03 }), 1)),
+            new(poolKey, new DataItem(new SimpleMemoryOwner(new byte[] { 0x04 }), 1)),
+        };
+
+        var resultTask = Source.From(items)
+            .Via(Flow.FromGraph(stage))
+            .RunWith(Sink.Seq<RoutedDataItem>(), Materializer);
+
+        // Release all 4 gates one at a time, verifying drain behaviour
+        var totalReleased = 0;
+        while (totalReleased < 4)
+        {
+            await WaitForConditionAsync(() => gates.Count >= 1, timeout: TimeSpan.FromSeconds(5));
+            Assert.True(gates.TryDequeue(out var gate));
+            gate.SetResult(true);
+            totalReleased++;
+        }
+
+        var results = await resultTask;
+        Assert.Equal(4, results.Count);
+        Assert.Equal(1, getCount()); // Only 1 connection ever created
+    }
+
+    // ── POOL-038: Default PerHostQueueSize and OverflowStrategy ─────────
+
+    [Fact(DisplayName = "POOL-038: Default PoolConfig has PerHostQueueSize=100 and OverflowStrategy=Fail")]
+    public void POOL_038_DefaultConfig_QueueSizeAndStrategy()
+    {
+        var config = new PoolConfig();
+        Assert.Equal(100, config.PerHostQueueSize);
+        Assert.Equal(QueueOverflowStrategy.Fail, config.OverflowStrategy);
+    }
+
+    // ── POOL-039: Global inlet pull continues when one host has capacity ─
+
+    [Fact(Timeout = 10_000,
+        DisplayName = "POOL-039: Inlet pull continues as long as at least one host can accept items")]
+    public async Task POOL_039_InletPull_ContinuesWhenOneHostHasCapacity()
+    {
+        // Two hosts, both with MaxConnections=1, PerHostQueueSize=1.
+        // Host-A: 1 in slot + 1 queued = full.
+        // Host-B items should still flow because Host-B has capacity.
+        var hostAGates = new ConcurrentQueue<TaskCompletionSource<bool>>();
+        var hostBCompleted = 0;
+
+        IGraph<FlowShape<ITransportItem, (IMemoryOwner<byte>, int)>, NotUsed> Factory()
+        {
+            return Flow.Create<ITransportItem>()
+                .SelectAsync(1, async item =>
+                {
+                    if (item is DataItem data)
+                    {
+                        if (data.Memory.Memory.Span[0] == 0xAA)
+                        {
+                            var gate = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+                            hostAGates.Enqueue(gate);
+                            await gate.Task;
+                        }
+                        else
+                        {
+                            Interlocked.Increment(ref hostBCompleted);
+                        }
+
+                        return ((IMemoryOwner<byte>)data.Memory, data.Length);
+                    }
+
+                    return ((IMemoryOwner<byte>)null!, 0);
+                })
+                .Where(x => x.Item1 is not null);
+        }
+
+        var config = new PoolConfig(MaxConnectionsPerHost: 1, PerHostQueueSize: 1);
+        var stage = CreateStage(Factory, config);
+
+        const string hostA = "https:slow.com:443:1.1";
+        const string hostB = "https:fast.com:443:1.1";
+
+        var items = new List<RoutedTransportItem>
+        {
+            new(hostA, new ConnectItem(TestOptions("slow.com", 443))),
+            new(hostB, new ConnectItem(TestOptions("fast.com", 443))),
+            // Host-A: fill slot + queue (1+1 = full)
+            new(hostA, new DataItem(new SimpleMemoryOwner(new byte[] { 0xAA, 0x01 }), 2)),
+            new(hostA, new DataItem(new SimpleMemoryOwner(new byte[] { 0xAA, 0x02 }), 2)),
+            // Host-B: should still flow
+            new(hostB, new DataItem(new SimpleMemoryOwner(new byte[] { 0xBB, 0x01 }), 2)),
+            new(hostB, new DataItem(new SimpleMemoryOwner(new byte[] { 0xBB, 0x02 }), 2)),
+        };
+
+        var resultTask = Source.From(items)
+            .Via(Flow.FromGraph(stage))
+            .RunWith(Sink.Seq<RoutedDataItem>(), Materializer);
+
+        // Host-B should complete both requests despite Host-A being full
+        await WaitForConditionAsync(() => Volatile.Read(ref hostBCompleted) >= 2,
+            timeout: TimeSpan.FromSeconds(5));
+
+        Assert.Equal(2, Volatile.Read(ref hostBCompleted));
+
+        // Release host-A gates to complete the stream
+        while (hostAGates.TryDequeue(out var gate))
+        {
+            gate.SetResult(true);
+        }
+
+        await WaitForConditionAsync(() =>
+        {
+            while (hostAGates.TryDequeue(out var g))
+            {
+                g.SetResult(true);
+            }
+
+            return resultTask.IsCompleted;
+        }, timeout: TimeSpan.FromSeconds(5));
+
+        var results = await resultTask;
+        Assert.Equal(4, results.Count);
+    }
+
+    // ── TASK-008: PerHostConnectionLimiter Integration ─────────────────────
+
+    // ── POOL-LIM-001: Limiter is used instead of custom counting ────────────
+
+    [Fact(Timeout = 10_000,
+        DisplayName = "POOL-LIM-001: PerHostConnectionLimiter controls connection creation")]
+    public async Task POOL_LIM_001_Limiter_ControlsConnectionCreation()
+    {
+        // Create a limiter with max=2 and a config with MaxConnectionsPerHost=2.
+        // The limiter should control connection creation, not the pool's internal count.
+        var limiter = new PerHostConnectionLimiter(2);
+        var config = new PoolConfig(MaxConnectionsPerHost: 2);
+        var (factory, getCount) = CreateCountingEchoFlowFactory();
+
+        const string poolKey = "https:example.com:443:1.1";
+        var payload1 = new SimpleMemoryOwner(new byte[] { 0x01 });
+        var payload2 = new SimpleMemoryOwner(new byte[] { 0x02 });
+
+        var items = new List<RoutedTransportItem>
+        {
+            new(poolKey, new ConnectItem(TestOptions())),
+            new(poolKey, new DataItem(payload1, 1)),
+            new(poolKey, new DataItem(payload2, 1))
+        };
+
+        var results = await Source.From(items)
+            .Via(Flow.FromGraph(CreateStage(factory, config, limiter)))
+            .RunWith(Sink.Seq<RoutedDataItem>(), Materializer);
+
+        Assert.Equal(2, results.Count);
+        // Limiter should show active connections for this key
+        Assert.True(limiter.GetActiveConnections(poolKey) <= 2);
+    }
+
+    // ── POOL-LIM-002: Limiter blocks connection → request is queued ─────────
+
+    [Fact(Timeout = 10_000,
+        DisplayName = "POOL-LIM-002: Limiter blocks new connection when limit reached, request is queued")]
+    public async Task POOL_LIM_002_Limiter_BlocksConnection_RequestQueued()
+    {
+        // Create a limiter with max=1. When the single connection is busy,
+        // the next request should be queued (not create a second connection).
+        var limiter = new PerHostConnectionLimiter(1);
+        var config = new PoolConfig(MaxConnectionsPerHost: 1, PerHostQueueSize: 10);
+        var (factory, gates, getCount) = CreateGatedFlowFactory();
+
+        const string poolKey = "https:example.com:443:1.1";
+        var payload1 = new SimpleMemoryOwner(new byte[] { 0x01 });
+        var payload2 = new SimpleMemoryOwner(new byte[] { 0x02 });
+
+        var items = new List<RoutedTransportItem>
+        {
+            new(poolKey, new ConnectItem(TestOptions())),
+            new(poolKey, new DataItem(payload1, 1)),
+            new(poolKey, new DataItem(payload2, 1))
+        };
+
+        var resultTask = Source.From(items)
+            .Via(Flow.FromGraph(CreateStage(factory, config, limiter)))
+            .RunWith(Sink.Seq<RoutedDataItem>(), Materializer);
+
+        // Wait for first gate (first request is being processed)
+        await WaitForConditionAsync(() => !gates.IsEmpty, timeout: TimeSpan.FromSeconds(5));
+
+        // Only 1 connection should have been materialised (limiter blocks the second)
+        Assert.Equal(1, getCount());
+
+        // Release gates to allow completion
+        while (gates.TryDequeue(out var gate))
+        {
+            gate.SetResult(true);
+        }
+
+        // Wait for second gate (queued request dispatched after first completes)
+        await WaitForConditionAsync(() =>
+        {
+            while (gates.TryDequeue(out var g))
+            {
+                g.SetResult(true);
+            }
+
+            return resultTask.IsCompleted;
+        }, timeout: TimeSpan.FromSeconds(5));
+
+        var results = await resultTask;
+        Assert.Equal(2, results.Count);
+    }
+
+    // ── POOL-LIM-003: Limiter max consistent with PoolConfig.MaxConnectionsPerHost ──
+
+    [Fact(Timeout = 10_000,
+        DisplayName = "POOL-LIM-003: Auto-created limiter has same max as PoolConfig.MaxConnectionsPerHost")]
+    public async Task POOL_LIM_003_AutoCreatedLimiter_SameMaxAsConfig()
+    {
+        // When no explicit limiter is passed, the stage creates one internally
+        // with MaxConnectionsPerHost from PoolConfig. Verify that 3 parallel
+        // requests on gated connections produce exactly 3 materialisations.
+        var config = new PoolConfig(MaxConnectionsPerHost: 3);
+        var (factory, gates, getCount) = CreateGatedFlowFactory();
+
+        const string poolKey = "https:example.com:443:1.1";
+        var items = new List<RoutedTransportItem>
+        {
+            new(poolKey, new ConnectItem(TestOptions())),
+            new(poolKey, new DataItem(new SimpleMemoryOwner(new byte[] { 0x01 }), 1)),
+            new(poolKey, new DataItem(new SimpleMemoryOwner(new byte[] { 0x02 }), 1)),
+            new(poolKey, new DataItem(new SimpleMemoryOwner(new byte[] { 0x03 }), 1))
+        };
+
+        var resultTask = Source.From(items)
+            .Via(Flow.FromGraph(CreateStage(factory, config)))
+            .RunWith(Sink.Seq<RoutedDataItem>(), Materializer);
+
+        // Wait for all 3 gates (3 connections materialised)
+        await WaitForConditionAsync(() => getCount() >= 3, timeout: TimeSpan.FromSeconds(5));
+        Assert.Equal(3, getCount());
+
+        // Release all gates
+        while (gates.TryDequeue(out var gate))
+        {
+            gate.SetResult(true);
+        }
+
+        await WaitForConditionAsync(() =>
+        {
+            while (gates.TryDequeue(out var g))
+            {
+                g.SetResult(true);
+            }
+
+            return resultTask.IsCompleted;
+        }, timeout: TimeSpan.FromSeconds(5));
+
+        var results = await resultTask;
+        Assert.Equal(3, results.Count);
+    }
+
+    // ── POOL-LIM-004: Limiter with lower max than config enforces stricter limit ──
+
+    [Fact(Timeout = 10_000,
+        DisplayName = "POOL-LIM-004: External limiter with lower max enforces stricter limit than config")]
+    public async Task POOL_LIM_004_ExternalLimiter_StricterThanConfig()
+    {
+        // Config allows 5 connections, but limiter only allows 2.
+        // The limiter should win: only 2 connections materialised.
+        var limiter = new PerHostConnectionLimiter(2);
+        var config = new PoolConfig(MaxConnectionsPerHost: 5, PerHostQueueSize: 10);
+        var (factory, gates, getCount) = CreateGatedFlowFactory();
+
+        const string poolKey = "https:example.com:443:1.1";
+        var items = new List<RoutedTransportItem>
+        {
+            new(poolKey, new ConnectItem(TestOptions())),
+            new(poolKey, new DataItem(new SimpleMemoryOwner(new byte[] { 0x01 }), 1)),
+            new(poolKey, new DataItem(new SimpleMemoryOwner(new byte[] { 0x02 }), 1)),
+            new(poolKey, new DataItem(new SimpleMemoryOwner(new byte[] { 0x03 }), 1))
+        };
+
+        var resultTask = Source.From(items)
+            .Via(Flow.FromGraph(CreateStage(factory, config, limiter)))
+            .RunWith(Sink.Seq<RoutedDataItem>(), Materializer);
+
+        // Wait for 2 connections (limiter limit)
+        await WaitForConditionAsync(() => getCount() >= 2, timeout: TimeSpan.FromSeconds(5));
+
+        // Give a moment to verify no 3rd connection is created
+        await Task.Delay(200);
+        Assert.Equal(2, getCount());
+
+        // Release gates to complete
+        while (gates.TryDequeue(out var gate))
+        {
+            gate.SetResult(true);
+        }
+
+        await WaitForConditionAsync(() =>
+        {
+            while (gates.TryDequeue(out var g))
+            {
+                g.SetResult(true);
+            }
+
+            return resultTask.IsCompleted;
+        }, timeout: TimeSpan.FromSeconds(5));
+
+        var results = await resultTask;
+        Assert.Equal(3, results.Count);
     }
 
     /// <summary>

@@ -7,6 +7,7 @@ using Akka.Actor;
 using Akka.Streams;
 using Akka.Streams.Dsl;
 using Akka.Streams.Stage;
+using TurboHttp.Protocol.RFC9112;
 
 namespace TurboHttp.IO.Stages;
 
@@ -19,6 +20,7 @@ public sealed class ConnectionPoolStage : GraphStage<FlowShape<RoutedTransportIt
 {
     private readonly Func<IGraph<FlowShape<ITransportItem, (IMemoryOwner<byte>, int)>, NotUsed>> _connectionFlowFactory;
     private readonly PoolConfig _config;
+    private readonly PerHostConnectionLimiter _limiter;
 
     private readonly Inlet<RoutedTransportItem> _inlet = new("pool.in");
     private readonly Outlet<RoutedDataItem> _outlet = new("pool.out");
@@ -27,11 +29,13 @@ public sealed class ConnectionPoolStage : GraphStage<FlowShape<RoutedTransportIt
 
     public ConnectionPoolStage(
         Func<IGraph<FlowShape<ITransportItem, (IMemoryOwner<byte>, int)>, NotUsed>> connectionFlowFactory,
-        PoolConfig config)
+        PoolConfig config,
+        PerHostConnectionLimiter? limiter = null)
     {
         _connectionFlowFactory =
             connectionFlowFactory ?? throw new ArgumentNullException(nameof(connectionFlowFactory));
         _config = config ?? throw new ArgumentNullException(nameof(config));
+        _limiter = limiter ?? new PerHostConnectionLimiter(config.MaxConnectionsPerHost);
         Shape = new FlowShape<RoutedTransportItem, RoutedDataItem>(_inlet, _outlet);
     }
 
@@ -79,9 +83,9 @@ public sealed class ConnectionPoolStage : GraphStage<FlowShape<RoutedTransportIt
                 {
                     CompleteStage();
                 }
-                else if (!HasBeenPulled(_stage._inlet) && !_stopping)
+                else
                 {
-                    Pull(_stage._inlet);
+                    TryPullInlet();
                 }
             }, onDownstreamFinish: _ =>
             {
@@ -128,7 +132,7 @@ public sealed class ConnectionPoolStage : GraphStage<FlowShape<RoutedTransportIt
                     RouteDataItem(elem.PoolKey, data);
                     if (!_stopping)
                     {
-                        Pull(_stage._inlet);
+                        TryPullInlet();
                     }
 
                     break;
@@ -160,7 +164,42 @@ public sealed class ConnectionPoolStage : GraphStage<FlowShape<RoutedTransportIt
             else
             {
                 // All connections busy and at max — queue internally (backpressure)
+                EnqueueWithOverflowStrategy(pool, data);
+            }
+        }
+
+        /// <summary>
+        /// Enqueues a DataItem into the per-host backpressure queue, applying the configured
+        /// overflow strategy when the queue is at capacity.
+        /// </summary>
+        private void EnqueueWithOverflowStrategy(HostPool pool, DataItem data)
+        {
+            var maxSize = _stage._config.PerHostQueueSize;
+
+            if (pool.PendingDataItems.Count < maxSize)
+            {
                 pool.PendingDataItems.Enqueue(data);
+                return;
+            }
+
+            // Queue is full — apply overflow strategy
+            switch (_stage._config.OverflowStrategy)
+            {
+                case QueueOverflowStrategy.Fail:
+                    _stopping = true;
+                    FailStage(new ConnectionPoolException(
+                        $"Per-host queue overflow for pool. Queue size {maxSize} exceeded. " +
+                        $"Configure PoolConfig.PerHostQueueSize or PoolConfig.OverflowStrategy to handle this."));
+                    break;
+
+                case QueueOverflowStrategy.DropOldest:
+                    pool.PendingDataItems.Dequeue();
+                    pool.PendingDataItems.Enqueue(data);
+                    break;
+
+                case QueueOverflowStrategy.DropNewest:
+                    // Drop the incoming item — do nothing
+                    break;
             }
         }
 
@@ -186,8 +225,8 @@ public sealed class ConnectionPoolStage : GraphStage<FlowShape<RoutedTransportIt
                 return idleSlot;
             }
 
-            // 2. If under the limit, materialise a new connection
-            if (pool.Connections.Count < _stage._config.MaxConnectionsPerHost)
+            // 2. If under the limit (via PerHostConnectionLimiter), materialise a new connection
+            if (_stage._limiter.TryAcquire(poolKey))
             {
                 return MaterialiseNewSlot(poolKey, pool);
             }
@@ -324,8 +363,9 @@ public sealed class ConnectionPoolStage : GraphStage<FlowShape<RoutedTransportIt
                 return; // Already cleaned up (e.g. during PostStop)
             }
 
-            // Mark dead
+            // Mark dead and release limiter slot
             deadSlot.Active = false;
+            _stage._limiter.Release(death.poolKey);
 
             // Adjust in-flight count for lost requests on the dead slot
             var lostRequests = deadSlot.PendingRequestCount;
@@ -377,12 +417,8 @@ public sealed class ConnectionPoolStage : GraphStage<FlowShape<RoutedTransportIt
             // Drain any pending items to the new slot
             DrainPendingQueue(poolKey, pool);
 
-            // If outlet is waiting and we have no pending responses, pull inlet
-            if (!HasBeenPulled(_stage._inlet) && !_stopping && IsAvailable(_stage._outlet) &&
-                _pendingResponses.Count == 0)
-            {
-                Pull(_stage._inlet);
-            }
+            // Reconnection freed capacity — resume pulling if inlet was stopped
+            TryPullInlet();
         }
 
         /// <summary>
@@ -448,6 +484,7 @@ public sealed class ConnectionPoolStage : GraphStage<FlowShape<RoutedTransportIt
                     slot.Active = false;
                     slot.Queue.Complete();
                     pool.Connections.Remove(slot);
+                    _stage._limiter.Release(poolKey);
                     evicted++;
                 }
             }
@@ -493,6 +530,9 @@ public sealed class ConnectionPoolStage : GraphStage<FlowShape<RoutedTransportIt
             {
                 _pendingResponses.Enqueue(item);
             }
+
+            // A response freed capacity — resume pulling if inlet was stopped due to all hosts being full
+            TryPullInlet();
         }
 
         /// <summary>
@@ -513,6 +553,72 @@ public sealed class ConnectionPoolStage : GraphStage<FlowShape<RoutedTransportIt
             }
         }
 
+        /// <summary>
+        /// Pulls the inlet if: not stopping, not already pulled, and at least one host can accept items.
+        /// This ensures a slow host with a full queue does not block other hosts from receiving requests.
+        /// </summary>
+        private void TryPullInlet()
+        {
+            if (_stopping || HasBeenPulled(_stage._inlet))
+            {
+                return;
+            }
+
+            if (AnyHostCanAccept())
+            {
+                Pull(_stage._inlet);
+            }
+        }
+
+        /// <summary>
+        /// Returns true if at least one registered host has capacity to accept a new DataItem,
+        /// either via an available connection slot or available queue space.
+        /// </summary>
+        private bool AnyHostCanAccept()
+        {
+            var maxQueueSize = _stage._config.PerHostQueueSize;
+
+            foreach (var (poolKey, pool) in _hostPools)
+            {
+                // Host can accept if it has an idle slot or room for a new connection
+                if (HasAvailableSlot(pool, poolKey))
+                {
+                    return true;
+                }
+
+                // Host can accept if its queue has capacity
+                if (pool.PendingDataItems.Count < maxQueueSize)
+                {
+                    return true;
+                }
+
+                // DropOldest/DropNewest strategies always accept (they just drop)
+                if (_stage._config.OverflowStrategy != QueueOverflowStrategy.Fail)
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        /// <summary>
+        /// Checks whether a host pool has an idle connection slot or can create a new one.
+        /// Uses the <see cref="PerHostConnectionLimiter"/> to determine if a new connection is allowed.
+        /// </summary>
+        private bool HasAvailableSlot(HostPool pool, string poolKey)
+        {
+            foreach (var conn in pool.Connections)
+            {
+                if (conn is { Active: true, Idle: true })
+                {
+                    return true;
+                }
+            }
+
+            return _stage._limiter.GetActiveConnections(poolKey) < _stage._config.MaxConnectionsPerHost;
+        }
+
         private void TryComplete()
         {
             if (_stopping && _inFlightCount == 0 && _pendingResponses.Count == 0)
@@ -530,12 +636,13 @@ public sealed class ConnectionPoolStage : GraphStage<FlowShape<RoutedTransportIt
         {
             _stopping = true;
 
-            foreach (var pool in _hostPools.Values)
+            foreach (var (poolKey, pool) in _hostPools)
             {
                 foreach (var slot in pool.Connections)
                 {
                     slot.Queue.Complete();
                     slot.Active = false;
+                    _stage._limiter.Release(poolKey);
                 }
             }
 
