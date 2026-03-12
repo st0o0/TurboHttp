@@ -7,10 +7,29 @@ public sealed record RoutedTransportItem(string PoolKey, ITransportItem Item);
 
 public sealed record RoutedDataItem(string PoolKey, IMemoryOwner<byte> Memory, int Length);
 
+/// <summary>
+/// Strategy for distributing requests across active connections for a host.
+/// </summary>
+public enum LoadBalancingStrategy
+{
+    /// <summary>
+    /// Selects the connection with the fewest pending requests.
+    /// Idle connections are always preferred.
+    /// </summary>
+    LeastLoaded,
+
+    /// <summary>
+    /// Cycles through all active connections in order.
+    /// Idle connections are always preferred.
+    /// </summary>
+    RoundRobin
+}
+
 public sealed record PoolConfig(
     int MaxConnectionsPerHost = 10,
     TimeSpan IdleTimeout = default,
-    TimeSpan ConnectionTimeout = default)
+    TimeSpan ConnectionTimeout = default,
+    LoadBalancingStrategy Strategy = LoadBalancingStrategy.LeastLoaded)
 {
     public TimeSpan IdleTimeout { get; init; } =
         IdleTimeout == TimeSpan.Zero ? TimeSpan.FromMinutes(5) : IdleTimeout;

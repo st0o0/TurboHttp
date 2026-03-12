@@ -83,13 +83,13 @@ The key architectural insight: rather than bypassing `ConnectionStage`, the pool
 **Description:** As a developer, I want incoming DataItems to be intelligently distributed across available ConnectionStage instances for a host.
 
 **Acceptance Criteria:**
-- [ ] Load balancing strategy is configurable in `PoolConfig` (enum: `RoundRobin`, `LeastLoaded`)
-- [ ] `RoundRobin`: cycles through all active connections of a host
-- [ ] `LeastLoaded`: selects connection with fewest pending requests
-- [ ] Default strategy: `LeastLoaded`
-- [ ] Idle connections are preferred (don't create a new connection when one is idle)
-- [ ] Unit tests: multiple requests are distributed evenly across connections
-- [ ] Typecheck/build passes
+- [x] Load balancing strategy is configurable in `PoolConfig` (enum: `RoundRobin`, `LeastLoaded`)
+- [x] `RoundRobin`: cycles through all active connections of a host
+- [x] `LeastLoaded`: selects connection with fewest pending requests
+- [x] Default strategy: `LeastLoaded`
+- [x] Idle connections are preferred (don't create a new connection when one is idle)
+- [x] Unit tests: multiple requests are distributed evenly across connections
+- [x] Typecheck/build passes
 
 ### TASK-005: Connection Health Monitoring and Auto-Reconnect
 

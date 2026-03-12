@@ -54,7 +54,7 @@ public sealed class ConnectionPoolStage : GraphStage<FlowShape<RoutedTransportIt
         /// </summary>
         private readonly Queue<RoutedDataItem> _pendingResponses = new();
 
-        private Action<(string poolKey, IMemoryOwner<byte> memory, int length)>? _onResponseCallback;
+        private Action<(string poolKey, int slotId, IMemoryOwner<byte> memory, int length)>? _onResponseCallback;
 
         public Logic(ConnectionPoolStage stage) : base(stage.Shape)
         {
@@ -91,7 +91,7 @@ public sealed class ConnectionPoolStage : GraphStage<FlowShape<RoutedTransportIt
         public override void PreStart()
         {
             _self = GetStageActor(OnMessage).Ref;
-            _onResponseCallback = GetAsyncCallback<(string, IMemoryOwner<byte>, int)>(OnSubGraphResponse);
+            _onResponseCallback = GetAsyncCallback<(string, int, IMemoryOwner<byte>, int)>(OnSubGraphResponse);
             Pull(_stage._inlet);
         }
 
@@ -162,18 +162,16 @@ public sealed class ConnectionPoolStage : GraphStage<FlowShape<RoutedTransportIt
         }
 
         /// <summary>
-        /// Finds an idle connection, or creates a new one if under the limit.
-        /// Returns null when all connections are busy and the max has been reached.
+        /// Finds an idle connection using the configured strategy, or creates a new one if under the limit.
+        /// Returns null when all connections are busy and the max has been reached (triggers queuing).
         /// </summary>
         private ConnectionSlot? FindOrCreateSlot(string poolKey, HostPool pool)
         {
-            // 1. Prefer an idle (non-busy) active connection
-            foreach (var conn in pool.Connections)
+            // 1. Always prefer an idle (non-busy) active connection — strategy selects which one
+            var idleSlot = SelectIdleSlot(pool);
+            if (idleSlot is not null)
             {
-                if (conn.Active && conn.Idle)
-                {
-                    return conn;
-                }
+                return idleSlot;
             }
 
             // 2. If under the limit, materialise a new connection
@@ -186,23 +184,82 @@ public sealed class ConnectionPoolStage : GraphStage<FlowShape<RoutedTransportIt
             return null;
         }
 
+        /// <summary>
+        /// Selects an idle connection using the configured load balancing strategy.
+        /// </summary>
+        private ConnectionSlot? SelectIdleSlot(HostPool pool)
+        {
+            return _stage._config.Strategy switch
+            {
+                LoadBalancingStrategy.LeastLoaded => SelectIdleLeastLoaded(pool),
+                LoadBalancingStrategy.RoundRobin => SelectIdleRoundRobin(pool),
+                _ => SelectIdleLeastLoaded(pool)
+            };
+        }
+
+        /// <summary>
+        /// LeastLoaded: among idle connections, selects the one with fewest pending requests.
+        /// All idle connections have 0 pending, so this effectively picks the first idle one —
+        /// but when requests arrive faster than responses, it distributes to the least loaded.
+        /// </summary>
+        private static ConnectionSlot? SelectIdleLeastLoaded(HostPool pool)
+        {
+            ConnectionSlot? best = null;
+            var bestCount = int.MaxValue;
+            foreach (var conn in pool.Connections)
+            {
+                if (conn.Active && conn.Idle && conn.PendingRequestCount < bestCount)
+                {
+                    best = conn;
+                    bestCount = conn.PendingRequestCount;
+                }
+            }
+            return best;
+        }
+
+        /// <summary>
+        /// RoundRobin: cycles through idle connections in order, advancing the index each time.
+        /// </summary>
+        private static ConnectionSlot? SelectIdleRoundRobin(HostPool pool)
+        {
+            var connections = pool.Connections;
+            if (connections.Count == 0)
+            {
+                return null;
+            }
+
+            for (var i = 0; i < connections.Count; i++)
+            {
+                var index = pool.RoundRobinIndex % connections.Count;
+                pool.RoundRobinIndex = index + 1;
+                var slot = connections[index];
+                if (slot.Active && slot.Idle)
+                {
+                    return slot;
+                }
+            }
+
+            return null;
+        }
+
         private ConnectionSlot MaterialiseNewSlot(string poolKey, HostPool pool)
         {
             var connectionFlow = _stage._connectionFlowFactory();
             var capturedPoolKey = poolKey;
             var capturedCallback = _onResponseCallback!;
+            var slotId = pool.ConnectionCounter;
 
             var (queue, completion) = Source.Queue<ITransportItem>(16, OverflowStrategy.Backpressure)
                 .Via(connectionFlow)
                 .ToMaterialized(
                     Sink.ForEach<(IMemoryOwner<byte>, int)>(chunk =>
                     {
-                        capturedCallback((capturedPoolKey, chunk.Item1, chunk.Item2));
+                        capturedCallback((capturedPoolKey, slotId, chunk.Item1, chunk.Item2));
                     }),
                     Keep.Both)
                 .Run(Materializer);
 
-            var slot = new ConnectionSlot(queue, completion);
+            var slot = new ConnectionSlot(slotId, queue, completion);
             pool.Connections.Add(slot);
             pool.ConnectionCounter++;
 
@@ -212,7 +269,7 @@ public sealed class ConnectionPoolStage : GraphStage<FlowShape<RoutedTransportIt
             return slot;
         }
 
-        private void OnSubGraphResponse((string poolKey, IMemoryOwner<byte> memory, int length) response)
+        private void OnSubGraphResponse((string poolKey, int slotId, IMemoryOwner<byte> memory, int length) response)
         {
             if (_stopping && _pendingResponses.Count == 0 && _inFlightCount <= 1)
             {
@@ -221,12 +278,12 @@ public sealed class ConnectionPoolStage : GraphStage<FlowShape<RoutedTransportIt
 
             _inFlightCount--;
 
-            // Update slot status and drain per-host queue
+            // Update the specific slot that produced this response
             if (_hostPools.TryGetValue(response.poolKey, out var pool))
             {
                 foreach (var slot in pool.Connections)
                 {
-                    if (slot.PendingRequestCount > 0)
+                    if (slot.Id == response.slotId && slot.PendingRequestCount > 0)
                     {
                         slot.PendingRequestCount--;
                         if (slot.PendingRequestCount == 0)
@@ -312,6 +369,12 @@ public sealed class ConnectionPoolStage : GraphStage<FlowShape<RoutedTransportIt
         public int ConnectionCounter { get; set; }
 
         /// <summary>
+        /// Round-robin index for cycling through connections. Used only when
+        /// <see cref="LoadBalancingStrategy.RoundRobin"/> is active.
+        /// </summary>
+        public int RoundRobinIndex { get; set; }
+
+        /// <summary>
         /// DataItems waiting for a free connection slot. Drained when a response arrives
         /// and a slot becomes idle, or when a new slot is materialised.
         /// </summary>
@@ -329,14 +392,16 @@ public sealed class ConnectionPoolStage : GraphStage<FlowShape<RoutedTransportIt
     /// </summary>
     private sealed class ConnectionSlot
     {
+        public int Id { get; }
         public ISourceQueueWithComplete<ITransportItem> Queue { get; }
         public Task Completion { get; }
         public bool Active { get; set; } = true;
         public bool Idle { get; set; } = true;
         public int PendingRequestCount { get; set; }
 
-        public ConnectionSlot(ISourceQueueWithComplete<ITransportItem> queue, Task completion)
+        public ConnectionSlot(int id, ISourceQueueWithComplete<ITransportItem> queue, Task completion)
         {
+            Id = id;
             Queue = queue;
             Completion = completion;
         }

@@ -105,14 +105,16 @@
 - **Total: 2803 all green**
 - Flaky timeouts when running all 3 projects simultaneously (resource contention); each project passes 100% individually
 
-## Connection Pool (TASK-001 ✅, TASK-002 ✅)
+## Connection Pool (TASK-001 ✅, TASK-002 ✅, TASK-003 ✅, TASK-004 ✅)
 - **ConnectionPoolStage**: `src/TurboHttp/IO/Stages/ConnectionPoolStage.cs` — custom GraphStage with sub-graph materialization
-- **Types**: `src/TurboHttp/IO/Stages/ConnectionPoolTypes.cs` — `RoutedTransportItem`, `RoutedDataItem`, `PoolConfig`
-- **Tests**: `src/TurboHttp.StreamTests/Stages/ConnectionPoolStageTests.cs` — 10 tests (8 foundation + 2 roundtrip)
+- **Types**: `src/TurboHttp/IO/Stages/ConnectionPoolTypes.cs` — `RoutedTransportItem`, `RoutedDataItem`, `PoolConfig`, `LoadBalancingStrategy`
+- **Tests**: `src/TurboHttp.StreamTests/Stages/ConnectionPoolStageTests.cs` — 25 tests (POOL-001 through POOL-023)
 - **Plan**: `.maggus/plan_3.md` — 12 tasks (TASK-001 through TASK-012)
 - **Pattern**: Pool wraps/orchestrates multiple `ConnectionStage` instances as materialised sub-graphs (Source.Queue → ConnectionStage → Sink.ForEach)
 - **Factory type**: `Func<IGraph<FlowShape<ITransportItem, (IMemoryOwner<byte>, int)>, NotUsed>>` — accepts both real ConnectionStage and test echo flows
-- **Inner types**: `HostPool` (TcpOptions, List<ConnectionSlot>, ConnectionCounter), `ConnectionSlot` (Queue, Completion, Active, Idle, PendingRequestCount)
+- **Inner types**: `HostPool` (TcpOptions, List<ConnectionSlot>, ConnectionCounter, RoundRobinIndex), `ConnectionSlot` (Id, Queue, Completion, Active, Idle, PendingRequestCount)
+- **Load balancing**: `LoadBalancingStrategy` enum (LeastLoaded default, RoundRobin). Idle connections always preferred. Strategy applies to idle slot selection.
+- **Slot ID tracking**: Each `ConnectionSlot` has a unique `Id` (from `ConnectionCounter`). Response callbacks include slot ID so `OnSubGraphResponse` correctly identifies which slot responded.
 - **Sub-graph materialization**: Uses `GraphStageLogic.Materializer` (SubFusingActorMaterializer) + `GetAsyncCallback` for thread-safe response delivery
 - **In-flight tracking**: `_inFlightCount` prevents premature CompleteStage when sub-graph responses pending
 - **TcpOptions**: Uses `required` init properties, not positional constructor — use `new() { Host = "...", Port = 443 }`
