@@ -35,15 +35,15 @@ The key architectural insight: rather than bypassing `ConnectionStage`, the pool
 **Description:** As a developer, I want a `ConnectionPoolStage` custom `GraphStage<FlowShape<RoutedTransportItem, RoutedDataItem>>` that serves as the central entry point for all connection pool operations, orchestrating `ConnectionStage` instances internally.
 
 **Acceptance Criteria:**
-- [ ] `ConnectionPoolStage` inherits from `GraphStage<FlowShape<RoutedTransportItem, RoutedDataItem>>`
-- [ ] Inner `Logic` class with correct inlet/outlet handling (Pull/Push)
-- [ ] Constructor takes `Func<ConnectionStage> connectionStageFactory` and `PoolConfig`
-- [ ] Stage uses `StageActor` for async actor communication (same pattern as `ConnectionStage`)
-- [ ] ConnectItem on inlet → registered in internal state (host known, no connection yet)
-- [ ] DataItem on inlet without prior ConnectItem for that PoolKey → stage failure with descriptive error
-- [ ] Empty pass-through (only ConnectItems, no DataItems) completes without error
-- [ ] Unit tests for foundation (connect registers host, unknown key is rejected)
-- [ ] Typecheck/build passes
+- [x] `ConnectionPoolStage` inherits from `GraphStage<FlowShape<RoutedTransportItem, RoutedDataItem>>`
+- [x] Inner `Logic` class with correct inlet/outlet handling (Pull/Push)
+- [x] Constructor takes `Func<ConnectionStage> connectionStageFactory` and `PoolConfig`
+- [x] Stage uses `StageActor` for async actor communication (same pattern as `ConnectionStage`)
+- [x] ConnectItem on inlet → registered in internal state (host known, no connection yet)
+- [x] DataItem on inlet without prior ConnectItem for that PoolKey → stage failure with descriptive error
+- [x] Empty pass-through (only ConnectItems, no DataItems) completes without error
+- [x] Unit tests for foundation (connect registers host, unknown key is rejected)
+- [x] Typecheck/build passes
 
 ### TASK-002: Per-Host Connection Lifecycle — First Connection via ConnectionStage
 

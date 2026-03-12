@@ -105,6 +105,15 @@
 - **Total: 2803 all green**
 - Flaky timeouts when running all 3 projects simultaneously (resource contention); each project passes 100% individually
 
+## Connection Pool (TASK-001+)
+- **ConnectionPoolStage**: `src/TurboHttp/IO/Stages/ConnectionPoolStage.cs` — custom GraphStage foundation
+- **Types**: `src/TurboHttp/IO/Stages/ConnectionPoolTypes.cs` — `RoutedTransportItem`, `RoutedDataItem`, `PoolConfig`
+- **Tests**: `src/TurboHttp.StreamTests/Stages/ConnectionPoolStageTests.cs` — 8 foundation tests
+- **Plan**: `.maggus/plan_3.md` — 12 tasks (TASK-001 through TASK-012)
+- **Pattern**: Pool wraps/orchestrates multiple `ConnectionStage` instances as materialised sub-graphs (Source.Queue → ConnectionStage → Sink.ForEach)
+- **TcpOptions**: Uses `required` init properties, not positional constructor — use `new() { Host = "...", Port = 443 }`
+- **Pre-existing failure**: `RFC-9113-ENG-004` in StreamTests (unrelated to pool work)
+
 ## Benchmark Status
 - `TurboHttp.Benchmarks` project has infrastructure only (Config.cs, Program.cs)
 - No `[Benchmark]` methods defined — cannot measure performance baseline

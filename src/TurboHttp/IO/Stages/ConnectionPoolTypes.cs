@@ -1,0 +1,20 @@
+using System;
+using System.Buffers;
+
+namespace TurboHttp.IO.Stages;
+
+public sealed record RoutedTransportItem(string PoolKey, ITransportItem Item);
+
+public sealed record RoutedDataItem(string PoolKey, IMemoryOwner<byte> Memory, int Length);
+
+public sealed record PoolConfig(
+    int MaxConnectionsPerHost = 10,
+    TimeSpan IdleTimeout = default,
+    TimeSpan ConnectionTimeout = default)
+{
+    public TimeSpan IdleTimeout { get; init; } =
+        IdleTimeout == TimeSpan.Zero ? TimeSpan.FromMinutes(5) : IdleTimeout;
+
+    public TimeSpan ConnectionTimeout { get; init; } =
+        ConnectionTimeout == TimeSpan.Zero ? TimeSpan.FromSeconds(30) : ConnectionTimeout;
+}
