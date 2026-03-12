@@ -489,9 +489,9 @@ Wire all existing protocol handlers (RedirectHandler, CookieJar, RetryEvaluator,
 > **Infra:** `KestrelH2Fixture` reuses cache routes via `KestrelFixture.RegisterCacheRoutes(app)` ([KestrelH2Fixture.cs L273](../src/TurboHttp.IntegrationTests/Shared/KestrelH2Fixture.cs)).
 
 **Acceptance Criteria:**
-- [ ] File created: `src/TurboHttp.IntegrationTests/Http20/09_Http20CacheTests.cs`
-- [ ] 5 tests: cached served, stale conditional, 304 merge, no-store bypass, POST invalidation
-- [ ] All tests pass: `dotnet test --filter "FullyQualifiedName~Http20CacheTests"`
+- [x] File created: `src/TurboHttp.IntegrationTests/Http20/09_Http20CacheTests.cs`
+- [x] 5 tests: cached served, stale conditional, 304 merge, no-store bypass, POST invalidation
+- [x] All tests pass: `dotnet test --filter "FullyQualifiedName~Http20CacheTests"`
 
 ### TASK-041: Http20Engine Content Encoding Integration Tests
 **Engine:** [`Http20Engine.cs`](../src/TurboHttp/Streams/Http20Engine.cs)
