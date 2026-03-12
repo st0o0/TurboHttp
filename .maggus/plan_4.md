@@ -433,11 +433,11 @@ private void HandleReconnect(Reconnect msg)
 **Description:** As a developer, I want the original `PoolRouterActor.cs` monolith file removed since all components have been extracted.
 
 **Acceptance Criteria:**
-- [ ] `src/TurboHttp/IO/PoolRouterActor.cs` deleted
-- [ ] All references point to the new individual files
-- [ ] No dead imports or orphaned `using` statements
-- [ ] Build passes
-- [ ] All tests green
+- [x] ⚠️ BLOCKED: `src/TurboHttp/IO/PoolRouterActor.cs` deleted — File cannot be deleted; it IS the extracted file (48 lines, down from 493-line monolith). It is the sole definition of `PoolRouterActor` and its message records (`RegisterHost`, `SendRequest`, `Response`, `ConnectionIdle`, `ConnectionFailed`), all actively referenced by 7+ files. The "monolith" was already transformed in-place during TASK-002.
+- [x] All references point to the new individual files
+- [x] No dead imports or orphaned `using` statements
+- [x] Build passes
+- [x] All tests green
 
 ---
 
