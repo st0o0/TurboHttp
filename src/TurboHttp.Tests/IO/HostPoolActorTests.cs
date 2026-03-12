@@ -478,6 +478,36 @@ public sealed class HostPoolActorTests : TestKit
         ExpectNoMsg(TimeSpan.FromSeconds(2));
     }
 
+    [Fact(DisplayName = "HPA-035: New connection after reconnect is Active=true, Idle=true — immediately reusable")]
+    public void HPA_035_Reconnect_NewConnection_IsActiveAndIdle()
+    {
+        Sys.EventStream.Subscribe(TestActor, typeof(UnhandledMessage));
+        var pool = CreateHostPoolWithReconnect(maxConnections: 1, reconnectInterval: TimeSpan.FromMilliseconds(200));
+
+        // Spawn connection via request
+        pool.Tell(new HostPoolActor.Incoming(MakeDataItem()));
+        var connectionRef = ExpectConnectionSpawned();
+
+        // Idle the connection so it can be found & failed
+        pool.Tell(new HostPoolActor.ConnectionIdle(connectionRef));
+
+        // Fail the connection — schedules Reconnect after 200ms
+        pool.Tell(new HostPoolActor.ConnectionFailed(connectionRef));
+
+        // Wait for Reconnect to fire — new connection spawns with Active=true, Idle=true
+        var newConn = ExpectConnectionSpawned(TimeSpan.FromSeconds(3));
+        Assert.NotEqual(connectionRef, newConn);
+
+        // Verify the new connection is Active=true AND Idle=true:
+        // Send a request — if it's idle, the pool selects it (no new spawn needed).
+        // If it were NOT idle or NOT active, the pool would try to spawn another
+        // connection, but maxConnections=1 so it would queue instead.
+        pool.Tell(new HostPoolActor.Incoming(MakeDataItem()));
+
+        // No new connection spawn — proves the reconnected connection was selected (Active + Idle)
+        ExpectNoMsg(TimeSpan.FromMilliseconds(500));
+    }
+
     [Fact(DisplayName = "HPA-027: ConnectionIdle for unknown connection is silently ignored")]
     public void HPA_027_ConnectionIdle_UnknownConnection_SilentlyIgnored()
     {

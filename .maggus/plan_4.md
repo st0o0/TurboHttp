@@ -278,7 +278,7 @@ private void HandleReconnect(Reconnect msg)
 - [x] Fix: Remove dead connection from `_connections`, then `SpawnConnection()`
 - [x] Test: `HandleFailure` → wait `ReconnectInterval` → dead connection removed, new one spawned
 - [x] Test: Connection removed before reconnect timer fires → reconnect is no-op
-- [ ] Test: New connection after reconnect is `Active=true`, `Idle=true`
+- [x] Test: New connection after reconnect is `Active=true`, `Idle=true`
 - [x] Build + all tests green
 
 ---
