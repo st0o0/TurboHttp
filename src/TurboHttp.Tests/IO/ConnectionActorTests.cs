@@ -235,7 +235,7 @@ public sealed class ConnectionActorTests : TestKit
     public async Task CA_013_PostStop_CompletesResponseQueue()
     {
         var actor = CreateConnectionActor();
-        ExpectMsg<ClientManager.CreateTcpRunner>();
+        await ExpectMsgAsync<ClientManager.CreateTcpRunner>();
 
         // Connect first so the actor has a runner
         var (_, _, connMsg) = MakeConnectedMessage();
@@ -243,7 +243,7 @@ public sealed class ConnectionActorTests : TestKit
 
         // Request stream refs to materialize _responseQueue
         actor.Tell(new ConnectionActor.GetStreamRefs());
-        var refs = ExpectMsg<ConnectionActor.StreamRefsResponse>(TimeSpan.FromSeconds(5));
+        var refs = await ExpectMsgAsync<ConnectionActor.StreamRefsResponse>(TimeSpan.FromSeconds(5));
 
         // Stop the actor — PostStop calls _responseQueue.Complete()
         Sys.Stop(actor);
@@ -301,7 +301,7 @@ public sealed class ConnectionActorTests : TestKit
     public async Task CA_007_DataItem_WrittenToOutbound()
     {
         var actor = CreateConnectionActor();
-        ExpectMsg<ClientManager.CreateTcpRunner>();
+        await ExpectMsgAsync<ClientManager.CreateTcpRunner>();
 
         var (_, outbound, connMsg) = MakeConnectedMessage();
         actor.Tell(connMsg, TestActor);
@@ -361,7 +361,7 @@ public sealed class ConnectionActorTests : TestKit
     public async Task CA_010_AfterConnected_DataFlowsThroughOutbound()
     {
         var actor = CreateConnectionActor();
-        ExpectMsg<ClientManager.CreateTcpRunner>();
+        await ExpectMsgAsync<ClientManager.CreateTcpRunner>();
 
         var (_, outbound, connMsg) = MakeConnectedMessage();
         actor.Tell(connMsg, TestActor);

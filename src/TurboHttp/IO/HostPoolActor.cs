@@ -1,6 +1,7 @@
 using System;
 using System.Buffers;
 using System.Collections.Generic;
+using System.Linq;
 using Akka.Actor;
 using TurboHttp.IO.Stages;
 
@@ -25,11 +26,7 @@ public sealed class HostPoolActor : ReceiveActor
     private readonly Queue<PendingItem> _pending = new();
     private readonly Dictionary<IActorRef, Queue<PendingReplyTo>> _replyToMap = new();
 
-    private int _roundRobinIndex;
-
-    public HostPoolActor(
-        TcpOptions options,
-        PoolConfig config)
+    public HostPoolActor(TcpOptions options, PoolConfig config)
     {
         _options = options;
         _config = config;
@@ -75,15 +72,7 @@ public sealed class HostPoolActor : ReceiveActor
 
     private ConnectionState? SelectConnection()
     {
-        foreach (var conn in _connections)
-        {
-            if (conn is { Active: true, Idle: true })
-            {
-                return conn;
-            }
-        }
-
-        return null;
+        return _connections.FirstOrDefault(x => x is { Active: true, Idle: true });
     }
 
     private void SendToConnection(ConnectionState conn, DataItem data, PendingReplyTo pending)
@@ -173,10 +162,11 @@ public sealed class HostPoolActor : ReceiveActor
         foreach (var conn in _connections.ToArray())
         {
             if (!conn.Idle)
+            {
                 continue;
+            }
 
-            if (now - conn.LastActivity > _config.IdleTimeout &&
-                _connections.Count > 1)
+            if (now - conn.LastActivity > _config.IdleTimeout && _connections.Count > 1)
             {
                 Context.Unwatch(conn.Actor);
                 conn.Actor.Tell(PoisonPill.Instance);
@@ -193,7 +183,9 @@ public sealed class HostPoolActor : ReceiveActor
             var conn = SelectConnection();
 
             if (conn == null)
+            {
                 break;
+            }
 
             var item = _pending.Dequeue();
             SendToConnection(conn, item.Data, item.Pending);
