@@ -163,59 +163,59 @@ This replaces (and significantly expands) plan_3 TASK‑004 (Load Balancing Acro
 
 **General Connection Selection Logic (HTTP/1.x & HTTP/2)**
 
-- [ ] When multiple connections exist and at least one is idle *and* reusable, the idle connection is preferred for scheduling a new request (idle reuse over busy).
-- [ ] If a connection is marked **non‑active** (dead), it is never selected.
-- [ ] If all active connections are busy:
+- [x] When multiple connections exist and at least one is idle *and* reusable, the idle connection is preferred for scheduling a new request (idle reuse over busy).
+- [x] If a connection is marked **non‑active** (dead), it is never selected.
+- [x] If all active connections are busy:
 
   - For HTTP/1.x: returns `null` so the pool knows to spawn or queue.
   - For HTTP/2: selects an active connection to multiplex new stream IDs (since HTTP/2 supports parallel streams).
-- [ ] Connections with pending requests beyond `MaxRequestsPerConnection` **must not** be selected for new requests in HTTP/1.x.
-- [ ] Connection selection logic must not reorder connections (no starvation).
+- [x] Connections with pending requests beyond `MaxRequestsPerConnection` **must not** be selected for new requests in HTTP/1.x.
+- [x] Connection selection logic must not reorder connections (no starvation).
 
 **HTTP/1.0 & HTTP/1.1 Connection Semantics**
 
-- [ ] Idle connections with `Connection: keep‑alive` are preferred for reuse.
-- [ ] Connections with `Connection: close` or server signal for close are not considered reusable/idle.
-- [ ] For HTTP/1.0 (unless explicitly keep‑alive), existing connections are not reused by default.
-- [ ] HostPoolActor must generate a *new connection* when no suitable reusable connection exists (for HTTP/1.0 default “close”).
+- [x] Idle connections with `Connection: keep‑alive` are preferred for reuse.
+- [x] Connections with `Connection: close` or server signal for close are not considered reusable/idle.
+- [x] For HTTP/1.0 (unless explicitly keep‑alive), existing connections are not reused by default.
+- [x] HostPoolActor must generate a *new connection* when no suitable reusable connection exists (for HTTP/1.0 default “close”).
 
 **HTTP/2 (Multiplexing & Stream IDs)**
 
-- [ ] A single HTTP/2 connection must be reused for all requests to the same host (multiplexed).
-- [ ] HostPoolActor must track and assign **unique stream IDs** within an existing HTTP/2 connection for each new request.
-- [ ] Stream ID allocation must follow RFC 9113 rules (increment by 2 for client‑initiated streams, odd IDs by default).
-- [ ] If the selected HTTP/2 connection has exhausted its concurrency window (`MAX_CONCURRENT_STREAMS`), selection returns `null` so the pool may queue or wait until a slot frees.
+- [x] A single HTTP/2 connection must be reused for all requests to the same host (multiplexed).
+- [x] HostPoolActor must track and assign **unique stream IDs** within an existing HTTP/2 connection for each new request.
+- [x] Stream ID allocation must follow RFC 9113 rules (increment by 2 for client‑initiated streams, odd IDs by default).
+- [x] If the selected HTTP/2 connection has exhausted its concurrency window (`MAX_CONCURRENT_STREAMS`), selection returns `null` so the pool may queue or wait until a slot frees.
 
 **Test Assertions (Explicit Behavioral Checks):**
 Idle + Active Selection
 
-- [ ] Idle, active connection selected first for HTTP/1.x.
-- [ ] Multiple idle connections → selects the first idle (RoundRobin configuration documented as future enhancement).
-- [ ] Busy connections with pending requests > 0 not selected if idle exists.
+- [x] Idle, active connection selected first for HTTP/1.x.
+- [x] Multiple idle connections → selects the first idle (RoundRobin configuration documented as future enhancement).
+- [x] Busy connections with pending requests > 0 not selected if idle exists.
 
 Non‑Idle/Dead Skipping
 
-- [ ] Dead (non‑active) connections never selected.
-- [ ] Connections flagged as explicitly “no‑reuse” (close) are not selected even if idle.
+- [x] Dead (non‑active) connections never selected.
+- [x] Connections flagged as explicitly “no‑reuse” (close) are not selected even if idle.
 
 HTTP/1.x Full Path
 
-- [ ] No idle connection → returns `null` (pool will spawn or queue).
-- [ ] Active idle connection with keep‑alive selected for repeat scheduling.
-- [ ] For HTTP/1.0 without `Connection: keep‑alive`, returns `null` (no reuse).
+- [x] No idle connection → returns `null` (pool will spawn or queue).
+- [x] Active idle connection with keep‑alive selected for repeat scheduling.
+- [x] For HTTP/1.0 without `Connection: keep‑alive`, returns `null` (no reuse).
 
 HTTP/2 Multiplexing
 
-- [ ] A single HTTP/2 connection always selected for multiplexing.
-- [ ] Test: stream IDs start at 1 and increment by 2 for each new request.
-- [ ] Test: When HTTP/2 stream window is exhausted (`MAX_CONCURRENT_STREAMS = 1`), selection returns null/blocked.
-- [ ] Test: After some streams complete, connection becomes eligible again for new streams (stream freeing).
+- [x] A single HTTP/2 connection always selected for multiplexing.
+- [x] Test: stream IDs start at 1 and increment by 2 for each new request.
+- [x] Test: When HTTP/2 stream window is exhausted (`MAX_CONCURRENT_STREAMS = 1`), selection returns null/blocked.
+- [x] Test: After some streams complete, connection becomes eligible again for new streams (stream freeing).
 
 **Integration Verification:**
 
-- [ ] Integration test: Under mixed HTTP/1.x load and connection reuse settings, ensure reused connections are preferred and new connections are spawned only when required.
-- [ ] Integration test: Under HTTP/2 load with concurrency >1, verify parallel requests succeed on the same connection with correct stream IDs.
-- [ ] Integration test: When an HTTP/2 connection is closed (GOAWAY), the next request triggers a reconnection with a new HTTP/2 connection and reset stream ID sequence.
+- [x] Integration test: Under mixed HTTP/1.x load and connection reuse settings, ensure reused connections are preferred and new connections are spawned only when required.
+- [x] Integration test: Under HTTP/2 load with concurrency >1, verify parallel requests succeed on the same connection with correct stream IDs.
+- [x] Integration test: When an HTTP/2 connection is closed (GOAWAY), the next request triggers a reconnection with a new HTTP/2 connection and reset stream ID sequence.
 
 ---
 

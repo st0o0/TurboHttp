@@ -11,7 +11,7 @@ public sealed class PoolRouterActor : ReceiveActor
 {
     public sealed record RegisterHost(string PoolKey, TcpOptions Options);
 
-    public sealed record SendRequest(string PoolKey, DataItem Data, IActorRef ReplyTo);
+    public sealed record SendRequest(string PoolKey, DataItem Data, IActorRef ReplyTo, Version? HttpVersion = null);
 
     public sealed record Response(string PoolKey, IMemoryOwner<byte> Memory, int Length);
 

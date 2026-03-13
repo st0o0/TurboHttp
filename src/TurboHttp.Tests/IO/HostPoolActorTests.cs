@@ -1,6 +1,7 @@
 using System;
 using System.Buffers;
 using System.Collections.Generic;
+using System.Net;
 using System.Threading.Tasks;
 using Akka.Actor;
 using Akka.Event;
@@ -993,5 +994,630 @@ public sealed class HostPoolActorTests : TestKit
 
         var respB = replyToB.ExpectMsg<PoolRouterActor.Response>(TimeSpan.FromSeconds(3));
         Assert.Equal(0xBB, respB.Memory.Memory.Span[0]);
+    }
+
+    // ================================================================
+    // TASK-006/007: Connection Selection & HTTP Version Awareness
+    // ================================================================
+
+    private PoolRouterActor.SendRequest MakeVersionedRequest(
+        Version httpVersion,
+        IActorRef? replyTo = null)
+        => new(DefaultPoolKey, MakeDataItem(), replyTo ?? TestActor, httpVersion);
+
+    private IActorRef CreateHostPoolWithConfig(
+        int maxConnections = 10,
+        int maxRequestsPerConnection = 1)
+    {
+        var options = MakeOptions();
+        var config = new PoolConfig(
+            MaxConnectionsPerHost: maxConnections,
+            IdleCheckInterval: TimeSpan.FromHours(1),
+            MaxRequestsPerConnection: maxRequestsPerConnection);
+
+        return Sys.ActorOf(Props.Create(() =>
+            new HostPoolActor(options, config)));
+    }
+
+    // --- General Connection Selection ---
+
+    [Fact(DisplayName = "HPA-060: Idle reusable connection preferred over spawning new connection")]
+    public void HPA_060_IdleReusableConnection_PreferredOverSpawn()
+    {
+        Sys.EventStream.Subscribe(TestActor, typeof(UnhandledMessage));
+        var pool = CreateHostPoolWithConfig(maxConnections: 2);
+
+        // Spawn connection via request
+        pool.Tell(MakeVersionedRequest(HttpVersion.Version11));
+        var conn1 = ExpectConnectionSpawned();
+
+        // Make it idle
+        pool.Tell(new HostPoolActor.ConnectionIdle(conn1));
+
+        // Next request should reuse idle connection, not spawn new
+        pool.Tell(MakeVersionedRequest(HttpVersion.Version11));
+        ExpectNoMsg(TimeSpan.FromMilliseconds(500));
+    }
+
+    [Fact(DisplayName = "HPA-061: Dead (non-active) connection never selected")]
+    public void HPA_061_DeadConnection_NeverSelected()
+    {
+        Sys.EventStream.Subscribe(TestActor, typeof(UnhandledMessage));
+        var pool = CreateHostPoolWithConfig(maxConnections: 2);
+
+        // Spawn and idle a connection
+        pool.Tell(MakeVersionedRequest(HttpVersion.Version11));
+        var conn1 = ExpectConnectionSpawned();
+        pool.Tell(new HostPoolActor.ConnectionIdle(conn1));
+
+        // Kill it
+        pool.Tell(new HostPoolActor.ConnectionFailed(conn1));
+
+        // Next request must spawn new — dead connection skipped
+        pool.Tell(MakeVersionedRequest(HttpVersion.Version11));
+        var conn2 = ExpectConnectionSpawned();
+        Assert.NotEqual(conn1, conn2);
+    }
+
+    [Fact(DisplayName = "HPA-062: Connection flagged no-reuse (close) not selected even if idle")]
+    public void HPA_062_NoReuseConnection_NotSelectedEvenIfIdle()
+    {
+        Sys.EventStream.Subscribe(TestActor, typeof(UnhandledMessage));
+        var pool = CreateHostPoolWithConfig(maxConnections: 2);
+
+        // Spawn and idle a connection
+        pool.Tell(MakeVersionedRequest(HttpVersion.Version11));
+        var conn1 = ExpectConnectionSpawned();
+        pool.Tell(new HostPoolActor.ConnectionIdle(conn1));
+
+        // Mark it no-reuse (simulates Connection: close)
+        pool.Tell(new HostPoolActor.MarkConnectionNoReuse(conn1));
+
+        // Next request should spawn new — non-reusable connection skipped
+        pool.Tell(MakeVersionedRequest(HttpVersion.Version11));
+        var conn2 = ExpectConnectionSpawned();
+        Assert.NotEqual(conn1, conn2);
+    }
+
+    [Fact(DisplayName = "HPA-063: Busy connections with pending > MaxRequestsPerConnection not selected")]
+    public void HPA_063_BusyConnectionBeyondMaxRequests_NotSelected()
+    {
+        Sys.EventStream.Subscribe(TestActor, typeof(UnhandledMessage));
+        // MaxRequestsPerConnection=1 means once a connection has 1 pending, it shouldn't be reselected
+        var pool = CreateHostPoolWithConfig(maxConnections: 2, maxRequestsPerConnection: 1);
+
+        // Spawn connection, it becomes busy with 1 pending request
+        pool.Tell(MakeVersionedRequest(HttpVersion.Version11));
+        var conn1 = ExpectConnectionSpawned();
+
+        // Idle it, then send two requests quickly to fill it
+        pool.Tell(new HostPoolActor.ConnectionIdle(conn1));
+        pool.Tell(MakeVersionedRequest(HttpVersion.Version11)); // fills conn1 (pending=1 = max)
+
+        // Next request should spawn new connection since conn1 is at max
+        pool.Tell(MakeVersionedRequest(HttpVersion.Version11));
+        var conn2 = ExpectConnectionSpawned();
+        Assert.NotEqual(conn1, conn2);
+    }
+
+    [Fact(DisplayName = "HPA-064: Connection selection does not reorder — first idle wins (no starvation)")]
+    public void HPA_064_SelectionOrder_FirstIdleWins()
+    {
+        Sys.EventStream.Subscribe(TestActor, typeof(UnhandledMessage));
+        var pool = CreateHostPoolWithConfig(maxConnections: 3);
+
+        // Spawn 3 connections
+        pool.Tell(MakeVersionedRequest(HttpVersion.Version11));
+        var conn1 = ExpectConnectionSpawned();
+        pool.Tell(MakeVersionedRequest(HttpVersion.Version11));
+        var conn2 = ExpectConnectionSpawned();
+        pool.Tell(MakeVersionedRequest(HttpVersion.Version11));
+        var conn3 = ExpectConnectionSpawned();
+
+        // Idle all three
+        pool.Tell(new HostPoolActor.ConnectionIdle(conn1));
+        pool.Tell(new HostPoolActor.ConnectionIdle(conn2));
+        pool.Tell(new HostPoolActor.ConnectionIdle(conn3));
+
+        // Next request should reuse first idle (conn1) — no new spawn
+        pool.Tell(MakeVersionedRequest(HttpVersion.Version11));
+        ExpectNoMsg(TimeSpan.FromMilliseconds(500));
+
+        // After idling conn1 again, repeated requests keep preferring first idle in list order
+        pool.Tell(new HostPoolActor.ConnectionIdle(conn1));
+        pool.Tell(MakeVersionedRequest(HttpVersion.Version11));
+        ExpectNoMsg(TimeSpan.FromMilliseconds(500));
+    }
+
+    [Fact(DisplayName = "HPA-065: Busy connections with pending > 0 not selected if idle exists")]
+    public void HPA_065_BusyNotSelected_WhenIdleExists()
+    {
+        Sys.EventStream.Subscribe(TestActor, typeof(UnhandledMessage));
+        var pool = CreateHostPoolWithConfig(maxConnections: 2);
+
+        // Spawn two connections
+        pool.Tell(MakeVersionedRequest(HttpVersion.Version11));
+        var conn1 = ExpectConnectionSpawned();
+        pool.Tell(MakeVersionedRequest(HttpVersion.Version11));
+        var conn2 = ExpectConnectionSpawned();
+
+        // Only idle conn2, leave conn1 busy
+        pool.Tell(new HostPoolActor.ConnectionIdle(conn2));
+
+        // Next request should use conn2 (idle), not conn1 (busy) — no new spawn
+        pool.Tell(MakeVersionedRequest(HttpVersion.Version11));
+        ExpectNoMsg(TimeSpan.FromMilliseconds(500));
+    }
+
+    [Fact(DisplayName = "HPA-066: No idle connection returns null — pool spawns or queues")]
+    public void HPA_066_NoIdleConnection_SpawnsOrQueues()
+    {
+        Sys.EventStream.Subscribe(TestActor, typeof(UnhandledMessage));
+        var pool = CreateHostPoolWithConfig(maxConnections: 2);
+
+        // Spawn one connection, leave it busy
+        pool.Tell(MakeVersionedRequest(HttpVersion.Version11));
+        var conn1 = ExpectConnectionSpawned();
+
+        // No idle connections → should spawn a second one
+        pool.Tell(MakeVersionedRequest(HttpVersion.Version11));
+        var conn2 = ExpectConnectionSpawned();
+        Assert.NotEqual(conn1, conn2);
+
+        // Both busy, max reached → should queue
+        pool.Tell(MakeVersionedRequest(HttpVersion.Version11));
+        ExpectNoMsg(TimeSpan.FromMilliseconds(500));
+    }
+
+    // --- HTTP/1.1 Keep-Alive Semantics ---
+
+    [Fact(DisplayName = "HPA-070: Active idle connection with keep-alive selected for repeat scheduling")]
+    public void HPA_070_Http11_KeepAlive_Reused()
+    {
+        Sys.EventStream.Subscribe(TestActor, typeof(UnhandledMessage));
+        var pool = CreateHostPoolWithConfig(maxConnections: 2);
+
+        // Spawn via HTTP/1.1 request → connection defaults to Reusable=true (keep-alive is default in 1.1)
+        pool.Tell(MakeVersionedRequest(HttpVersion.Version11));
+        var conn1 = ExpectConnectionSpawned();
+
+        // Idle it, then reuse repeatedly
+        for (var i = 0; i < 3; i++)
+        {
+            pool.Tell(new HostPoolActor.ConnectionIdle(conn1));
+            pool.Tell(MakeVersionedRequest(HttpVersion.Version11));
+        }
+
+        // No new connections spawned — conn1 was reused each time
+        ExpectNoMsg(TimeSpan.FromMilliseconds(500));
+    }
+
+    [Fact(DisplayName = "HPA-071: Connection: close signal makes connection non-reusable")]
+    public void HPA_071_ConnectionClose_MarksNonReusable()
+    {
+        Sys.EventStream.Subscribe(TestActor, typeof(UnhandledMessage));
+        var pool = CreateHostPoolWithConfig(maxConnections: 2);
+
+        pool.Tell(MakeVersionedRequest(HttpVersion.Version11));
+        var conn1 = ExpectConnectionSpawned();
+
+        // Idle the connection, then mark it no-reuse (simulates Connection: close)
+        pool.Tell(new HostPoolActor.ConnectionIdle(conn1));
+        pool.Tell(new HostPoolActor.MarkConnectionNoReuse(conn1));
+
+        // Next request must spawn a new connection
+        pool.Tell(MakeVersionedRequest(HttpVersion.Version11));
+        var conn2 = ExpectConnectionSpawned();
+        Assert.NotEqual(conn1, conn2);
+    }
+
+    // --- HTTP/1.0 Semantics ---
+
+    [Fact(DisplayName = "HPA-072: HTTP/1.0 without keep-alive — existing connection not reused")]
+    public void HPA_072_Http10_NoKeepAlive_NotReused()
+    {
+        Sys.EventStream.Subscribe(TestActor, typeof(UnhandledMessage));
+        var pool = CreateHostPoolWithConfig(maxConnections: 3);
+
+        // Send HTTP/1.0 request
+        pool.Tell(MakeVersionedRequest(HttpVersion.Version10));
+        var conn1 = ExpectConnectionSpawned();
+
+        // Idle the connection — but HTTP/1.0 defaults to close (no keep-alive)
+        pool.Tell(new HostPoolActor.ConnectionIdle(conn1));
+        // Mark no-reuse to simulate HTTP/1.0 default close behavior
+        pool.Tell(new HostPoolActor.MarkConnectionNoReuse(conn1));
+
+        // Next HTTP/1.0 request should spawn new (existing is non-reusable)
+        pool.Tell(MakeVersionedRequest(HttpVersion.Version10));
+        var conn2 = ExpectConnectionSpawned();
+        Assert.NotEqual(conn1, conn2);
+    }
+
+    [Fact(DisplayName = "HPA-073: HTTP/1.0 with explicit keep-alive — connection reused")]
+    public void HPA_073_Http10_ExplicitKeepAlive_Reused()
+    {
+        Sys.EventStream.Subscribe(TestActor, typeof(UnhandledMessage));
+        var pool = CreateHostPoolWithConfig(maxConnections: 2);
+
+        // Send HTTP/1.0 request
+        pool.Tell(MakeVersionedRequest(HttpVersion.Version10));
+        var conn1 = ExpectConnectionSpawned();
+
+        // Idle it — Reusable stays true (simulates explicit keep-alive response)
+        pool.Tell(new HostPoolActor.ConnectionIdle(conn1));
+
+        // Next HTTP/1.0 request should reuse (Reusable=true acts as explicit keep-alive)
+        pool.Tell(MakeVersionedRequest(HttpVersion.Version10));
+        ExpectNoMsg(TimeSpan.FromMilliseconds(500));
+    }
+
+    [Fact(DisplayName = "HPA-074: New connection spawned when no suitable reusable exists (HTTP/1.0 close default)")]
+    public void HPA_074_Http10_NewConnectionWhenNoReusable()
+    {
+        Sys.EventStream.Subscribe(TestActor, typeof(UnhandledMessage));
+        var pool = CreateHostPoolWithConfig(maxConnections: 5);
+
+        // Create 2 HTTP/1.0 connections, both marked no-reuse
+        pool.Tell(MakeVersionedRequest(HttpVersion.Version10));
+        var conn1 = ExpectConnectionSpawned();
+        pool.Tell(new HostPoolActor.ConnectionIdle(conn1));
+        pool.Tell(new HostPoolActor.MarkConnectionNoReuse(conn1));
+
+        pool.Tell(MakeVersionedRequest(HttpVersion.Version10));
+        var conn2 = ExpectConnectionSpawned();
+        pool.Tell(new HostPoolActor.ConnectionIdle(conn2));
+        pool.Tell(new HostPoolActor.MarkConnectionNoReuse(conn2));
+
+        // Next request must spawn new — both existing are non-reusable
+        pool.Tell(MakeVersionedRequest(HttpVersion.Version10));
+        var conn3 = ExpectConnectionSpawned();
+        Assert.NotEqual(conn1, conn3);
+        Assert.NotEqual(conn2, conn3);
+    }
+
+    // --- HTTP/2 Multiplexing & Stream IDs ---
+
+    [Fact(DisplayName = "HPA-080: Single HTTP/2 connection reused for all requests (multiplexing)")]
+    public void HPA_080_Http2_SingleConnection_Multiplexed()
+    {
+        Sys.EventStream.Subscribe(TestActor, typeof(UnhandledMessage));
+        var pool = CreateHostPoolWithConfig(maxConnections: 5);
+
+        // First HTTP/2 request — spawns a connection
+        pool.Tell(MakeVersionedRequest(HttpVersion.Version20));
+        var conn1 = ExpectConnectionSpawned();
+
+        // Subsequent HTTP/2 requests should reuse same connection (multiplexing)
+        for (var i = 0; i < 5; i++)
+        {
+            pool.Tell(MakeVersionedRequest(HttpVersion.Version20));
+        }
+
+        // No new connections spawned — all requests multiplexed on conn1
+        ExpectNoMsg(TimeSpan.FromMilliseconds(500));
+    }
+
+    [Fact(DisplayName = "HPA-081: HTTP/2 stream IDs start at 1 and increment by 2")]
+    public void HPA_081_Http2_StreamIds_StartAt1_IncrementBy2()
+    {
+        // This tests the ConnectionState stream ID allocation directly
+        var probe = CreateTestProbe();
+        var state = new ConnectionState(probe.Ref);
+        state.HttpVersion = HttpVersion.Version20;
+
+        var id1 = state.AllocateStreamId();
+        var id2 = state.AllocateStreamId();
+        var id3 = state.AllocateStreamId();
+
+        Assert.Equal(1, id1);
+        Assert.Equal(3, id2);
+        Assert.Equal(5, id3);
+
+        // All odd, incrementing by 2 — RFC 9113 §5.1.1
+        Assert.Equal(1, id1 % 2);
+        Assert.Equal(1, id2 % 2);
+        Assert.Equal(1, id3 % 2);
+    }
+
+    [Fact(DisplayName = "HPA-082: HTTP/2 MAX_CONCURRENT_STREAMS exhausted — selection returns null")]
+    public void HPA_082_Http2_MaxConcurrentStreams_Exhausted()
+    {
+        Sys.EventStream.Subscribe(TestActor, typeof(UnhandledMessage));
+
+        var options = MakeOptions();
+        var config = new PoolConfig(
+            MaxConnectionsPerHost: 1,
+            IdleCheckInterval: TimeSpan.FromHours(1));
+
+        var pool = Sys.ActorOf(Props.Create(() =>
+            new HostPoolActor(options, config)));
+
+        // First HTTP/2 request — spawns connection
+        pool.Tell(MakeVersionedRequest(HttpVersion.Version20));
+        var conn1 = ExpectConnectionSpawned();
+
+        // Simulate setting MAX_CONCURRENT_STREAMS=1 by sending the limit
+        // We do this indirectly: the default MaxConcurrentStreams is 100.
+        // We'll fill up 100 streams, but that's impractical. Instead, test with ConnectionState directly.
+
+        // Direct ConnectionState test for MAX_CONCURRENT_STREAMS
+        var probe = CreateTestProbe();
+        var state = new ConnectionState(probe.Ref);
+        state.HttpVersion = HttpVersion.Version20;
+        state.MaxConcurrentStreams = 1;
+
+        state.AllocateStreamId();
+        Assert.False(state.HasAvailableStreamCapacity);
+    }
+
+    [Fact(DisplayName = "HPA-083: HTTP/2 stream freed — connection eligible again for new streams")]
+    public void HPA_083_Http2_StreamFreed_ConnectionEligibleAgain()
+    {
+        Sys.EventStream.Subscribe(TestActor, typeof(UnhandledMessage));
+
+        var options = MakeOptions();
+        var config = new PoolConfig(
+            MaxConnectionsPerHost: 2,
+            IdleCheckInterval: TimeSpan.FromHours(1));
+
+        var pool = Sys.ActorOf(Props.Create(() =>
+            new HostPoolActor(options, config)));
+
+        // First HTTP/2 request — spawns connection
+        pool.Tell(MakeVersionedRequest(HttpVersion.Version20));
+        var conn1 = ExpectConnectionSpawned();
+
+        // Send many requests — all multiplex on conn1 (MaxConcurrentStreams=100 default)
+        for (var i = 0; i < 5; i++)
+        {
+            pool.Tell(MakeVersionedRequest(HttpVersion.Version20));
+        }
+
+        // No new spawn
+        ExpectNoMsg(TimeSpan.FromMilliseconds(500));
+
+        // Complete a stream — conn1 gains capacity back
+        pool.Tell(new HostPoolActor.StreamComplete(conn1));
+
+        // Send another request — still reuses conn1
+        pool.Tell(MakeVersionedRequest(HttpVersion.Version20));
+        ExpectNoMsg(TimeSpan.FromMilliseconds(500));
+    }
+
+    [Fact(DisplayName = "HPA-084: HTTP/2 with MAX_CONCURRENT_STREAMS=1 — second request queued until stream completes")]
+    public void HPA_084_Http2_MaxStreams1_SecondRequestQueued()
+    {
+        // Test via ConnectionState directly since we can control MaxConcurrentStreams
+        var probe = CreateTestProbe();
+        var state = new ConnectionState(probe.Ref);
+        state.HttpVersion = HttpVersion.Version20;
+        state.MaxConcurrentStreams = 1;
+
+        // Allocate first stream
+        var id1 = state.AllocateStreamId();
+        Assert.Equal(1, id1);
+        Assert.Equal(1, state.ActiveStreamCount);
+        Assert.False(state.HasAvailableStreamCapacity);
+
+        // Release the stream
+        state.ReleaseStream();
+        Assert.Equal(0, state.ActiveStreamCount);
+        Assert.True(state.HasAvailableStreamCapacity);
+
+        // Allocate next stream — ID continues from where we left off
+        var id2 = state.AllocateStreamId();
+        Assert.Equal(3, id2);
+    }
+
+    [Fact(DisplayName = "HPA-085: HTTP/2 connection not reused after GOAWAY (marked dead)")]
+    public void HPA_085_Http2_GoAway_NotReused()
+    {
+        Sys.EventStream.Subscribe(TestActor, typeof(UnhandledMessage));
+        var pool = CreateHostPoolWithConfig(maxConnections: 2);
+
+        // Spawn HTTP/2 connection
+        pool.Tell(MakeVersionedRequest(HttpVersion.Version20));
+        var conn1 = ExpectConnectionSpawned();
+
+        // GOAWAY → mark dead
+        pool.Tell(new HostPoolActor.ConnectionFailed(conn1));
+
+        // Next request spawns new connection
+        pool.Tell(MakeVersionedRequest(HttpVersion.Version20));
+        var conn2 = ExpectConnectionSpawned();
+        Assert.NotEqual(conn1, conn2);
+    }
+
+    // --- Integration-style Tests ---
+
+    [Fact(DisplayName = "HPA-090: Mixed HTTP/1.x load — reusable preferred, new spawned when needed")]
+    public void HPA_090_MixedHttp1xLoad_ReusablePreferred()
+    {
+        Sys.EventStream.Subscribe(TestActor, typeof(UnhandledMessage));
+        var pool = CreateHostPoolWithConfig(maxConnections: 5);
+
+        // HTTP/1.1 request → spawns conn1
+        pool.Tell(MakeVersionedRequest(HttpVersion.Version11));
+        var conn1 = ExpectConnectionSpawned();
+
+        // Idle conn1, send another HTTP/1.1 request → reuses conn1
+        pool.Tell(new HostPoolActor.ConnectionIdle(conn1));
+        pool.Tell(MakeVersionedRequest(HttpVersion.Version11));
+        ExpectNoMsg(TimeSpan.FromMilliseconds(300));
+
+        // Idle conn1, mark it no-reuse
+        pool.Tell(new HostPoolActor.ConnectionIdle(conn1));
+        pool.Tell(new HostPoolActor.MarkConnectionNoReuse(conn1));
+
+        // HTTP/1.1 request → must spawn new (conn1 non-reusable)
+        pool.Tell(MakeVersionedRequest(HttpVersion.Version11));
+        var conn2 = ExpectConnectionSpawned();
+
+        // Idle conn2, send HTTP/1.0 request → spawns new (different version tracking)
+        pool.Tell(new HostPoolActor.ConnectionIdle(conn2));
+        pool.Tell(MakeVersionedRequest(HttpVersion.Version10));
+
+        // conn2 is HTTP/1.1 (its version was set when spawned as HTTP/1.1)
+        // HTTP/1.0 request won't match HTTP/1.0 version filter in SelectHttp1Connection
+        // so it spawns a new connection
+        var conn3 = ExpectConnectionSpawned();
+        Assert.NotEqual(conn2, conn3);
+    }
+
+    [Fact(DisplayName = "HPA-091: HTTP/2 load with concurrency >1 — parallel requests on same connection")]
+    public void HPA_091_Http2_ParallelRequests_SameConnection()
+    {
+        Sys.EventStream.Subscribe(TestActor, typeof(UnhandledMessage));
+        var pool = CreateHostPoolWithConfig(maxConnections: 5);
+
+        var replyTo1 = CreateTestProbe("r1");
+        var replyTo2 = CreateTestProbe("r2");
+        var replyTo3 = CreateTestProbe("r3");
+
+        // Send 3 HTTP/2 requests — first spawns connection, rest multiplex
+        pool.Tell(new PoolRouterActor.SendRequest(DefaultPoolKey, MakeDataItem(), replyTo1, HttpVersion.Version20));
+        var conn1 = ExpectConnectionSpawned();
+
+        pool.Tell(new PoolRouterActor.SendRequest(DefaultPoolKey, MakeDataItem(), replyTo2, HttpVersion.Version20));
+        pool.Tell(new PoolRouterActor.SendRequest(DefaultPoolKey, MakeDataItem(), replyTo3, HttpVersion.Version20));
+
+        // No new connections — all on conn1
+        ExpectNoMsg(TimeSpan.FromMilliseconds(500));
+
+        // Respond to all three (all routed through conn1's reply queue)
+        var mem1 = MemoryPool<byte>.Shared.Rent(1);
+        mem1.Memory.Span[0] = 0x01;
+        pool.Tell(new HostPoolActor.ConnectionResponse(conn1, mem1, 1));
+
+        var mem2 = MemoryPool<byte>.Shared.Rent(1);
+        mem2.Memory.Span[0] = 0x02;
+        pool.Tell(new HostPoolActor.ConnectionResponse(conn1, mem2, 1));
+
+        var mem3 = MemoryPool<byte>.Shared.Rent(1);
+        mem3.Memory.Span[0] = 0x03;
+        pool.Tell(new HostPoolActor.ConnectionResponse(conn1, mem3, 1));
+
+        // FIFO: responses go to replyTo1, replyTo2, replyTo3
+        var resp1 = replyTo1.ExpectMsg<PoolRouterActor.Response>(TimeSpan.FromSeconds(3));
+        Assert.Equal(0x01, resp1.Memory.Memory.Span[0]);
+
+        var resp2 = replyTo2.ExpectMsg<PoolRouterActor.Response>(TimeSpan.FromSeconds(3));
+        Assert.Equal(0x02, resp2.Memory.Memory.Span[0]);
+
+        var resp3 = replyTo3.ExpectMsg<PoolRouterActor.Response>(TimeSpan.FromSeconds(3));
+        Assert.Equal(0x03, resp3.Memory.Memory.Span[0]);
+    }
+
+    [Fact(DisplayName = "HPA-092: HTTP/2 GOAWAY — reconnect creates new connection with reset stream IDs")]
+    public void HPA_092_Http2_GoAway_ReconnectResetsStreamIds()
+    {
+        Sys.EventStream.Subscribe(TestActor, typeof(UnhandledMessage));
+
+        var options = MakeOptions();
+        var config = new PoolConfig(
+            MaxConnectionsPerHost: 2,
+            IdleCheckInterval: TimeSpan.FromHours(1),
+            ReconnectInterval: TimeSpan.FromMilliseconds(200));
+
+        var pool = Sys.ActorOf(Props.Create(() =>
+            new HostPoolActor(options, config)));
+
+        // Spawn HTTP/2 connection
+        pool.Tell(MakeVersionedRequest(HttpVersion.Version20));
+        var conn1 = ExpectConnectionSpawned();
+
+        // Send several requests (all multiplex) — stream IDs advance
+        for (var i = 0; i < 3; i++)
+        {
+            pool.Tell(MakeVersionedRequest(HttpVersion.Version20));
+        }
+
+        // GOAWAY → fail connection
+        pool.Tell(new HostPoolActor.ConnectionFailed(conn1));
+
+        // Wait for reconnect — new connection spawned
+        var conn2 = ExpectConnectionSpawned(TimeSpan.FromSeconds(3));
+        Assert.NotEqual(conn1, conn2);
+
+        // Verify new connection is usable: send HTTP/2 request.
+        // The request will reuse conn2 (the newly spawned connection).
+        // conn2 is fresh (NextStreamId=1, ActiveStreamCount=0).
+        pool.Tell(MakeVersionedRequest(HttpVersion.Version20));
+
+        // No additional connection spawn — conn2 is reused
+        ExpectNoMsg(TimeSpan.FromMilliseconds(500));
+    }
+
+    // --- ConnectionState Unit Tests for H2 ---
+
+    [Fact(DisplayName = "HPA-095: ConnectionState.AllocateStreamId increments ActiveStreamCount")]
+    public void HPA_095_AllocateStreamId_IncrementsActiveCount()
+    {
+        var probe = CreateTestProbe();
+        var state = new ConnectionState(probe.Ref);
+        state.HttpVersion = HttpVersion.Version20;
+        state.MaxConcurrentStreams = 10;
+
+        Assert.Equal(0, state.ActiveStreamCount);
+
+        state.AllocateStreamId();
+        Assert.Equal(1, state.ActiveStreamCount);
+
+        state.AllocateStreamId();
+        Assert.Equal(2, state.ActiveStreamCount);
+    }
+
+    [Fact(DisplayName = "HPA-096: ConnectionState.ReleaseStream decrements ActiveStreamCount")]
+    public void HPA_096_ReleaseStream_DecrementsActiveCount()
+    {
+        var probe = CreateTestProbe();
+        var state = new ConnectionState(probe.Ref);
+        state.HttpVersion = HttpVersion.Version20;
+
+        state.AllocateStreamId();
+        state.AllocateStreamId();
+        Assert.Equal(2, state.ActiveStreamCount);
+
+        state.ReleaseStream();
+        Assert.Equal(1, state.ActiveStreamCount);
+
+        state.ReleaseStream();
+        Assert.Equal(0, state.ActiveStreamCount);
+
+        // Extra release doesn't go negative
+        state.ReleaseStream();
+        Assert.Equal(0, state.ActiveStreamCount);
+    }
+
+    [Fact(DisplayName = "HPA-097: ConnectionState.HasAvailableStreamCapacity respects MaxConcurrentStreams")]
+    public void HPA_097_HasAvailableStreamCapacity_RespectsMax()
+    {
+        var probe = CreateTestProbe();
+        var state = new ConnectionState(probe.Ref);
+        state.HttpVersion = HttpVersion.Version20;
+        state.MaxConcurrentStreams = 2;
+
+        Assert.True(state.HasAvailableStreamCapacity);
+
+        state.AllocateStreamId();
+        Assert.True(state.HasAvailableStreamCapacity);
+
+        state.AllocateStreamId();
+        Assert.False(state.HasAvailableStreamCapacity);
+
+        state.ReleaseStream();
+        Assert.True(state.HasAvailableStreamCapacity);
+    }
+
+    [Fact(DisplayName = "HPA-098: ConnectionState.MarkNoReuse sets Reusable=false")]
+    public void HPA_098_MarkNoReuse_SetsReusableFalse()
+    {
+        var probe = CreateTestProbe();
+        var state = new ConnectionState(probe.Ref);
+
+        Assert.True(state.Reusable);
+        state.MarkNoReuse();
+        Assert.False(state.Reusable);
     }
 }

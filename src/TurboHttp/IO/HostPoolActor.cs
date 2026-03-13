@@ -2,6 +2,7 @@ using System;
 using System.Buffers;
 using System.Collections.Generic;
 using System.Linq;
+using System.Net;
 using Akka.Actor;
 using TurboHttp.IO.Stages;
 
@@ -18,6 +19,10 @@ public sealed class HostPoolActor : ReceiveActor
     public sealed record IdleCheck;
 
     public sealed record Reconnect(IActorRef Connection);
+
+    public sealed record StreamComplete(IActorRef Connection);
+
+    public sealed record MarkConnectionNoReuse(IActorRef Connection);
 
     private readonly TcpOptions _options;
     private readonly PoolConfig _config;
@@ -37,6 +42,8 @@ public sealed class HostPoolActor : ReceiveActor
         Receive<ConnectionFailed>(HandleFailure);
         Receive<IdleCheck>(_ => EvictIdleConnections());
         Receive<Reconnect>(HandleReconnect);
+        Receive<StreamComplete>(HandleStreamComplete);
+        Receive<MarkConnectionNoReuse>(HandleMarkNoReuse);
     }
 
     protected override void PreStart()
@@ -51,11 +58,17 @@ public sealed class HostPoolActor : ReceiveActor
 
     private void HandleRequest(PoolRouterActor.SendRequest msg)
     {
-        var pending = new PendingReplyTo(msg.ReplyTo, msg.PoolKey);
-        var conn = SelectConnection();
+        var version = msg.HttpVersion ?? HttpVersion.Version11;
+        var pending = new PendingReplyTo(msg.ReplyTo, msg.PoolKey, version);
+        var conn = SelectConnection(version);
 
         if (conn != null)
         {
+            if (version == HttpVersion.Version20)
+            {
+                conn.AllocateStreamId();
+            }
+
             SendToConnection(conn, msg.Data, pending);
             return;
         }
@@ -63,6 +76,13 @@ public sealed class HostPoolActor : ReceiveActor
         if (_connections.Count < _config.MaxConnectionsPerHost)
         {
             conn = SpawnConnection();
+            conn.HttpVersion = version;
+
+            if (version == HttpVersion.Version20)
+            {
+                conn.AllocateStreamId();
+            }
+
             SendToConnection(conn, msg.Data, pending);
             return;
         }
@@ -70,9 +90,43 @@ public sealed class HostPoolActor : ReceiveActor
         _pending.Enqueue(new PendingItem(msg.Data, pending));
     }
 
-    private ConnectionState? SelectConnection()
+    private ConnectionState? SelectConnection(Version? version = null)
     {
-        return _connections.FirstOrDefault(x => x is { Active: true, Idle: true });
+        version ??= HttpVersion.Version11;
+
+        if (version == HttpVersion.Version20)
+        {
+            return SelectHttp2Connection();
+        }
+
+        return SelectHttp1Connection(version);
+    }
+
+    private ConnectionState? SelectHttp1Connection(Version version)
+    {
+        // HTTP/1.0 without explicit keep-alive: never reuse
+        if (version == HttpVersion.Version10)
+        {
+            // Only select idle, active, reusable connections (those with explicit keep-alive)
+            return _connections.FirstOrDefault(x =>
+                x is { Active: true, Idle: true, Reusable: true } &&
+                x.HttpVersion == HttpVersion.Version10 &&
+                x.PendingRequests < _config.MaxRequestsPerConnection);
+        }
+
+        // HTTP/1.1: prefer idle, active, reusable connections
+        return _connections.FirstOrDefault(x =>
+            x is { Active: true, Idle: true, Reusable: true } &&
+            x.PendingRequests < _config.MaxRequestsPerConnection);
+    }
+
+    private ConnectionState? SelectHttp2Connection()
+    {
+        // HTTP/2: reuse existing active connection with available stream capacity (multiplexing)
+        return _connections.FirstOrDefault(x =>
+            x is { Active: true } &&
+            x.HttpVersion == HttpVersion.Version20 &&
+            x.HasAvailableStreamCapacity);
     }
 
     private void SendToConnection(ConnectionState conn, DataItem data, PendingReplyTo pending)
@@ -150,9 +204,12 @@ public sealed class HostPoolActor : ReceiveActor
         if (conn == null)
             return;
 
+        var previousVersion = conn.HttpVersion;
         _replyToMap.Remove(msg.Connection);
         _connections.Remove(conn);
-        SpawnConnection();
+
+        var newConn = SpawnConnection();
+        newConn.HttpVersion = previousVersion;
     }
 
     private void EvictIdleConnections()
@@ -176,11 +233,32 @@ public sealed class HostPoolActor : ReceiveActor
         }
     }
 
+    private void HandleStreamComplete(StreamComplete msg)
+    {
+        var conn = Find(msg.Connection);
+
+        if (conn == null)
+        {
+            return;
+        }
+
+        conn.ReleaseStream();
+
+        DrainPending();
+    }
+
+    private void HandleMarkNoReuse(MarkConnectionNoReuse msg)
+    {
+        var conn = Find(msg.Connection);
+        conn?.MarkNoReuse();
+    }
+
     private void DrainPending()
     {
         while (_pending.Count > 0)
         {
-            var conn = SelectConnection();
+            var version = _pending.Peek().Pending.HttpVersion;
+            var conn = SelectConnection(version);
 
             if (conn == null)
             {
@@ -188,6 +266,12 @@ public sealed class HostPoolActor : ReceiveActor
             }
 
             var item = _pending.Dequeue();
+
+            if (version == HttpVersion.Version20)
+            {
+                conn.AllocateStreamId();
+            }
+
             SendToConnection(conn, item.Data, item.Pending);
         }
     }
@@ -195,7 +279,7 @@ public sealed class HostPoolActor : ReceiveActor
     private ConnectionState? Find(IActorRef actor)
         => _connections.Find(x => x.Actor.Equals(actor));
 
-    private readonly record struct PendingReplyTo(IActorRef ReplyTo, string PoolKey);
+    private readonly record struct PendingReplyTo(IActorRef ReplyTo, string PoolKey, Version HttpVersion);
 
     private readonly record struct PendingItem(DataItem Data, PendingReplyTo Pending);
 }

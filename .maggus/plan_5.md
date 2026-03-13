@@ -30,14 +30,14 @@ Goal: tests exercise production code directly, all DisplayNames carry RFC refere
 **Description:** As a developer, I want a complete audit report of all tests so that I know which tests go through `Http2ProtocolSession`, which RFC references are missing, and how the folder structure needs to be corrected.
 
 **Acceptance Criteria:**
-- [ ] File `docs/test-audit-report.md` created
-- [ ] Section 1: All test files that use `Http2ProtocolSession`, listed with test count and which RFC sections they cover
-- [ ] Section 2: Which RFC sections `Http2ProtocolSession` internally covers (§5.1 Stream States, §6.5 Settings, §6.7 Ping, §6.8 GoAway, §6.9 Flow Control, §8.2/§8.3 Headers/Pseudo-Headers)
-- [ ] Section 3: List of all tests missing an RFC reference in DisplayName, grouped by project and file
-- [ ] Section 4: Mapping table — which Integration test file belongs in which RFC folder
-- [ ] Section 5: Mapping table — which StreamTests file belongs in which RFC folder
-- [ ] `dotnet build` remains green (no code changes in this task)
-- [ ] `.maggus/PROGRESS_3.md` created with the status of this task
+- [x] File `docs/test-audit-report.md` created
+- [x] Section 1: All test files that use `Http2ProtocolSession`, listed with test count and which RFC sections they cover
+- [x] Section 2: Which RFC sections `Http2ProtocolSession` internally covers (§5.1 Stream States, §6.5 Settings, §6.7 Ping, §6.8 GoAway, §6.9 Flow Control, §8.2/§8.3 Headers/Pseudo-Headers)
+- [x] Section 3: List of all tests missing an RFC reference in DisplayName, grouped by project and file
+- [x] Section 4: Mapping table — which Integration test file belongs in which RFC folder
+- [x] Section 5: Mapping table — which StreamTests file belongs in which RFC folder
+- [x] `dotnet build` remains green (no code changes in this task)
+- [x] `.maggus/PROGRESS_3.md` created with the status of this task
 
 ---
 

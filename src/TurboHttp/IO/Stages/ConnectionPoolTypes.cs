@@ -14,7 +14,8 @@ public sealed record PoolConfig(
     int MaxReconnectAttempts = 3,
     TimeSpan ReconnectInterval = default,
     TimeSpan IdleCheckInterval = default,
-    int PerHostQueueSize = 100)
+    int PerHostQueueSize = 100,
+    int MaxRequestsPerConnection = 1)
 {
     public TimeSpan IdleTimeout { get; init; } =
         IdleTimeout == TimeSpan.Zero ? TimeSpan.FromMinutes(5) : IdleTimeout;
