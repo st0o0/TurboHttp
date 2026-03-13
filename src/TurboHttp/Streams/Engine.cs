@@ -74,10 +74,10 @@ public class Engine
     }
 
     internal Flow<HttpRequestMessage, HttpResponseMessage, NotUsed> CreateFlow(
-        Func<Flow<ITransportItem, (IMemoryOwner<byte>, int), NotUsed>> http10Factory,
-        Func<Flow<ITransportItem, (IMemoryOwner<byte>, int), NotUsed>> http11Factory,
-        Func<Flow<ITransportItem, (IMemoryOwner<byte>, int), NotUsed>> http20Factory,
-        Func<Flow<ITransportItem, (IMemoryOwner<byte>, int), NotUsed>> http30Factory,
+        Func<Flow<ITransportItem, IDataItem, NotUsed>> http10Factory,
+        Func<Flow<ITransportItem, IDataItem, NotUsed>> http11Factory,
+        Func<Flow<ITransportItem, IDataItem, NotUsed>> http20Factory,
+        Func<Flow<ITransportItem, IDataItem, NotUsed>> http30Factory,
         TurboClientOptions? options = null)
     {
         options ??= new TurboClientOptions();
@@ -184,9 +184,9 @@ public class Engine
         IActorRef clientManager,
         TurboClientOptions options,
         Func<TurboRequestOptions> requestOptionsFactory,
-        Func<Flow<ITransportItem, (IMemoryOwner<byte>, int), NotUsed>>? http10Factory = null,
-        Func<Flow<ITransportItem, (IMemoryOwner<byte>, int), NotUsed>>? http11Factory = null,
-        Func<Flow<ITransportItem, (IMemoryOwner<byte>, int), NotUsed>>? http20Factory = null)
+        Func<Flow<ITransportItem, IDataItem, NotUsed>>? http10Factory = null,
+        Func<Flow<ITransportItem, IDataItem, NotUsed>>? http11Factory = null,
+        Func<Flow<ITransportItem, IDataItem, NotUsed>>? http20Factory = null)
     {
         var cookieJar = options.EnableCookies ? new CookieJar() : null;
         var cacheStore = options.EnableCaching ? new HttpCacheStore(options.CachePolicy) : null;
@@ -319,9 +319,9 @@ public class Engine
     private static IGraph<FlowShape<HttpRequestMessage, HttpResponseMessage>, NotUsed> BuildEngineCoreGraph(
         IActorRef clientManager,
         TurboClientOptions clientOptions,
-        Func<Flow<ITransportItem, (IMemoryOwner<byte>, int), NotUsed>>? http10Factory,
-        Func<Flow<ITransportItem, (IMemoryOwner<byte>, int), NotUsed>>? http11Factory,
-        Func<Flow<ITransportItem, (IMemoryOwner<byte>, int), NotUsed>>? http20Factory)
+        Func<Flow<ITransportItem, IDataItem, NotUsed>>? http10Factory,
+        Func<Flow<ITransportItem, IDataItem, NotUsed>>? http11Factory,
+        Func<Flow<ITransportItem, IDataItem, NotUsed>>? http20Factory)
     {
         if (http10Factory is not null)
         {
@@ -357,10 +357,14 @@ public class Engine
                 var partition = builder.Add(Router());
                 var hub = builder.Add(new Merge<HttpResponseMessage>(4));
 
-                var http10 = builder.Add(BuildProtocolFlow<Http10Engine>(4, clientManager, clientOptions: clientOptions));
-                var http11 = builder.Add(BuildProtocolFlow<Http11Engine>(4, clientManager, clientOptions: clientOptions));
-                var http20 = builder.Add(BuildProtocolFlow<Http20Engine>(1, clientManager, clientOptions: clientOptions));
-                var http30 = builder.Add(BuildProtocolFlow<Http30Engine>(1, clientManager, clientOptions: clientOptions));
+                var http10 =
+                    builder.Add(BuildProtocolFlow<Http10Engine>(4, clientManager, clientOptions: clientOptions));
+                var http11 =
+                    builder.Add(BuildProtocolFlow<Http11Engine>(4, clientManager, clientOptions: clientOptions));
+                var http20 =
+                    builder.Add(BuildProtocolFlow<Http20Engine>(1, clientManager, clientOptions: clientOptions));
+                var http30 =
+                    builder.Add(BuildProtocolFlow<Http30Engine>(1, clientManager, clientOptions: clientOptions));
 
                 builder.From(partition.Out(0)).Via(http10).To(hub);
                 builder.From(partition.Out(1)).Via(http11).To(hub);
@@ -375,7 +379,7 @@ public class Engine
     private static IGraph<FlowShape<HttpRequestMessage, HttpResponseMessage>, NotUsed> BuildProtocolFlow<TEngine>(
         int connectionCount,
         IActorRef clientManager,
-        Func<Flow<ITransportItem, (IMemoryOwner<byte>, int), NotUsed>>? transportFactory = null,
+        Func<Flow<ITransportItem, IDataItem, NotUsed>>? transportFactory = null,
         TurboClientOptions? clientOptions = null)
         where TEngine : IHttpProtocolEngine, new()
     {
@@ -397,7 +401,8 @@ public class Engine
                 {
                     // Production mode: inject ConnectItem from first request's URI
                     var tcp = Flow.FromGraph(new ConnectionStage(clientManager));
-                    var conn = builder.Add(BuildConnectionFlow<TEngine>(tcp, clientOptions ?? new TurboClientOptions()));
+                    var conn = builder.Add(BuildConnectionFlow<TEngine>(tcp,
+                        clientOptions ?? new TurboClientOptions()));
                     builder.From(balance.Out(i)).Via(conn).To(merge.In(i));
                 }
             }
@@ -432,7 +437,7 @@ public class Engine
     /// </code>
     /// </summary>
     private static IGraph<FlowShape<HttpRequestMessage, HttpResponseMessage>, NotUsed> BuildConnectionFlow<TEngine>(
-        Flow<ITransportItem, (IMemoryOwner<byte>, int), NotUsed> transport,
+        Flow<ITransportItem, IDataItem, NotUsed> transport,
         TurboClientOptions clientOptions)
         where TEngine : IHttpProtocolEngine, new()
     {
@@ -480,7 +485,8 @@ public class Engine
                 { Major: 2, Minor: 0 } => 2,
                 { Major: 1, Minor: 1 } => 1,
                 { Major: 1, Minor: 0 } => 0,
-                _ => throw new ArgumentOutOfRangeException(nameof(msg), msg.Version, $"Unsupported HTTP version: {msg.Version}")
+                _ => throw new ArgumentOutOfRangeException(nameof(msg), msg.Version,
+                    $"Unsupported HTTP version: {msg.Version}")
             });
     }
 }

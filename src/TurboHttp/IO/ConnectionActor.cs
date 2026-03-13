@@ -160,6 +160,7 @@ public sealed class ConnectionActor : ReceiveActor
         }
         catch
         {
+            // noop
         }
 
         _responseQueue?.Complete();

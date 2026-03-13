@@ -1,15 +1,12 @@
-using System.Buffers;
 using System.IO.Compression;
 using System.Net;
 using Akka;
 using Akka.Streams.Dsl;
 using TurboHttp.Client;
 using TurboHttp.IO.Stages;
-using TurboHttp.Protocol;
 using TurboHttp.Protocol.RFC6265;
 using TurboHttp.Protocol.RFC9113;
 using TurboHttp.Streams;
-using TurboHttp.Streams.Stages;
 
 namespace TurboHttp.StreamTests.Streams;
 
@@ -23,15 +20,15 @@ public sealed class EnginePipelineWiringTests : EngineTestBase
     // Helpers
     // -----------------------------------------------------------------------
 
-    private static Flow<ITransportItem, (IMemoryOwner<byte>, int), NotUsed> Http11Flow(
+    private static Flow<ITransportItem, IDataItem, NotUsed> Http11Flow(
         Func<byte[]> responseFactory)
         => Flow.FromGraph(new EngineFakeConnectionStage(responseFactory));
 
-    private static Flow<ITransportItem, (IMemoryOwner<byte>, int), NotUsed> Http10Flow(
+    private static Flow<ITransportItem, IDataItem, NotUsed> Http10Flow(
         Func<byte[]> responseFactory)
         => Flow.FromGraph(new EngineFakeConnectionStage(responseFactory));
 
-    private static Flow<ITransportItem, (IMemoryOwner<byte>, int), NotUsed> NoOpH2Flow()
+    private static Flow<ITransportItem, IDataItem, NotUsed> NoOpH2Flow()
         => Flow.FromGraph(new H2EngineFakeConnectionStage());
 
     private static byte[] Ok11Response() =>

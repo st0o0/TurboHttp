@@ -8,29 +8,25 @@ using Akka.Streams.Dsl;
 using Akka.Streams.Stage;
 using Akka.TestKit.Xunit2;
 using TurboHttp.IO.Stages;
-using TurboHttp.Protocol;
 using TurboHttp.Protocol.RFC9113;
-using TurboHttp.Streams.Stages;
 
 namespace TurboHttp.StreamTests;
 
-public sealed class
-    EngineFakeConnectionStage : GraphStage<FlowShape<ITransportItem, (IMemoryOwner<byte>, int)>>
+public sealed class EngineFakeConnectionStage : GraphStage<FlowShape<ITransportItem, IDataItem>>
 {
     private readonly Func<byte[]> _responseFactory;
 
-    public Channel<(IMemoryOwner<byte>, int)> OutboundChannel { get; } =
-        Channel.CreateUnbounded<(IMemoryOwner<byte>, int)>();
+    public Channel<IDataItem> OutboundChannel { get; } = Channel.CreateUnbounded<IDataItem>();
 
     public Inlet<ITransportItem> In { get; } = new("fake-tcp.in");
-    public Outlet<(IMemoryOwner<byte>, int)> Out { get; } = new("fake-tcp.out");
+    public Outlet<IDataItem> Out { get; } = new("fake-tcp.out");
 
-    public override FlowShape<ITransportItem, (IMemoryOwner<byte>, int)> Shape { get; }
+    public override FlowShape<ITransportItem, IDataItem> Shape { get; }
 
     public EngineFakeConnectionStage(Func<byte[]> responseFactory)
     {
         _responseFactory = responseFactory;
-        Shape = new FlowShape<ITransportItem, (IMemoryOwner<byte>, int)>(In, Out);
+        Shape = new FlowShape<ITransportItem, IDataItem>(In, Out);
     }
 
     protected override GraphStageLogic CreateLogic(Attributes inheritedAttributes) => new Logic(this);
@@ -53,7 +49,7 @@ public sealed class
 
                     var copy = new byte[length];
                     owner.Memory.Span[..length].CopyTo(copy);
-                    stage.OutboundChannel.Writer.TryWrite((new SimpleMemoryOwner(copy), length));
+                    stage.OutboundChannel.Writer.TryWrite(new DataItem(new SimpleMemoryOwner(copy), length));
                     owner.Dispose();
 
                     var responseBytes = _stage._responseFactory();
@@ -62,7 +58,7 @@ public sealed class
                     if (_downstreamWaiting)
                     {
                         _downstreamWaiting = false;
-                        Push(stage.Out, (responseOwner, responseBytes.Length));
+                        Push(stage.Out, new DataItem(responseOwner, responseBytes.Length));
                     }
                     else
                     {
@@ -79,7 +75,7 @@ public sealed class
                 {
                     if (_buffer.TryDequeue(out var chunk))
                     {
-                        Push(stage.Out, chunk);
+                        Push(stage.Out, new DataItem(chunk.Item1, chunk.Item2));
                     }
                     else
                     {
@@ -166,7 +162,7 @@ public sealed class H2FakeConnectionStage : GraphStage<FlowShape<(IMemoryOwner<b
 /// Inbound (In): captures outbound DataItem bytes for inspection, always pulls more.
 /// Outbound (Out): serves pre-queued server frames when downstream pulls.
 /// </summary>
-public sealed class H2EngineFakeConnectionStage : GraphStage<FlowShape<ITransportItem, (IMemoryOwner<byte>, int)>>
+public sealed class H2EngineFakeConnectionStage : GraphStage<FlowShape<ITransportItem, IDataItem>>
 {
     private readonly IReadOnlyList<byte[]> _serverFrames;
 
@@ -174,14 +170,14 @@ public sealed class H2EngineFakeConnectionStage : GraphStage<FlowShape<ITranspor
         Channel.CreateUnbounded<(IMemoryOwner<byte>, int)>();
 
     public Inlet<ITransportItem> In { get; } = new("h2-engine-fake.in");
-    public Outlet<(IMemoryOwner<byte>, int)> Out { get; } = new("h2-engine-fake.out");
+    public Outlet<IDataItem> Out { get; } = new("h2-engine-fake.out");
 
-    public override FlowShape<ITransportItem, (IMemoryOwner<byte>, int)> Shape { get; }
+    public override FlowShape<ITransportItem, IDataItem> Shape { get; }
 
     public H2EngineFakeConnectionStage(params byte[][] serverFrames)
     {
         _serverFrames = serverFrames;
-        Shape = new FlowShape<ITransportItem, (IMemoryOwner<byte>, int)>(In, Out);
+        Shape = new FlowShape<ITransportItem, IDataItem>(In, Out);
     }
 
     protected override GraphStageLogic CreateLogic(Attributes inheritedAttributes) => new Logic(this);
@@ -219,7 +215,7 @@ public sealed class H2EngineFakeConnectionStage : GraphStage<FlowShape<ITranspor
                     {
                         var frameBytes = _stage._serverFrames[_serverFrameIndex++];
                         IMemoryOwner<byte> frameOwner = new SimpleMemoryOwner(frameBytes);
-                        Push(stage.Out, (frameOwner, frameBytes.Length));
+                        Push(stage.Out, new DataItem(frameOwner, frameBytes.Length));
                     }
                 },
                 onDownstreamFinish: _ => CompleteStage());
@@ -240,12 +236,12 @@ public abstract class EngineTestBase : TestKit
 
     protected async Task<(HttpResponseMessage Response, string RawRequest)> SendAsync(
         BidiFlow<HttpRequestMessage, ITransportItem,
-            (IMemoryOwner<byte>, int), HttpResponseMessage, NotUsed> engine,
+            IDataItem, HttpResponseMessage, NotUsed> engine,
         HttpRequestMessage request,
         Func<byte[]> responseFactory)
     {
         var fake = new EngineFakeConnectionStage(responseFactory);
-        var flow = engine.Join(Flow.FromGraph<ITransportItem, (IMemoryOwner<byte>, int), NotUsed>(fake));
+        var flow = engine.Join(Flow.FromGraph<ITransportItem, IDataItem, NotUsed>(fake));
 
         var tcs = new TaskCompletionSource<HttpResponseMessage>();
 
@@ -258,21 +254,20 @@ public abstract class EngineTestBase : TestKit
         var rawBuilder = new StringBuilder();
         while (fake.OutboundChannel.Reader.TryRead(out var chunk))
         {
-            rawBuilder.Append(Encoding.Latin1.GetString(chunk.Item1.Memory.Span[..chunk.Item2]));
+            rawBuilder.Append(Encoding.Latin1.GetString(chunk.Memory.Memory.Span[..chunk.Length]));
         }
 
         return (response, rawBuilder.ToString());
     }
 
     protected async Task<(List<HttpResponseMessage> Responses, string RawRequests)> SendManyAsync(
-        BidiFlow<HttpRequestMessage, ITransportItem,
-            (IMemoryOwner<byte>, int), HttpResponseMessage, NotUsed> engine,
+        BidiFlow<HttpRequestMessage, ITransportItem, IDataItem, HttpResponseMessage, NotUsed> engine,
         IEnumerable<HttpRequestMessage> requests,
         Func<byte[]> responseFactory,
         int expectedCount)
     {
         var fake = new EngineFakeConnectionStage(responseFactory);
-        var flow = engine.Join(Flow.FromGraph<ITransportItem, (IMemoryOwner<byte>, int), NotUsed>(fake));
+        var flow = engine.Join(Flow.FromGraph<ITransportItem, IDataItem, NotUsed>(fake));
 
         var results = new List<HttpResponseMessage>();
         var tcs = new TaskCompletionSource();
@@ -293,7 +288,7 @@ public abstract class EngineTestBase : TestKit
         var rawBuilder = new StringBuilder();
         while (fake.OutboundChannel.Reader.TryRead(out var chunk))
         {
-            rawBuilder.Append(Encoding.Latin1.GetString(chunk.Item1.Memory.Span[..chunk.Item2]));
+            rawBuilder.Append(Encoding.Latin1.GetString(chunk.Memory.Memory.Span[..chunk.Length]));
         }
 
         return (results, rawBuilder.ToString());
@@ -356,13 +351,12 @@ public abstract class EngineTestBase : TestKit
     /// Returns the decoded response and all outbound H2 frames.
     /// </summary>
     protected async Task<(HttpResponseMessage Response, IReadOnlyList<Http2Frame> OutboundFrames)> SendH2EngineAsync(
-        BidiFlow<HttpRequestMessage, ITransportItem,
-            (IMemoryOwner<byte>, int), HttpResponseMessage, NotUsed> engine,
+        BidiFlow<HttpRequestMessage, ITransportItem, IDataItem, HttpResponseMessage, NotUsed> engine,
         HttpRequestMessage request,
         params byte[][] serverFrames)
     {
         var fake = new H2EngineFakeConnectionStage(serverFrames);
-        var flow = engine.Join(Flow.FromGraph<ITransportItem, (IMemoryOwner<byte>, int), NotUsed>(fake));
+        var flow = engine.Join(Flow.FromGraph<ITransportItem, IDataItem, NotUsed>(fake));
 
         var tcs = new TaskCompletionSource<HttpResponseMessage>();
 
@@ -391,14 +385,13 @@ public abstract class EngineTestBase : TestKit
     /// </summary>
     protected async Task<(List<HttpResponseMessage> Responses, IReadOnlyList<Http2Frame> OutboundFrames)>
         SendH2EngineAsyncMany(
-            BidiFlow<HttpRequestMessage, ITransportItem,
-                (IMemoryOwner<byte>, int), HttpResponseMessage, NotUsed> engine,
+            BidiFlow<HttpRequestMessage, ITransportItem, IDataItem, HttpResponseMessage, NotUsed> engine,
             IEnumerable<HttpRequestMessage> requests,
             int expectedCount,
             params byte[][] serverFrames)
     {
         var fake = new H2EngineFakeConnectionStage(serverFrames);
-        var flow = engine.Join(Flow.FromGraph<ITransportItem, (IMemoryOwner<byte>, int), NotUsed>(fake));
+        var flow = engine.Join(Flow.FromGraph<ITransportItem, IDataItem, NotUsed>(fake));
 
         var results = new List<HttpResponseMessage>();
         var tcs = new TaskCompletionSource();

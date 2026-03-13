@@ -34,6 +34,7 @@ public sealed class KestrelFixture : IAsyncLifetime
 
         Port = port;
         _app = app;
+        await Task.Delay(TimeSpan.FromMilliseconds(250));
     }
 
     public async Task DisposeAsync()
@@ -43,8 +44,6 @@ public sealed class KestrelFixture : IAsyncLifetime
             await _app.StopAsync();
             await _app.DisposeAsync();
         }
-
-        await Task.Delay(TimeSpan.FromMilliseconds(100));
     }
 
     private static void RegisterRoutes(WebApplication app)

@@ -1,4 +1,4 @@
-# Plan 3: Test Audit — RFC Compliance, Direct Production Code Testing, Http2ProtocolSession Removal
+# Plan: Test Audit — RFC Compliance, Direct Production Code Testing, Http2ProtocolSession Removal
 
 ## Introduction
 

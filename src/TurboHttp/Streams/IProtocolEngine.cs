@@ -12,7 +12,7 @@ public interface IHttpProtocolEngine
     BidiFlow<
         HttpRequestMessage,
         ITransportItem,
-        (IMemoryOwner<byte>, int), 
+        IDataItem, 
         HttpResponseMessage,
         NotUsed> CreateFlow();
 }

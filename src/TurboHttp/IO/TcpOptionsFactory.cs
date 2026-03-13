@@ -1,11 +1,18 @@
 using System;
 using System.Net.Sockets;
 using TurboHttp.Client;
+using TurboHttp.IO.Stages;
 
 namespace TurboHttp.IO;
 
 internal static class TcpOptionsFactory
 {
+    internal static bool IsTls(this HostKey value)
+    {
+        return string.Equals(value.Schema, "https", StringComparison.OrdinalIgnoreCase)
+               || string.Equals(value.Schema, "wss", StringComparison.OrdinalIgnoreCase);
+    }
+
     internal static TcpOptions Build(Uri requestUri, TurboClientOptions clientOptions)
     {
         var host = requestUri.Host;

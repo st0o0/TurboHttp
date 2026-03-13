@@ -5,40 +5,47 @@ using System.Threading.Tasks;
 using Akka.Actor;
 using Akka.Streams;
 using Akka.Streams.Stage;
+using Microsoft.Extensions.Hosting;
 
 namespace TurboHttp.IO.Stages;
 
+public record struct HostKey
+{
+    public static HostKey Default => new() { Host = string.Empty, Port = ushort.MinValue, Schema = string.Empty };
+    public required string Schema { get; init; }
+    public required string Host { get; init; }
+    public required ushort Port { get; init; }
+}
+
 public interface ITransportItem
 {
-    bool IsTls { get; }
+    HostKey Key => HostKey.Default;
 }
 
 public interface IDataItem
 {
+    HostKey Key => HostKey.Default;
     IMemoryOwner<byte> Memory { get; }
     int Length { get; }
 }
 
-public record ConnectItem(TcpOptions Options) : ITransportItem
-{
-    public bool IsTls => Options is TlsOptions;
-}
+public record ConnectItem(TcpOptions Options) : ITransportItem;
 
 public record DataItem(IMemoryOwner<byte> Memory, int Length, bool IsTls = false) : ITransportItem, IDataItem;
 
-public sealed class ConnectionStage : GraphStage<FlowShape<ITransportItem, (IMemoryOwner<byte>, int)>>
+public sealed class ConnectionStage : GraphStage<FlowShape<ITransportItem, IDataItem>>
 {
     private IActorRef ClientManager { get; }
 
     private readonly Inlet<ITransportItem> _inlet = new("tcp.in");
-    private readonly Outlet<(IMemoryOwner<byte>, int)> _outlet = new("tcp.out");
+    private readonly Outlet<IDataItem> _outlet = new("tcp.out");
 
-    public override FlowShape<ITransportItem, (IMemoryOwner<byte>, int)> Shape { get; }
+    public override FlowShape<ITransportItem, IDataItem> Shape { get; }
 
     public ConnectionStage(IActorRef clientManager)
     {
         ClientManager = clientManager;
-        Shape = new FlowShape<ITransportItem, (IMemoryOwner<byte>, int)>(_inlet, _outlet);
+        Shape = new FlowShape<ITransportItem, IDataItem>(_inlet, _outlet);
     }
 
     protected override GraphStageLogic CreateLogic(Attributes inheritedAttributes)
@@ -73,7 +80,7 @@ public sealed class ConnectionStage : GraphStage<FlowShape<ITransportItem, (IMem
             {
                 if (_pendingReads.TryDequeue(out var chunk))
                 {
-                    Push(_stage._outlet, chunk);
+                    Push(_stage._outlet, new DataItem(chunk.Item1, chunk.Item2));
                 }
             }, onDownstreamFinish: _ =>
             {
@@ -166,7 +173,7 @@ public sealed class ConnectionStage : GraphStage<FlowShape<ITransportItem, (IMem
                 //var item = new DataItem(chunk.Item1, chunk.Item2);
                 if (IsAvailable(_stage._outlet))
                 {
-                    Push(_stage._outlet, chunk);
+                    Push(_stage._outlet, new DataItem(chunk.Item1, chunk.Item2));
                 }
                 else
                 {
@@ -209,4 +216,3 @@ public sealed class ConnectionStage : GraphStage<FlowShape<ITransportItem, (IMem
         }
     }
 }
-

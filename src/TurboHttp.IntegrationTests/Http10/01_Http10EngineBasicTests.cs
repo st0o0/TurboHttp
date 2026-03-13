@@ -7,7 +7,6 @@ using TurboHttp.IntegrationTests.Shared;
 using TurboHttp.IO;
 using TurboHttp.IO.Stages;
 using TurboHttp.Streams;
-using TurboHttp.Streams.Stages;
 
 namespace TurboHttp.IntegrationTests.Http10;
 

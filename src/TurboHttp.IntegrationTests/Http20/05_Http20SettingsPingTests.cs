@@ -1,4 +1,3 @@
-using System.Buffers;
 using System.Collections.Concurrent;
 using System.Net;
 using Akka;
@@ -8,8 +7,7 @@ using Akka.Streams.Dsl;
 using TurboHttp.IntegrationTests.Shared;
 using TurboHttp.IO;
 using TurboHttp.IO.Stages;
-using TurboHttp.Protocol;
-using TurboHttp.Protocol.RFC9113;
+using TurboHttp.Streams;
 using TurboHttp.Streams.Stages;
 
 namespace TurboHttp.IntegrationTests.Http20;
@@ -37,51 +35,21 @@ public sealed class Http20SettingsPingTests : TestKit, IClassFixture<KestrelH2Fi
     /// </summary>
     private Flow<HttpRequestMessage, HttpResponseMessage, NotUsed> BuildFlow(int windowSize = 2 * 1024 * 1024)
     {
-        var requestEncoder = new Http2RequestEncoder();
         var tcpOptions = new TcpOptions
         {
             Host = "127.0.0.1",
             Port = _fixture.Port
         };
 
-        return Flow.FromGraph(GraphDsl.Create(b =>
-        {
-            var streamIdAllocator = b.Add(new StreamIdAllocatorStage());
-            var requestToFrame = b.Add(new Request2FrameStage(requestEncoder));
-            var frameEncoder = b.Add(new Http20EncoderStage());
-            var prependPreface = b.Add(new PrependPrefaceStage(windowSize));
-            var frameDecoder = b.Add(new Http20DecoderStage());
-            var streamDecoder = b.Add(new Http20StreamStage());
-            var h2Connection = b.Add(new Http20ConnectionStage(windowSize));
+        var engine = new Http20Engine(windowSize).CreateFlow();
 
-            var connectionStage = b.Add(new ConnectionStage(_clientManager));
+        var transport =
+            Flow.Create<ITransportItem>()
+                .Prepend(Source.Single<ITransportItem>(new ConnectItem(tcpOptions)))
+                .Via(new PrependPrefaceStage(windowSize))
+                .Via(new ConnectionStage(_clientManager));
 
-            var toDataItem = b.Add(Flow.Create<(IMemoryOwner<byte>, int)>()
-                .Select(ITransportItem (x) => new DataItem(x.Item1, x.Item2)));
-
-            var connectSource = b.Add(Source.Single<ITransportItem>(new ConnectItem(tcpOptions)));
-            var concat = b.Add(Concat.Create<ITransportItem>(2));
-
-            // Request path
-            b.From(streamIdAllocator.Outlet).To(requestToFrame.Inlet);
-            b.From(requestToFrame.Outlet).To(h2Connection.Inlet2);
-
-            // Outbound
-            b.From(h2Connection.Outlet2).To(frameEncoder.Inlet);
-            b.From(frameEncoder.Outlet).To(toDataItem.Inlet);
-            b.From(connectSource).To(concat.In(0));
-            b.From(toDataItem.Outlet).To(concat.In(1));
-            b.From(concat.Out).To(prependPreface.Inlet);
-            b.From(prependPreface.Outlet).To(connectionStage.Inlet);
-
-            // Inbound
-            b.From(connectionStage.Outlet).To(frameDecoder.Inlet);
-            b.From(frameDecoder.Outlet).To(h2Connection.Inlet1);
-            b.From(h2Connection.Outlet1).To(streamDecoder.Inlet);
-
-            return new FlowShape<HttpRequestMessage, HttpResponseMessage>(
-                streamIdAllocator.Inlet, streamDecoder.Outlet);
-        }));
+        return engine.Join(transport);
     }
 
     /// <summary>

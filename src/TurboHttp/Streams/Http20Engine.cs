@@ -23,7 +23,7 @@ public class Http20Engine : IHttpProtocolEngine
         _initialWindowSize = initialWindowSize;
     }
 
-    public BidiFlow<HttpRequestMessage, ITransportItem, (IMemoryOwner<byte>, int), HttpResponseMessage,
+    public BidiFlow<HttpRequestMessage, ITransportItem, IDataItem, HttpResponseMessage,
         NotUsed> CreateFlow()
     {
         var requestEncoder = new Http2RequestEncoder();
@@ -38,24 +38,25 @@ public class Http20Engine : IHttpProtocolEngine
             var streamDecoder = b.Add(new Http20StreamStage());
             var connection = b.Add(new Http20ConnectionStage(windowSize));
 
-            var toDataItem = b.Add(Flow.Create<(IMemoryOwner<byte>, int)>()
+            var flowOut = b.Add(Flow.Create<(IMemoryOwner<byte>, int), ITransportItem>()
                 .Select(ITransportItem (x) => new DataItem(x.Item1, x.Item2)));
+            var flowIn = b.Add(Flow.Create<IDataItem>().Select(x => (x.Memory, x.Length)));
 
             b.From(streamIdAllocator.Outlet).To(requestToFrame.Inlet);
             b.From(requestToFrame.Outlet).To(connection.Inlet2);
             b.From(connection.Outlet2).To(frameEncoder.Inlet);
-            b.From(frameEncoder.Outlet).To(toDataItem.Inlet);
-            b.From(frameDecoder.Outlet).To(connection.Inlet1);
+            b.From(frameEncoder.Outlet).To(flowOut.Inlet);
+            b.From(flowIn.Outlet).Via(frameDecoder).To(connection.Inlet1);
             b.From(connection.Outlet1).To(streamDecoder.Inlet);
 
             return new BidiShape<
                 HttpRequestMessage,
                 ITransportItem,
-                (IMemoryOwner<byte>, int),
+                IDataItem,
                 HttpResponseMessage>(
                 streamIdAllocator.Inlet,
-                toDataItem.Outlet,
-                frameDecoder.Inlet,
+                flowOut.Outlet,
+                flowIn.Inlet,
                 streamDecoder.Outlet);
         }));
     }

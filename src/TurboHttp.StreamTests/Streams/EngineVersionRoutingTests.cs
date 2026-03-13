@@ -1,22 +1,20 @@
-using System.Buffers;
 using System.Net;
 using Akka;
 using Akka.Streams.Dsl;
 using TurboHttp.IO.Stages;
-using TurboHttp.Protocol;
 using TurboHttp.Protocol.RFC7541;
 using TurboHttp.Protocol.RFC9113;
 using TurboHttp.Streams;
-using TurboHttp.Streams.Stages;
 
 namespace TurboHttp.StreamTests.Streams;
 
 public sealed class EngineVersionRoutingTests : EngineTestBase
 {
-    private static Flow<ITransportItem, (IMemoryOwner<byte>, int), NotUsed> NoOpTransportFlow()
+    private static Flow<ITransportItem, IDataItem, NotUsed> NoOpTransportFlow()
     {
         return Flow.FromGraph(new H2EngineFakeConnectionStage());
     }
+
     [Fact(Timeout = 10_000, DisplayName = "EROUTE-001: HTTP/1.0 request routed through Http10Engine")]
     public async Task Http10RequestRoutedThroughHttp10Engine()
     {

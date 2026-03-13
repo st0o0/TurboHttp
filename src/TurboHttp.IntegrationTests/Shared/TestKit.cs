@@ -19,5 +19,6 @@ public class TestKit : IAsyncLifetime
     public async Task DisposeAsync()
     {
         await Sys.Terminate().WaitAsync(TimeSpan.FromSeconds(10));
+        await Task.Delay(TimeSpan.FromMilliseconds(250));
     }
 }

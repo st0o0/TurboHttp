@@ -89,9 +89,7 @@
 - Test count: 8 tests (EDGE-001 through EDGE-008), all passing
 
 ## Build Notes
-- `COMMIT.md` is in `.gitignore` — use `git add -f COMMIT.md` to stage it
 - `BenchmarkDotNet.Artifacts` also gitignored
-- `.maggus/runs/` is in `.gitignore` — use `git add -f` to stage iteration logs
 - Engine.cs CS8509 warning fixed in TASK-048 (added default case to version switch)
 - 02_FrameParsingTests.cs CS0219 warning fixed in TASK-048 (removed unused `newMax` variable)
 - Zero warnings as of TASK-048
@@ -104,24 +102,6 @@
 - New stage tests: 83 (Cookie 12, Decompression 10, Cache 24, Redirect 15, Retry 12, ConnReuse 10)
 - **Total: 2803 all green**
 - Flaky timeouts when running all 3 projects simultaneously (resource contention); each project passes 100% individually
-
-## Connection Pool (TASK-001 ✅, TASK-002 ✅, TASK-003 ✅, TASK-004 ✅, TASK-005 ✅, TASK-006 ✅)
-- **ConnectionPoolStage**: `src/TurboHttp/IO/Stages/ConnectionPoolStage.cs` — custom GraphStage with sub-graph materialization
-- **Types**: `src/TurboHttp/IO/Stages/ConnectionPoolTypes.cs` — `RoutedTransportItem`, `RoutedDataItem`, `PoolConfig`, `LoadBalancingStrategy`, `ConnectionPoolException`
-- **Tests**: `src/TurboHttp.StreamTests/Stages/ConnectionPoolStageTests.cs` — 36 tests (POOL-001 through POOL-032)
-- **Plan**: `.maggus/plan_3.md` — 12 tasks (TASK-001 through TASK-012)
-- **Pattern**: Pool wraps/orchestrates multiple `ConnectionStage` instances as materialised sub-graphs (Source.Queue → ConnectionStage → Sink.ForEach)
-- **Factory type**: `Func<IGraph<FlowShape<ITransportItem, (IMemoryOwner<byte>, int)>, NotUsed>>` — accepts both real ConnectionStage and test echo flows
-- **Inner types**: `HostPool` (TcpOptions, List<ConnectionSlot>, ConnectionCounter, RoundRobinIndex, ReconnectAttempts), `ConnectionSlot` (Id, Queue, Completion, Active, Idle, PendingRequestCount, LastActivityUtc, KeepAliveTimeout)
-- **Idle eviction (TASK-006)**: `ScheduleRepeatedly` timer checks all pools at `PoolConfig.IdleCheckInterval` (default 30s). Connections idle > `IdleTimeout` (default 5m) are shut down via `Queue.Complete()`. At least one connection per host is preserved. `ConnectionSlot.KeepAliveTimeout` overrides pool-level `IdleTimeout` when set (from Keep-Alive header). `LastActivityUtc` updated on every `SendToSlot` and `OnSubGraphResponse`.
-- **Load balancing**: `LoadBalancingStrategy` enum (LeastLoaded default, RoundRobin). Idle connections always preferred. Strategy applies to idle slot selection.
-- **Health monitoring (TASK-005)**: Sub-graph fault detection via `ContinueWith` on completion task (faults only, not normal completions). Dead slots removed, in-flight count adjusted. Reconnect via `TimerGraphStageLogic.ScheduleOnce`. `PoolConfig.MaxReconnectAttempts` (default 3) and `ReconnectInterval` (default 5s). `ConnectionPoolException` on exhaustion.
-- **IMPORTANT**: When using `ContinueWith` on Akka.Streams sub-graph completion tasks, use `TaskScheduler.Default` NOT `ExecuteSynchronously` — the latter interferes with Akka.Streams internal scheduling and causes phantom extra outputs.
-- **Slot ID tracking**: Each `ConnectionSlot` has a unique `Id` (from `ConnectionCounter`). Response callbacks include slot ID so `OnSubGraphResponse` correctly identifies which slot responded.
-- **Sub-graph materialization**: Uses `TimerGraphStageLogic.Materializer` (SubFusingActorMaterializer) + `GetAsyncCallback` for thread-safe response delivery
-- **In-flight tracking**: `_inFlightCount` prevents premature CompleteStage when sub-graph responses pending
-- **TcpOptions**: Uses `required` init properties, not positional constructor — use `new() { Host = "...", Port = 443 }`
-- **Pre-existing failure**: `RFC-9113-ENG-004` in StreamTests (unrelated to pool work)
 
 ## Benchmark Status
 - `TurboHttp.Benchmarks` project has infrastructure only (Config.cs, Program.cs)

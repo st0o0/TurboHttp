@@ -1,7 +1,5 @@
 using System.Net;
-using Akka.Actor;
 using TurboHttp.Client;
-using TurboHttp.IntegrationTests.Shared;
 
 namespace TurboHttp.IntegrationTests.Shared;
 

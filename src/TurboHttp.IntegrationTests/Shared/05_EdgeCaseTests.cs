@@ -2,7 +2,6 @@ using System.Net;
 using Akka.Actor;
 using Akka.Streams;
 using Akka.Streams.Dsl;
-using TurboHttp.IntegrationTests.Shared;
 using TurboHttp.IO;
 using TurboHttp.IO.Stages;
 using TurboHttp.Protocol;
