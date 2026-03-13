@@ -48,6 +48,7 @@ public sealed class ConnectionPoolStage : GraphStage<FlowShape<RoutedTransportIt
 
                 if (item.Item is DataItem data)
                 {
+                    // TODO TASK-4B-004: replace with SinkRef-based routing
                     _stage._router.Tell(
                         new PoolRouterActor.SendRequest(
                             item.PoolKey,
@@ -70,6 +71,7 @@ public sealed class ConnectionPoolStage : GraphStage<FlowShape<RoutedTransportIt
 
         private void OnMessage((IActorRef sender, object msg) args)
         {
+            // TODO TASK-4B-004: replace with SourceRef-based response
             if (args.msg is PoolRouterActor.Response resp)
             {
                 _responses.Enqueue(

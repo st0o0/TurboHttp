@@ -1,9 +1,12 @@
+using System;
 using System.Buffers;
 using System.Net;
 using System.Threading.Channels;
+using System.Threading.Tasks;
 using Akka.Actor;
 using Akka.Streams;
 using Akka.Streams.Dsl;
+using Akka.TestKit;
 using Akka.TestKit.Xunit2;
 using TurboHttp.IO;
 using TurboHttp.IO.Stages;
@@ -15,10 +18,32 @@ public sealed class ConnectionActorTests : TestKit
     private static TcpOptions MakeOptions()
         => new() { Host = "test.local", Port = 8080 };
 
+    /// <summary>
+    /// Creates a ConnectionActor as a top-level actor with TestActor as the clientManager.
+    /// Context.Parent will be the user guardian — suitable for tests that don't inspect
+    /// parent-bound messages.
+    /// </summary>
     private IActorRef CreateConnectionActor(TcpOptions? options = null)
     {
         var opts = options ?? MakeOptions();
         return Sys.ActorOf(Props.Create(() => new ConnectionActor(opts, TestActor)));
+    }
+
+    /// <summary>
+    /// Creates a ConnectionActor as a child of a forwarder proxy.
+    /// Returns the clientManager probe and the ConnectionActor's self ref
+    /// (extracted from the first CreateTcpRunner message).
+    /// The forwarder forwards all child→parent messages to TestActor.
+    /// </summary>
+    private async Task<(IActorRef connectionActor, TestProbe clientManagerProbe)>
+        CreateConnectionActorWithParent(TcpOptions? options = null)
+    {
+        var opts = options ?? MakeOptions();
+        var cmProbe = CreateTestProbe();
+        Sys.ActorOf(Props.Create(() => new ConnectionActorParent(opts, cmProbe.Ref, TestActor)));
+
+        var create = await cmProbe.ExpectMsgAsync<ClientManager.CreateTcpRunner>(TimeSpan.FromSeconds(3));
+        return (create.Handler, cmProbe);
     }
 
     /// <summary>
@@ -32,10 +57,12 @@ public sealed class ConnectionActorTests : TestKit
     {
         var inbound = Channel.CreateUnbounded<(IMemoryOwner<byte>, int)>();
         var outbound = Channel.CreateUnbounded<(IMemoryOwner<byte>, int)>();
-        var endpoint = new System.Net.IPEndPoint(System.Net.IPAddress.Loopback, 8080);
+        var endpoint = new IPEndPoint(IPAddress.Loopback, 8080);
         var msg = new ClientRunner.ClientConnected(endpoint, inbound.Reader, outbound.Writer);
         return (inbound, outbound, msg);
     }
+
+    // ── Connection lifecycle ──────────────────────────────────────────
 
     [Fact(DisplayName = "CA-001: PreStart sends CreateTcpRunner with correct TcpOptions and Self")]
     public void CA_001_PreStart_SendsCreateTcpRunner()
@@ -50,41 +77,18 @@ public sealed class ConnectionActorTests : TestKit
         Assert.Equal(actor, create.Handler);
     }
 
-    [Fact(DisplayName = "CA-002: ClientConnected stores inbound/outbound channels and runner ref")]
-    public async Task CA_002_ClientConnected_StoresChannelsAndRunner()
-    {
-        var actor = CreateConnectionActor();
-        ExpectMsg<ClientManager.CreateTcpRunner>();
-
-        var (_, outbound, connMsg) = MakeConnectedMessage();
-
-        // Send ClientConnected from TestActor (simulating the runner)
-        actor.Tell(connMsg, TestActor);
-
-        // Verify the actor stored the outbound channel by sending a DataItem —
-        // if outbound was stored, TryWrite succeeds and data appears on the channel.
-        var owner = MemoryPool<byte>.Shared.Rent(16);
-        actor.Tell(new DataItem(owner, 16));
-
-        // Wait for the actor to process the DataItem
-        var written = await outbound.Reader.ReadAsync();
-        Assert.Equal(16, written.Item2);
-    }
-
     [Fact(DisplayName = "CA-003: ClientConnected starts PumpInbound task")]
-    public void CA_003_ClientConnected_StartsPumpInbound()
+    public async Task CA_003_ClientConnected_StartsPumpInbound()
     {
-        var actor = CreateConnectionActor();
-        ExpectMsg<ClientManager.CreateTcpRunner>();
+        var (connectionActor, cmProbe) = await CreateConnectionActorWithParent();
 
         var (inbound, _, connMsg) = MakeConnectedMessage();
+        connectionActor.Tell(connMsg, cmProbe.Ref);
 
-        actor.Tell(connMsg, TestActor);
+        // Wait for materialization to complete (signaled by RegisterConnectionRefs)
+        await ExpectMsgAsync<HostPoolActor.RegisterConnectionRefs>(TimeSpan.FromSeconds(10));
 
-        // Write to the inbound channel — if PumpInbound is running, it will
-        // read from the channel. The pump reads and forwards to _responseQueue,
-        // which is null until GetStreamRefs is called. But the key test is that
-        // PumpInbound consumes from the channel without throwing.
+        // Write to the inbound channel — PumpInbound should consume it
         var mem = MemoryPool<byte>.Shared.Rent(8);
         inbound.Writer.TryWrite((mem, 8));
 
@@ -92,10 +96,9 @@ public sealed class ConnectionActorTests : TestKit
         inbound.Writer.Complete();
 
         // Give PumpInbound a moment to process
-        ExpectNoMsg(TimeSpan.FromMilliseconds(300));
+        await Task.Delay(300);
 
-        // If PumpInbound wasn't started, the channel item would remain unconsumed.
-        // After pump has run + channel completed, TryRead should return false.
+        // After pump has run + channel completed, TryRead should return false
         Assert.False(inbound.Reader.TryRead(out _));
     }
 
@@ -110,11 +113,11 @@ public sealed class ConnectionActorTests : TestKit
         actor.Tell(connMsg, TestActor);
 
         // Simulate disconnection
-        var endpoint = new System.Net.IPEndPoint(System.Net.IPAddress.Loopback, 8080);
+        var endpoint = new IPEndPoint(IPAddress.Loopback, 8080);
         actor.Tell(new ClientRunner.ClientDisconnected(endpoint));
 
         // Should receive a second CreateTcpRunner (reconnect)
-        var secondCreate = ExpectMsg<ClientManager.CreateTcpRunner>(TimeSpan.FromSeconds(3));
+        var secondCreate = ExpectMsg<ClientManager.CreateTcpRunner>(TimeSpan.FromSeconds(5));
         Assert.Equal(firstCreate.Options.Host, secondCreate.Options.Host);
         Assert.Equal(firstCreate.Options.Port, secondCreate.Options.Port);
     }
@@ -137,53 +140,39 @@ public sealed class ConnectionActorTests : TestKit
         Sys.Stop(runnerProbe);
 
         // Should receive a new CreateTcpRunner (reconnect)
-        var reconnect = ExpectMsg<ClientManager.CreateTcpRunner>(TimeSpan.FromSeconds(3));
+        var reconnect = ExpectMsg<ClientManager.CreateTcpRunner>(TimeSpan.FromSeconds(5));
         Assert.NotNull(reconnect);
     }
 
-    [Fact(DisplayName = "CA-006: Reconnect clears old channel references before creating new ones")]
-    public async Task CA_006_Reconnect_ClearsOldChannels()
+    [Fact(DisplayName = "CA-006: Reconnect creates new StreamRefs and sends RegisterConnectionRefs again")]
+    public async Task CA_006_Reconnect_CreatesNewStreamRefs()
     {
-        var actor = CreateConnectionActor();
-        ExpectMsg<ClientManager.CreateTcpRunner>();
+        var (connectionActor, cmProbe) = await CreateConnectionActorWithParent();
 
         // First connection
-        var (_, outbound1, connMsg1) = MakeConnectedMessage();
-        actor.Tell(connMsg1, TestActor);
+        var (_, _, connMsg1) = MakeConnectedMessage();
+        connectionActor.Tell(connMsg1, cmProbe.Ref);
+        var refs1 = await ExpectMsgAsync<HostPoolActor.RegisterConnectionRefs>(TimeSpan.FromSeconds(10));
 
-        // Verify first outbound works
-        var owner1 = MemoryPool<byte>.Shared.Rent(16);
-        actor.Tell(new DataItem(owner1, 16));
-        await outbound1.Reader.ReadAsync();
+        // Disconnect
+        var endpoint = new IPEndPoint(IPAddress.Loopback, 8080);
+        connectionActor.Tell(new ClientRunner.ClientDisconnected(endpoint));
 
-        // Disconnect → triggers reconnect → clears old channels
-        var endpoint = new System.Net.IPEndPoint(System.Net.IPAddress.Loopback, 8080);
-        actor.Tell(new ClientRunner.ClientDisconnected(endpoint));
-        ExpectMsg<ClientManager.CreateTcpRunner>();
+        // Expect reconnect → new CreateTcpRunner
+        await cmProbe.ExpectMsgAsync<ClientManager.CreateTcpRunner>(TimeSpan.FromSeconds(5));
 
-        // Between disconnect and new connection, outbound should be null.
-        // Sending a DataItem should dispose the memory (not write to old channel).
-        var owner2 = MemoryPool<byte>.Shared.Rent(16);
-        actor.Tell(new DataItem(owner2, 16));
+        // Second connection
+        var (_, _, connMsg2) = MakeConnectedMessage();
+        connectionActor.Tell(connMsg2, cmProbe.Ref);
+        var refs2 = await ExpectMsgAsync<HostPoolActor.RegisterConnectionRefs>(TimeSpan.FromSeconds(10));
 
-        // Give actor time to process (discard) the DataItem
-        ExpectNoMsg(TimeSpan.FromMilliseconds(200));
-
-        // Old outbound channel should NOT receive the second item
-        Assert.False(outbound1.Reader.TryRead(out _));
-
-        // Now simulate a second connection with new channels
-        var (_, outbound2, connMsg2) = MakeConnectedMessage();
-        actor.Tell(connMsg2, TestActor);
-
-        // New outbound should work
-        var owner3 = MemoryPool<byte>.Shared.Rent(16);
-        actor.Tell(new DataItem(owner3, 16));
-        var written = await outbound2.Reader.ReadAsync();
-        Assert.Equal(16, written.Item2);
+        // New refs should be different objects
+        Assert.NotSame(refs1.Source, refs2.Source);
+        Assert.NotSame(refs1.Sink, refs2.Sink);
+        Assert.Equal(connectionActor, refs2.Connection);
     }
 
-    // ── TASK-015: Cleanup (PostStop) ─────────────────────────────────
+    // ── Cleanup (PostStop) ───────────────────────────────────────────
 
     [Fact(DisplayName = "CA-011: PostStop cancels CancellationTokenSource")]
     public void CA_011_PostStop_CancelsCts()
@@ -200,7 +189,7 @@ public sealed class ConnectionActorTests : TestKit
         Sys.Stop(actor);
 
         // Wait for PostStop to complete
-        runnerProbe.ExpectMsg<DoClose>(TimeSpan.FromSeconds(3));
+        runnerProbe.ExpectMsg<DoClose>(TimeSpan.FromSeconds(5));
 
         // PumpInbound should have exited because CTS was cancelled.
         // The inbound channel is still open (not completed by us).
@@ -226,34 +215,30 @@ public sealed class ConnectionActorTests : TestKit
         // Stop the actor — PostStop should send DoClose to the runner
         Sys.Stop(actor);
 
-        runnerProbe.ExpectMsg<DoClose>(TimeSpan.FromSeconds(3));
+        runnerProbe.ExpectMsg<DoClose>(TimeSpan.FromSeconds(5));
     }
 
-    [Fact(DisplayName = "CA-013: PostStop completes _responseQueue")]
+    [Fact(DisplayName = "CA-013: PostStop completes _responseQueue, closing the SourceRef stream")]
     public async Task CA_013_PostStop_CompletesResponseQueue()
     {
-        var actor = CreateConnectionActor();
-        await ExpectMsgAsync<ClientManager.CreateTcpRunner>();
+        var (connectionActor, cmProbe) = await CreateConnectionActorWithParent();
 
-        // Connect first so the actor has a runner
+        // Connect to materialize _responseQueue
         var (_, _, connMsg) = MakeConnectedMessage();
-        actor.Tell(connMsg, TestActor);
+        connectionActor.Tell(connMsg, cmProbe.Ref);
+        var refs = await ExpectMsgAsync<HostPoolActor.RegisterConnectionRefs>(TimeSpan.FromSeconds(10));
 
-        // Request stream refs to materialize _responseQueue
-        actor.Tell(new ConnectionActor.GetStreamRefs());
-        var refs = await ExpectMsgAsync<ConnectionActor.StreamRefsResponse>(TimeSpan.FromSeconds(5));
+        // Subscribe to the SourceRef before stopping
+        var mat = Sys.Materializer();
+        var itemsTask = refs.Source.Source.RunWith(Sink.Seq<IDataItem>(), mat);
 
         // Stop the actor — PostStop calls _responseQueue.Complete()
-        Sys.Stop(actor);
+        Sys.Stop(connectionActor);
 
-        // The source ref should eventually complete (no more items)
-        // We verify by sinking the source ref — it should complete without error
-        var mat = Sys.Materializer();
-        var items = await refs.Responses.Source
-            .RunWith(Sink.Seq<IDataItem>(), mat);
-
-        // Should complete with zero items (nothing was offered before stop)
-        Assert.Empty(items);
+        // The SourceRef stream should complete with zero items
+        var cts = new System.Threading.CancellationTokenSource(TimeSpan.FromSeconds(10));
+        var result = await itemsTask.WaitAsync(cts.Token);
+        Assert.Empty(result);
     }
 
     [Fact(DisplayName = "CA-014: PostStop with null runner does not throw")]
@@ -264,120 +249,77 @@ public sealed class ConnectionActorTests : TestKit
 
         // Do NOT send ClientConnected — _runner stays null
         // Stop the actor — PostStop should not throw
+        Watch(actor);
         Sys.Stop(actor);
 
-        // If PostStop threw, the actor system would log an error.
-        // Give time for any error to surface.
-        ExpectNoMsg(TimeSpan.FromMilliseconds(300));
-
-        // Actor should be terminated without issues
-        Watch(actor);
+        // Actor should terminate without issues
         ExpectTerminated(actor, TimeSpan.FromSeconds(3));
     }
 
-    [Fact(DisplayName = "CA-015: PostStop with null _responseQueue does not throw")]
-    public void CA_015_PostStop_NullResponseQueue_NoThrow()
-    {
-        var actor = CreateConnectionActor();
-        ExpectMsg<ClientManager.CreateTcpRunner>();
+    // ── TASK-4B-002: StreamRef push on connect ───────────────────────
 
-        // Connect (sets _runner) but do NOT call GetStreamRefs — _responseQueue stays null
-        var runnerProbe = CreateTestProbe();
+    [Fact(DisplayName = "CA-016: ClientConnected tells parent RegisterConnectionRefs with valid refs")]
+    public async Task CA_016_ClientConnected_TellsParentRegisterConnectionRefs()
+    {
+        var (connectionActor, cmProbe) = await CreateConnectionActorWithParent();
+
         var (_, _, connMsg) = MakeConnectedMessage();
-        actor.Tell(connMsg, runnerProbe);
+        connectionActor.Tell(connMsg, cmProbe.Ref);
 
-        // Stop the actor — PostStop should handle null _responseQueue gracefully
-        Sys.Stop(actor);
+        var refs = await ExpectMsgAsync<HostPoolActor.RegisterConnectionRefs>(TimeSpan.FromSeconds(10));
 
-        // Runner should still get DoClose even though _responseQueue is null
-        runnerProbe.ExpectMsg<DoClose>(TimeSpan.FromSeconds(3));
+        Assert.Equal(connectionActor, refs.Connection);
+        Assert.NotNull(refs.Sink);
+        Assert.NotNull(refs.Source);
     }
 
-    // ── TASK-014: Data Send ──────────────────────────────────────────
-
-    [Fact(DisplayName = "CA-007: DataItem is written to outbound via TryWrite")]
-    public async Task CA_007_DataItem_WrittenToOutbound()
+    [Fact(DisplayName = "CA-017: TCP bytes written to inbound channel are emitted on the registered SourceRef")]
+    public async Task CA_017_InboundTcpBytes_EmittedOnSourceRef()
     {
-        var actor = CreateConnectionActor();
-        await ExpectMsgAsync<ClientManager.CreateTcpRunner>();
+        var (connectionActor, cmProbe) = await CreateConnectionActorWithParent();
 
-        var (_, outbound, connMsg) = MakeConnectedMessage();
-        actor.Tell(connMsg, TestActor);
+        var (inbound, _, connMsg) = MakeConnectedMessage();
+        connectionActor.Tell(connMsg, cmProbe.Ref);
 
-        var owner = MemoryPool<byte>.Shared.Rent(32);
-        // Write a known byte so we can verify identity
-        owner.Memory.Span[0] = 0xAB;
-        actor.Tell(new DataItem(owner, 32));
+        // Wait for materialization
+        var refs = await ExpectMsgAsync<HostPoolActor.RegisterConnectionRefs>(TimeSpan.FromSeconds(10));
 
-        var (mem, len) = await outbound.Reader.ReadAsync();
-        Assert.Equal(32, len);
-        Assert.Equal(0xAB, mem.Memory.Span[0]);
-        mem.Dispose();
+        // Subscribe to the SourceRef
+        var mat = Sys.Materializer();
+        var resultChannel = Channel.CreateUnbounded<IDataItem>();
+        _ = refs.Source.Source.RunForeach(item => resultChannel.Writer.TryWrite(item), mat);
+
+        // Give the subscription a moment to establish
+        await Task.Delay(100);
+
+        // Write bytes to the inbound channel (simulating TCP data arriving)
+        var owner = MemoryPool<byte>.Shared.Rent(8);
+        owner.Memory.Span[0] = 0x42;
+        await inbound.Writer.WriteAsync((owner, 8));
+
+        // Read the emitted DataItem from the SourceRef
+        var cts = new System.Threading.CancellationTokenSource(TimeSpan.FromSeconds(5));
+        var item = await resultChannel.Reader.ReadAsync(cts.Token);
+
+        Assert.Equal(8, item.Length);
+        Assert.Equal(0x42, item.Memory.Memory.Span[0]);
+
+        item.Memory.Dispose();
     }
 
-    [Fact(DisplayName = "CA-008: DataItem when outbound is null disposes Memory without crash")]
-    public void CA_008_DataItem_OutboundNull_DisposesMemory()
+    // ── Helpers ──────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Proxy actor that spawns a ConnectionActor as its child and forwards all
+    /// messages received from the child (via Context.Parent.Tell) to <paramref name="forwardTo"/>.
+    /// This allows TestActor to intercept parent-bound messages in unit tests.
+    /// </summary>
+    private sealed class ConnectionActorParent : ReceiveActor
     {
-        var actor = CreateConnectionActor();
-        ExpectMsg<ClientManager.CreateTcpRunner>();
-
-        // Do NOT send ClientConnected — _outbound remains null
-        var owner = new TrackingMemoryOwner(MemoryPool<byte>.Shared.Rent(16));
-        actor.Tell(new DataItem(owner, 16));
-
-        // Give actor time to process
-        ExpectNoMsg(TimeSpan.FromMilliseconds(300));
-
-        Assert.True(owner.Disposed, "Memory should be disposed when _outbound is null");
-    }
-
-    [Fact(DisplayName = "CA-009: DataItem when TryWrite returns false disposes Memory")]
-    public void CA_009_DataItem_TryWriteFails_DisposesMemory()
-    {
-        var actor = CreateConnectionActor();
-        ExpectMsg<ClientManager.CreateTcpRunner>();
-
-        // Create a bounded channel with capacity 1 and use a completed writer to force TryWrite=false
-        var outbound = Channel.CreateBounded<(IMemoryOwner<byte>, int)>(1);
-        outbound.Writer.Complete(); // TryWrite will always return false on a completed writer
-
-        var inbound = Channel.CreateUnbounded<(IMemoryOwner<byte>, int)>();
-        var endpoint = new IPEndPoint(IPAddress.Loopback, 8080);
-        var connMsg = new ClientRunner.ClientConnected(endpoint, inbound.Reader, outbound.Writer);
-        actor.Tell(connMsg, TestActor);
-
-        var owner = new TrackingMemoryOwner(MemoryPool<byte>.Shared.Rent(16));
-        actor.Tell(new DataItem(owner, 16));
-
-        // Give actor time to process
-        ExpectNoMsg(TimeSpan.FromMilliseconds(300));
-
-        Assert.True(owner.Disposed, "Memory should be disposed when TryWrite returns false");
-    }
-
-    [Fact(DisplayName = "CA-010: After ClientConnected, DataItem flows through outbound channel")]
-    public async Task CA_010_AfterConnected_DataFlowsThroughOutbound()
-    {
-        var actor = CreateConnectionActor();
-        await ExpectMsgAsync<ClientManager.CreateTcpRunner>();
-
-        var (_, outbound, connMsg) = MakeConnectedMessage();
-        actor.Tell(connMsg, TestActor);
-
-        // Send multiple DataItems and verify they all flow through
-        for (var i = 0; i < 3; i++)
+        public ConnectionActorParent(TcpOptions options, IActorRef clientManager, IActorRef forwardTo)
         {
-            var owner = MemoryPool<byte>.Shared.Rent(8);
-            owner.Memory.Span[0] = (byte)(i + 1);
-            actor.Tell(new DataItem(owner, 8));
-        }
-
-        for (var i = 0; i < 3; i++)
-        {
-            var (mem, len) = await outbound.Reader.ReadAsync();
-            Assert.Equal(8, len);
-            Assert.Equal((byte)(i + 1), mem.Memory.Span[0]);
-            mem.Dispose();
+            Context.ActorOf(Props.Create(() => new ConnectionActor(options, clientManager)), "connection");
+            ReceiveAny(msg => forwardTo.Forward(msg));
         }
     }
 

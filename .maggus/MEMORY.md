@@ -88,6 +88,43 @@
 - **Non-routable IPs cause ActorSystem shutdown hangs**: TCP connections to non-routable IPs (e.g., 192.0.2.1) leave pending actors that block `Sys.Terminate()` beyond 10s timeout. Use loopback with closed ports for connection failure tests.
 - Test count: 8 tests (EDGE-001 through EDGE-008), all passing
 
+## Plan 4b — StreamRef Actor Protocol (TASK-4B-001)
+
+### New Message Types (as of TASK-4B-001)
+- `ConnectionActor.StreamRefsReady(ISinkRef<IDataItem> Sink, ISourceRef<IDataItem> Source)` — pushed by ConnectionActor to parent (HostPoolActor) after TCP connect
+- `HostPoolActor.RegisterConnectionRefs(IActorRef Connection, ISinkRef<IDataItem> Sink, ISourceRef<IDataItem> Source)` — same as above, received by HostPoolActor
+- `HostPoolActor.HostStreamRefsReady(HostKey Key, ISourceRef<IDataItem> Source)` — pushed by HostPoolActor to parent (PoolRouterActor) after MergeHub setup
+- `PoolRouterActor.GetPoolRefs` — request message to get the pool's SinkRef+SourceRef pair
+- `PoolRouterActor.PoolRefs(ISinkRef<ITransportItem> Sink, ISourceRef<IDataItem> Source)` — response to GetPoolRefs
+
+### Removed Message Types
+- `ConnectionActor.GetStreamRefs` → replaced by proactive push (no more request/reply for refs)
+- `ConnectionActor.StreamRefsResponse` → replaced by `StreamRefsReady` pushed to parent
+- `HostPoolActor.ConnectionResponse` → response path now stream-based (not actor messages)
+- `PoolRouterActor.SendRequest` → routing now via SinkRef stream, not actor messages
+- `PoolRouterActor.Response` → response path now stream-based
+- `PoolRouterActor.ConnectionIdle` → idle tracking stays in HostPoolActor
+- `PoolRouterActor.ConnectionFailed` → failure handling stays in HostPoolActor
+
+### Build State After TASK-4B-001
+- 3 expected CS errors in implementing code (HostPoolActor + ConnectionActor constructors)
+- No errors in type definitions
+- Implementing code will be fixed in TASK-4B-002/003/004
+
+### TASK-4B-002 Complete (2026-03-13)
+- `ConnectionActor.HandleConnected` is now `async Task`: creates `Source.Queue<IDataItem>` + PreMaterialize, awaits `SourceRef`, creates `Sink.ForEachAsync`, awaits `SinkRef`, tells parent `RegisterConnectionRefs`
+- `HandleSend(DataItem)` and `GetStreamRefs`/`StreamRefsResponse` handlers removed
+- `PumpInbound` reads `_inbound` channel → `_responseQueue.OfferAsync(new DataItem(...))`
+- Cascading TASK-4B-001 errors fixed with stubs: `ConnectionResponse` in HostPoolActor, `SendRequest`+`Response` in PoolRouterActor — all marked `// TODO TASK-4B-003/4B-004`
+- ConnectionPoolStage restored to original logic (stubs allow it to compile)
+- 11 CA tests all green (CA-016 and CA-017 added)
+- Build: 0 warnings, 0 errors
+
+### Parent Interception Pattern in Akka Tests
+- `Context.Parent.Tell(...)` sends to hierarchical parent, NOT to TestActor
+- Pattern: create a `ConnectionActorParent : ReceiveActor` that spawns `ConnectionActor` as child and `ReceiveAny(msg => forwardTo.Forward(msg))` — routes parent-bound messages to TestActor
+- `TestProbe` type requires `using Akka.TestKit;` (not just `using Akka.TestKit.Xunit2;`)
+
 ## Build Notes
 - `BenchmarkDotNet.Artifacts` also gitignored
 - Engine.cs CS8509 warning fixed in TASK-048 (added default case to version switch)

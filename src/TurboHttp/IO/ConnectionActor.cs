@@ -34,10 +34,8 @@ public sealed class ConnectionActor : ReceiveActor
         _options = options;
         _clientManager = clientManager;
 
-        Receive<ClientRunner.ClientConnected>(HandleConnected);
+        ReceiveAsync<ClientRunner.ClientConnected>(HandleConnected);
         Receive<ClientRunner.ClientDisconnected>(HandleDisconnected);
-        Receive<DataItem>(HandleSend);
-        ReceiveAsync<GetStreamRefs>(HandleGetStreamRefs);
         Receive<Terminated>(HandleTerminated);
     }
 
@@ -51,7 +49,7 @@ public sealed class ConnectionActor : ReceiveActor
         _clientManager.Tell(new ClientManager.CreateTcpRunner(_options, Self));
     }
 
-    private void HandleConnected(ClientRunner.ClientConnected msg)
+    private async Task HandleConnected(ClientRunner.ClientConnected msg)
     {
         _log.Debug("Connected {0}", msg.RemoteEndPoint);
 
@@ -60,6 +58,27 @@ public sealed class ConnectionActor : ReceiveActor
         _runner = Sender;
 
         Context.Watch(_runner);
+
+        var mat = Context.System.Materializer();
+
+        // ---------- RESPONSE STREAM (TCP inbound → SourceRef) ----------
+        var responseMat =
+            Source.Queue<IDataItem>(1024, OverflowStrategy.Backpressure)
+                .PreMaterialize(mat);
+
+        _responseQueue = responseMat.Item1;
+
+        var sourceRef = await responseMat.Item2
+            .RunWith(StreamRefs.SourceRef<IDataItem>(), mat);
+
+        // ---------- REQUEST STREAM (SinkRef → TCP outbound) ----------
+        var requestSink = Sink.ForEachAsync<IDataItem>(1, async x =>
+            await _outbound!.WriteAsync((x.Memory, x.Length)));
+
+        var sinkRef = await requestSink
+            .RunWith(StreamRefs.SinkRef<IDataItem>(), mat);
+
+        Context.Parent.Tell(new HostPoolActor.RegisterConnectionRefs(Self, sinkRef, sourceRef));
 
         _ = PumpInbound(_cts.Token);
     }
@@ -85,20 +104,6 @@ public sealed class ConnectionActor : ReceiveActor
         }
     }
 
-    private void HandleSend(DataItem data)
-    {
-        if (_outbound == null)
-        {
-            data.Memory.Dispose();
-            return;
-        }
-
-        if (!_outbound.TryWrite((data.Memory, data.Length)))
-        {
-            data.Memory.Dispose();
-        }
-    }
-
     private void HandleDisconnected(ClientRunner.ClientDisconnected msg)
     {
         _log.Warning("Disconnected {0}", msg.RemoteEndPoint);
@@ -116,36 +121,13 @@ public sealed class ConnectionActor : ReceiveActor
 
     private void Reconnect()
     {
+        _responseQueue?.Complete();
+        _responseQueue = null;
         _runner = null;
         _outbound = null;
         _inbound = null;
 
         Connect();
-    }
-
-    private async Task HandleGetStreamRefs(GetStreamRefs _)
-    {
-        var mat = Context.System.Materializer();
-
-        // ---------- RESPONSE STREAM ----------
-        var responseMat =
-            Source.Queue<IDataItem>(1024, OverflowStrategy.Backpressure)
-                .PreMaterialize(mat);
-
-        _responseQueue = responseMat.Item1;
-
-        var sourceRef = await responseMat.Item2
-            .RunWith(StreamRefs.SourceRef<IDataItem>(), mat);
-
-
-        // ---------- REQUEST STREAM ----------
-        var requestSink = Sink.ForEachAsync<IDataItem>(1, async x => await _outbound!.WriteAsync((x.Memory, x.Length)));
-
-        var sinkRef = await requestSink
-            .RunWith(StreamRefs.SinkRef<IDataItem>(), mat);
-
-
-        Sender.Tell(new StreamRefsResponse(sinkRef, sourceRef));
     }
 
     protected override void PostStop()

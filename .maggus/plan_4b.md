@@ -118,19 +118,21 @@ and `SourceRef<IDataItem>` immediately after the TCP connection is established, 
 its parent (`HostPoolActor`) so that the parent can wire them into the merge topology.
 
 **Acceptance Criteria:**
-- [ ] `ConnectionActor` no longer handles `GetStreamRefs` request messages.
-- [ ] On receiving `ClientRunner.ClientConnected`:
+- [x] `ConnectionActor` no longer handles `GetStreamRefs` request messages.
+- [x] On receiving `ClientRunner.ClientConnected`:
   - Creates `Source.Queue<IDataItem>(1024, OverflowStrategy.Backpressure)` → stores `ISourceQueueWithComplete<IDataItem>` as `_responseQueue`.
   - Materializes the queue's Source as a `SourceRef<IDataItem>`.
   - Creates `Sink.ForEachAsync<IDataItem>(1, item => _outbound.WriteAsync((item.Memory, item.Length)))`.
   - Materializes the Sink as a `SinkRef<IDataItem>`.
   - Tells `Context.Parent` with `new HostPoolActor.RegisterConnectionRefs(Self, sinkRef, sourceRef)`.
-- [ ] `HandleSend(DataItem)` actor message handler is removed (requests now enter via the SinkRef stream).
-- [ ] Inbound TCP data is pumped into `_responseQueue` via `Source.Queue.OfferAsync` in `PumpInbound`.
-- [ ] On disconnect / `PostStop`: `_responseQueue?.Complete()` closes the SourceRef stream.
-- [ ] Existing reconnect logic (`Reconnect()`) clears `_responseQueue` and re-registers new refs after reconnecting.
-- [ ] Unit test: `ConnectionActor` tells parent `RegisterConnectionRefs` after `ClientConnected`.
-- [ ] Unit test: TCP bytes arrive → `IDataItem` emitted on the registered SourceRef.
+- [x] `HandleSend(DataItem)` actor message handler is removed (requests now enter via the SinkRef stream).
+- [x] Inbound TCP data is pumped into `_responseQueue` via `Source.Queue.OfferAsync` in `PumpInbound`.
+- [x] On disconnect / `PostStop`: `_responseQueue?.Complete()` closes the SourceRef stream.
+- [x] Existing reconnect logic (`Reconnect()`) clears `_responseQueue` and re-registers new refs after reconnecting.
+- [x] Unit test: `ConnectionActor` tells parent `RegisterConnectionRefs` after `ClientConnected`. (CA-016)
+- [x] Unit test: TCP bytes arrive → `IDataItem` emitted on the registered SourceRef. (CA-017)
+
+**Build notes:** Restored `PoolRouterActor.SendRequest`, `PoolRouterActor.Response`, `HostPoolActor.ConnectionResponse` as stubs to fix cascading compile errors in existing `ConnectionPoolStageTests` and `HostPoolActorTests`. These stubs are clearly marked `// TODO TASK-4B-003/4B-004` and will be permanently removed when those tasks replace the actor-message routing.
 
 ---
 

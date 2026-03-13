@@ -1,16 +1,25 @@
 using System;
-using System.Buffers;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net;
+using Akka;
 using Akka.Actor;
+using Akka.Event;
 using Akka.Streams;
+using Akka.Streams.Dsl;
 using TurboHttp.IO.Stages;
+
 
 namespace TurboHttp.IO;
 
 public sealed class HostPoolActor : ReceiveActor
 {
+    // ── Private async-handshake messages ─────────────────────────────
+    private sealed record MergeHubReady(ISourceRef<IDataItem> SourceRef);
+
+    private sealed record MergeHubFailed(Exception Error);
+
+    // ── Public message protocol ───────────────────────────────────────
     public sealed record ConnectionIdle(IActorRef Connection);
 
     public sealed record ConnectionFailed(IActorRef Connection);
@@ -27,26 +36,47 @@ public sealed class HostPoolActor : ReceiveActor
 
     public sealed record MarkConnectionNoReuse(IActorRef Connection);
 
+    // ── Fields ────────────────────────────────────────────────────────
     private readonly TcpOptions _options;
     private readonly PoolConfig _config;
 
+    private readonly ILoggingAdapter _log = Context.GetLogger();
+
     private readonly List<ConnectionState> _connections = [];
-    private readonly Queue<PendingItem> _pending = new();
-    private readonly Dictionary<IActorRef, Queue<PendingReplyTo>> _replyToMap = new();
+
+    /// <summary>Per-connection outbound request queues, keyed by ConnectionActor ref.</summary>
+    private readonly Dictionary<IActorRef, ISourceQueueWithComplete<IDataItem>> _connectionQueues = new();
+
+    /// <summary>Requests waiting for a connection with an established queue.</summary>
+    private readonly Queue<DataItem> _pending = new();
+
+    private IMaterializer? _mat;
+    private Sink<IDataItem, NotUsed>? _mergeHubSink;
 
     public HostPoolActor(TcpOptions options, PoolConfig config)
     {
         _options = options;
         _config = config;
 
-        Receive<PoolRouterActor.SendRequest>(HandleRequest);
         Receive<ConnectionIdle>(HandleIdle);
-        Receive<ConnectionResponse>(HandleResponse);
         Receive<ConnectionFailed>(HandleFailure);
         Receive<IdleCheck>(_ => EvictIdleConnections());
         Receive<Reconnect>(HandleReconnect);
         Receive<StreamComplete>(HandleStreamComplete);
         Receive<MarkConnectionNoReuse>(HandleMarkNoReuse);
+        Receive<RegisterConnectionRefs>(HandleRegisterConnectionRefs);
+        Receive<DataItem>(HandleDataItem);
+
+        Receive<MergeHubReady>(msg =>
+        {
+            var key = new HostKey { Schema = "http", Host = _options.Host, Port = (ushort)_options.Port };
+            Context.Parent.Tell(new HostStreamRefsReady(key, msg.SourceRef));
+        });
+
+        Receive<MergeHubFailed>(msg =>
+        {
+            _log.Error(msg.Error, "MergeHub SourceRef initialization failed");
+        });
     }
 
     protected override void PreStart()
@@ -57,94 +87,113 @@ public sealed class HostPoolActor : ReceiveActor
             Self,
             new IdleCheck(),
             Self);
+
+        _mat = Context.System.Materializer();
+
+        var (sink, source) = MergeHub.Source<IDataItem>().PreMaterialize(_mat);
+        _mergeHubSink = sink;
+
+        source.RunWith(StreamRefs.SourceRef<IDataItem>(), _mat)
+              .PipeTo(
+                  Self,
+                  success: sourceRef => new MergeHubReady(sourceRef),
+                  failure: ex => new MergeHubFailed(ex));
     }
 
-    private void HandleRequest(PoolRouterActor.SendRequest msg)
+    // ── Request routing ───────────────────────────────────────────────
+
+    private void HandleDataItem(DataItem item)
     {
-        var version = msg.HttpVersion ?? HttpVersion.Version11;
-        var pending = new PendingReplyTo(msg.ReplyTo, msg.PoolKey, version);
-        var conn = SelectConnection(version);
+        var conn = SelectConnectionWithQueue();
 
         if (conn != null)
         {
-            if (version == HttpVersion.Version20)
-            {
-                conn.AllocateStreamId();
-            }
-
-            SendToConnection(conn, msg.Data, pending);
-            return;
+            conn.MarkBusy();
+            _ = _connectionQueues[conn.Actor].OfferAsync(item);
         }
-
-        if (_connections.Count < _config.MaxConnectionsPerHost)
+        else if (_connections.Count < _config.MaxConnectionsPerHost)
         {
-            conn = SpawnConnection();
-            conn.HttpVersion = version;
-
-            if (version == HttpVersion.Version20)
-            {
-                conn.AllocateStreamId();
-            }
-
-            SendToConnection(conn, msg.Data, pending);
-            return;
+            var newConn = SpawnConnection();
+            newConn.MarkBusy();
+            _pending.Enqueue(item);
         }
-
-        _pending.Enqueue(new PendingItem(msg.Data, pending));
+        else
+        {
+            _pending.Enqueue(item);
+        }
     }
 
-    private ConnectionState? SelectConnection(Version? version = null)
+    private void HandleRegisterConnectionRefs(RegisterConnectionRefs msg)
+    {
+        // Create a per-connection request queue (buffer 128)
+        var (queue, queueSource) =
+            Source.Queue<IDataItem>(128, OverflowStrategy.Backpressure)
+                  .PreMaterialize(_mat!);
+
+        // Wire queue → SinkRef → ConnectionActor's TCP outbound
+        queueSource.RunWith(msg.Sink.Sink, _mat!);
+
+        // Wire ConnectionActor's SourceRef → MergeHub (merged response stream)
+        msg.Source.Source.RunWith(_mergeHubSink!, _mat!);
+
+        _connectionQueues[msg.Connection] = queue;
+
+        // Drain any pending requests now that a queue is available
+        DrainPending();
+    }
+
+    private void DrainPending()
+    {
+        while (_pending.Count > 0)
+        {
+            var conn = SelectConnectionWithQueue();
+
+            if (conn == null)
+            {
+                break;
+            }
+
+            conn.MarkBusy();
+            _ = _connectionQueues[conn.Actor].OfferAsync(_pending.Dequeue());
+        }
+    }
+
+    // ── Connection selection ──────────────────────────────────────────
+
+    /// <summary>
+    /// Selects an available connection that also has a registered queue.
+    /// Only connections with queues can receive routed requests.
+    /// </summary>
+    private ConnectionState? SelectConnectionWithQueue(Version? version = null)
     {
         version ??= HttpVersion.Version11;
 
         if (version == HttpVersion.Version20)
         {
-            return SelectHttp2Connection();
+            return _connections.FirstOrDefault(x =>
+                x is { Active: true } &&
+                x.HttpVersion == HttpVersion.Version20 &&
+                x.HasAvailableStreamCapacity &&
+                _connectionQueues.ContainsKey(x.Actor));
         }
 
-        return SelectHttp1Connection(version);
-    }
-
-    private ConnectionState? SelectHttp1Connection(Version version)
-    {
-        // HTTP/1.0 without explicit keep-alive: never reuse
         if (version == HttpVersion.Version10)
         {
-            // Only select idle, active, reusable connections (those with explicit keep-alive)
             return _connections.FirstOrDefault(x =>
                 x is { Active: true, Idle: true, Reusable: true } &&
                 x.HttpVersion == HttpVersion.Version10 &&
-                x.PendingRequests < _config.MaxRequestsPerConnection);
+                x.PendingRequests < _config.MaxRequestsPerConnection &&
+                _connectionQueues.ContainsKey(x.Actor));
         }
 
-        // HTTP/1.1: prefer idle, active, reusable connections
+        // HTTP/1.1 default
         return _connections.FirstOrDefault(x =>
             x is { Active: true, Idle: true, Reusable: true } &&
-            x.PendingRequests < _config.MaxRequestsPerConnection);
+            x.PendingRequests < _config.MaxRequestsPerConnection &&
+            _connectionQueues.ContainsKey(x.Actor));
     }
 
-    private ConnectionState? SelectHttp2Connection()
-    {
-        // HTTP/2: reuse existing active connection with available stream capacity (multiplexing)
-        return _connections.FirstOrDefault(x =>
-            x is { Active: true } &&
-            x.HttpVersion == HttpVersion.Version20 &&
-            x.HasAvailableStreamCapacity);
-    }
-
-    private void SendToConnection(ConnectionState conn, DataItem data, PendingReplyTo pending)
-    {
-        conn.MarkBusy();
-        conn.Actor.Tell(data);
-
-        if (!_replyToMap.TryGetValue(conn.Actor, out var queue))
-        {
-            queue = new Queue<PendingReplyTo>();
-            _replyToMap[conn.Actor] = queue;
-        }
-
-        queue.Enqueue(pending);
-    }
+    // ── Connection lifecycle ──────────────────────────────────────────
 
     private ConnectionState SpawnConnection()
     {
@@ -155,7 +204,6 @@ public sealed class HostPoolActor : ReceiveActor
         Context.Watch(actor);
 
         var state = new ConnectionState(actor);
-
         _connections.Add(state);
 
         return state;
@@ -164,24 +212,8 @@ public sealed class HostPoolActor : ReceiveActor
     private void HandleIdle(ConnectionIdle msg)
     {
         var conn = Find(msg.Connection);
-
-        if (conn == null)
-            return;
-
-        conn.MarkIdle();
-
+        conn?.MarkIdle();
         DrainPending();
-    }
-
-    private void HandleResponse(ConnectionResponse msg)
-    {
-        if (!_replyToMap.TryGetValue(msg.Connection, out var queue) || queue.Count == 0)
-        {
-            return;
-        }
-
-        var pending = queue.Dequeue();
-        pending.ReplyTo.Tell(new PoolRouterActor.Response(pending.PoolKey, msg.Memory, msg.Length));
     }
 
     private void HandleFailure(ConnectionFailed msg)
@@ -189,9 +221,17 @@ public sealed class HostPoolActor : ReceiveActor
         var conn = Find(msg.Connection);
 
         if (conn == null)
+        {
             return;
+        }
 
         conn.MarkDead();
+
+        // Remove queue for the failed connection
+        if (_connectionQueues.Remove(msg.Connection, out var queue))
+        {
+            queue.Complete();
+        }
 
         Context.System.Scheduler.ScheduleTellOnceCancelable(
             _config.ReconnectInterval,
@@ -205,10 +245,11 @@ public sealed class HostPoolActor : ReceiveActor
         var conn = Find(msg.Connection);
 
         if (conn == null)
+        {
             return;
+        }
 
         var previousVersion = conn.HttpVersion;
-        _replyToMap.Remove(msg.Connection);
         _connections.Remove(conn);
 
         var newConn = SpawnConnection();
@@ -230,7 +271,7 @@ public sealed class HostPoolActor : ReceiveActor
             {
                 Context.Unwatch(conn.Actor);
                 conn.Actor.Tell(PoisonPill.Instance);
-                _replyToMap.Remove(conn.Actor);
+                _connectionQueues.Remove(conn.Actor, out _);
                 _connections.Remove(conn);
             }
         }
@@ -239,15 +280,7 @@ public sealed class HostPoolActor : ReceiveActor
     private void HandleStreamComplete(StreamComplete msg)
     {
         var conn = Find(msg.Connection);
-
-        if (conn == null)
-        {
-            return;
-        }
-
-        conn.ReleaseStream();
-
-        DrainPending();
+        conn?.ReleaseStream();
     }
 
     private void HandleMarkNoReuse(MarkConnectionNoReuse msg)
@@ -256,33 +289,6 @@ public sealed class HostPoolActor : ReceiveActor
         conn?.MarkNoReuse();
     }
 
-    private void DrainPending()
-    {
-        while (_pending.Count > 0)
-        {
-            var version = _pending.Peek().Pending.HttpVersion;
-            var conn = SelectConnection(version);
-
-            if (conn == null)
-            {
-                break;
-            }
-
-            var item = _pending.Dequeue();
-
-            if (version == HttpVersion.Version20)
-            {
-                conn.AllocateStreamId();
-            }
-
-            SendToConnection(conn, item.Data, item.Pending);
-        }
-    }
-
     private ConnectionState? Find(IActorRef actor)
         => _connections.Find(x => x.Actor.Equals(actor));
-
-    private readonly record struct PendingReplyTo(IActorRef ReplyTo, string PoolKey, Version HttpVersion);
-
-    private readonly record struct PendingItem(DataItem Data, PendingReplyTo Pending);
 }
