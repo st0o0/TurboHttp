@@ -5,7 +5,6 @@ using System.Threading.Tasks;
 using Akka.Actor;
 using Akka.Streams;
 using Akka.Streams.Stage;
-using Microsoft.Extensions.Hosting;
 
 namespace TurboHttp.IO.Stages;
 

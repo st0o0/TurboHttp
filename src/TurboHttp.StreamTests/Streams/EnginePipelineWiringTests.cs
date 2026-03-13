@@ -89,7 +89,7 @@ public sealed class EnginePipelineWiringTests : EngineTestBase
 
         // We can't easily pass a pre-built cookie jar through TurboClientOptions (it creates its own),
         // so we validate indirectly: with EnableCookies = true the pipeline MUST complete without error.
-        var options = new TurboClientOptions { EnableCookies = true };
+        var options = new TurboClientOptions();
         var engine = new Engine();
         var flow = engine.CreateFlow(
             () => Http10Flow(ResponseFactory),
@@ -125,7 +125,7 @@ public sealed class EnginePipelineWiringTests : EngineTestBase
         var compressedBody = CompressGzip(originalText);
         var response11 = BuildGzipResponse(compressedBody);
 
-        var options = new TurboClientOptions { EnableDecompression = true };
+        var options = new TurboClientOptions();
         var engine = new Engine();
         var flow = engine.CreateFlow(
             () => Http10Flow(() => response11),
@@ -174,7 +174,7 @@ public sealed class EnginePipelineWiringTests : EngineTestBase
     [Fact(Timeout = 10_000, DisplayName = "EPIPE-004: EnableCaching — pipeline assembles without error")]
     public async Task EnableCaching_PipelineAssemblesWithoutError()
     {
-        var options = new TurboClientOptions { EnableCaching = true };
+        var options = new TurboClientOptions();
         var engine = new Engine();
         var flow = engine.CreateFlow(
             () => Http10Flow(Ok11Response),
@@ -201,7 +201,7 @@ public sealed class EnginePipelineWiringTests : EngineTestBase
     public async Task EnableRetry_PipelineAssemblesWithRetryCycle()
     {
         // A non-retryable response (200) so the request goes through once
-        var options = new TurboClientOptions { EnableRetry = true };
+        var options = new TurboClientOptions();
         var engine = new Engine();
         var flow = engine.CreateFlow(
             () => Http10Flow(Ok11Response),
@@ -227,7 +227,7 @@ public sealed class EnginePipelineWiringTests : EngineTestBase
     [Fact(Timeout = 10_000, DisplayName = "EPIPE-006: EnableRedirectHandling — non-redirect response passes through")]
     public async Task EnableRedirectHandling_NonRedirectResponsePassesThrough()
     {
-        var options = new TurboClientOptions { EnableRedirectHandling = true };
+        var options = new TurboClientOptions();
         var engine = new Engine();
         var flow = engine.CreateFlow(
             () => Http10Flow(Ok11Response),
@@ -254,14 +254,7 @@ public sealed class EnginePipelineWiringTests : EngineTestBase
         DisplayName = "EPIPE-007: All flags true — full pipeline assembles and processes a request")]
     public async Task AllFlagsTrue_FullPipelineAssemblesAndProcessesRequest()
     {
-        var options = new TurboClientOptions
-        {
-            EnableCookies = true,
-            EnableDecompression = true,
-            EnableCaching = true,
-            EnableRetry = true,
-            EnableRedirectHandling = true
-        };
+        var options = new TurboClientOptions();
 
         var engine = new Engine();
         var flow = engine.CreateFlow(

@@ -339,3 +339,6 @@ COMMIT.md
 coverage-results/
 .maggus/runs
 .maggus/MEMORY.md
+.maggus/RELEASE_NOTES.md
+.maggus/locks/
+.maggus-work/

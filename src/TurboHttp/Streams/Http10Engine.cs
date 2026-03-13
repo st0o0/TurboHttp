@@ -10,8 +10,7 @@ namespace TurboHttp.Streams;
 
 public class Http10Engine : IHttpProtocolEngine
 {
-    public BidiFlow<HttpRequestMessage, ITransportItem, IDataItem, HttpResponseMessage,
-        NotUsed> CreateFlow()
+    public BidiFlow<HttpRequestMessage, ITransportItem, IDataItem, HttpResponseMessage, NotUsed> CreateFlow()
     {
         return BidiFlow.FromGraph(GraphDsl.Create(b =>
         {

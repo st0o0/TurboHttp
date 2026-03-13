@@ -1,6 +1,5 @@
 using System.Buffers;
 using System.Text;
-using TurboHttp.Protocol;
 using TurboHttp.Protocol.RFC9112;
 
 namespace TurboHttp.Tests.RFC9112;

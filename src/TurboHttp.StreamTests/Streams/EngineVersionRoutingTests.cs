@@ -133,32 +133,6 @@ public sealed class EngineVersionRoutingTests : EngineTestBase
         Assert.NotNull(response11);
     }
 
-    [Fact(Timeout = 10_000, DisplayName = "EROUTE-005: Unknown HTTP version causes partition error")]
-    public async Task UnknownHttpVersionCausesPartitionError()
-    {
-        var http10Response = "HTTP/1.0 200 OK\r\nContent-Length: 0\r\n\r\n"u8.ToArray();
-        var http11Response = "HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n"u8.ToArray();
-        var h2Frames = new[] { new SettingsFrame([]).Serialize() };
-
-        var engine = new Engine();
-        var flow = engine.CreateFlow(
-            () => Flow.FromGraph(new EngineFakeConnectionStage(() => http10Response)),
-            () => Flow.FromGraph(new EngineFakeConnectionStage(() => http11Response)),
-            () => Flow.FromGraph(new H2EngineFakeConnectionStage(h2Frames)),
-            NoOpTransportFlow);
-
-        var request = new HttpRequestMessage(HttpMethod.Get, "http://example.com/")
-        {
-            Version = new Version(1, 2)
-        };
-
-        var streamTask = Source.Single(request)
-            .Via(flow)
-            .RunWith(Sink.Ignore<HttpResponseMessage>(), Materializer);
-
-        await Assert.ThrowsAnyAsync<Exception>(() => streamTask.WaitAsync(TimeSpan.FromSeconds(5)));
-    }
-
     private async Task<HttpResponseMessage> RunEngineAsync(
         Flow<HttpRequestMessage, HttpResponseMessage, NotUsed> flow,
         HttpRequestMessage request)

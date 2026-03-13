@@ -9,10 +9,10 @@ namespace TurboHttp.StreamTests.Streams;
 
 public sealed class ExtractOptionsStageTests : StreamTestBase
 {
-    private static HttpRequest MakeRequest(string url = "http://example.com/")
+    private static RequestItem MakeRequest(string url = "http://example.com/")
     {
         var msg = new HttpRequestMessage(HttpMethod.Get, url);
-        return new HttpRequest(new HttpRequestOptions(), msg);
+        return new RequestItem(new HttpRequestOptions(), msg);
     }
 
     /// <summary>
@@ -27,7 +27,7 @@ public sealed class ExtractOptionsStageTests : StreamTestBase
     ///      then pulls In for each subsequent element.
     /// </summary>
     private async Task<(IReadOnlyList<ITransportItem> options, IReadOnlyList<HttpRequestMessage> messages)>
-        RunStageAsync(IEnumerable<HttpRequest> requests)
+        RunStageAsync(IEnumerable<RequestItem> requests)
     {
         var requestList = requests.ToList();
 
@@ -40,7 +40,7 @@ public sealed class ExtractOptionsStageTests : StreamTestBase
             // Concat Never: prevents the source from completing before Out1 can deliver _pending.
             // A single-element completing source fires CompleteStage() synchronously in the same
             // interpreter turn as the first push, so Out1 never sees its stashed request.
-            var src = b.Add(Source.From(requestList).Concat(Source.Never<HttpRequest>()));
+            var src = b.Add(Source.From(requestList).Concat(Source.Never<RequestItem>()));
 
             b.From(src).To(stage.In);
             b.From(stage.Out0).To(Sink.FromSubscriber(probe0));

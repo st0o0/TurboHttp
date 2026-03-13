@@ -8,18 +8,18 @@ namespace TurboHttp.Streams.Stages;
 
 public record HttpRequestOptions();
 
-public record HttpRequest(HttpRequestOptions Options, HttpRequestMessage RequestMessage);
+public record RequestItem(HttpRequestOptions Options, HttpRequestMessage RequestMessage);
 
-internal sealed class ExtractOptionsStage : GraphStage<FanOutShape<HttpRequest, ITransportItem, HttpRequestMessage>>
+internal sealed class ExtractOptionsStage : GraphStage<FanOutShape<RequestItem, ITransportItem, HttpRequestMessage>>
 {
     private readonly Outlet<ITransportItem> _outletOptions = new("");
     private readonly Outlet<HttpRequestMessage> _outletRequest = new("");
-    private readonly Inlet<HttpRequest> _inletRequest = new("");
-    public override FanOutShape<HttpRequest, ITransportItem, HttpRequestMessage> Shape { get; }
+    private readonly Inlet<RequestItem> _inletRequest = new("");
+    public override FanOutShape<RequestItem, ITransportItem, HttpRequestMessage> Shape { get; }
 
     public ExtractOptionsStage()
     {
-        Shape = new FanOutShape<HttpRequest, ITransportItem, HttpRequestMessage>(_inletRequest, _outletOptions,
+        Shape = new FanOutShape<RequestItem, ITransportItem, HttpRequestMessage>(_inletRequest, _outletOptions,
             _outletRequest);
     }
 
@@ -29,7 +29,7 @@ internal sealed class ExtractOptionsStage : GraphStage<FanOutShape<HttpRequest, 
     private sealed class Logic : GraphStageLogic
     {
         private bool _initialSent;
-        private HttpRequest? _pending;
+        private RequestItem? _pending;
 
         public Logic(ExtractOptionsStage stage) : base(stage.Shape)
         {

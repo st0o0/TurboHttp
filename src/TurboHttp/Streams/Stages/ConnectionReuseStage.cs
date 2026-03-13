@@ -2,7 +2,6 @@ using System;
 using System.Net.Http;
 using Akka.Streams;
 using Akka.Streams.Stage;
-using TurboHttp.Protocol;
 using TurboHttp.Protocol.RFC9112;
 
 namespace TurboHttp.Streams.Stages;
@@ -46,9 +45,7 @@ internal sealed class ConnectionReuseStage : GraphStage<FlowShape<HttpResponseMe
     ///     Whether the response body was fully consumed before reaching this stage.
     ///     Defaults to <c>true</c> (the normal case in a fully-decoded pipeline).
     /// </param>
-    public ConnectionReuseStage(
-        Version httpVersion,
-        Action<ConnectionReuseDecision> onDecision,
+    public ConnectionReuseStage(Version httpVersion, Action<ConnectionReuseDecision> onDecision,
         bool bodyFullyConsumed = true)
     {
         _httpVersion = httpVersion;

@@ -4,7 +4,6 @@ using Akka;
 using Akka.Streams;
 using Akka.Streams.Dsl;
 using TurboHttp.IO.Stages;
-using TurboHttp.Protocol;
 using TurboHttp.Protocol.RFC9113;
 using TurboHttp.Streams.Stages;
 
@@ -23,8 +22,7 @@ public class Http20Engine : IHttpProtocolEngine
         _initialWindowSize = initialWindowSize;
     }
 
-    public BidiFlow<HttpRequestMessage, ITransportItem, IDataItem, HttpResponseMessage,
-        NotUsed> CreateFlow()
+    public BidiFlow<HttpRequestMessage, ITransportItem, IDataItem, HttpResponseMessage, NotUsed> CreateFlow()
     {
         var requestEncoder = new Http2RequestEncoder();
         var windowSize = _initialWindowSize;

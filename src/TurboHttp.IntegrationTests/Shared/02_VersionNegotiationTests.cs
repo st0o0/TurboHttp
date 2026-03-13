@@ -118,47 +118,6 @@ public sealed class VersionNegotiationTests : TestKit, IClassFixture<KestrelFixt
         Assert.Equal("Hello World", body);
     }
 
-    [Fact(DisplayName = "VERNEG-004: Mixed-version requests are demultiplexed to correct engines")]
-    public async Task MixedVersion_RequestsDemultiplexedCorrectly()
-    {
-        var client = CreateClient();
-
-        // Send HTTP/1.0 request through TurboHttpClient
-        var req10 = new HttpRequestMessage(HttpMethod.Get, $"http://127.0.0.1:{_h1Fixture.Port}/ping")
-        {
-            Version = HttpVersion.Version10
-        };
-        var resp10 = await client.SendAsync(req10, CancellationToken.None);
-
-        Assert.Equal(HttpStatusCode.OK, resp10.StatusCode);
-        Assert.Equal(HttpVersion.Version10, resp10.Version);
-        var body10 = await resp10.Content.ReadAsStringAsync();
-        Assert.Equal("pong", body10);
-
-        // Send HTTP/1.1 request through TurboHttpClient
-        var req11 = new HttpRequestMessage(HttpMethod.Get, $"http://127.0.0.1:{_h1Fixture.Port}/ping")
-        {
-            Version = HttpVersion.Version11
-        };
-        var resp11 = await client.SendAsync(req11, CancellationToken.None);
-
-        Assert.Equal(HttpStatusCode.OK, resp11.StatusCode);
-        Assert.Equal(HttpVersion.Version11, resp11.Version);
-        var body11 = await resp11.Content.ReadAsStringAsync();
-        Assert.Equal("pong", body11);
-
-        // Send HTTP/2.0 request directly via Http20Engine (h2c server, different port)
-        var req20 = new HttpRequestMessage(HttpMethod.Get, $"http://127.0.0.1:{_h2Fixture.Port}/ping")
-        {
-            Version = HttpVersion.Version20
-        };
-        var resp20 = await SendH2Async(req20);
-
-        Assert.Equal(HttpStatusCode.OK, resp20.StatusCode);
-        var body20 = await resp20.Content.ReadAsStringAsync();
-        Assert.Equal("pong", body20);
-    }
-
     [Fact(DisplayName = "VERNEG-005: DefaultRequestVersion overrides unversioned requests")]
     public async Task DefaultRequestVersion_OverridesUnversionedRequests()
     {

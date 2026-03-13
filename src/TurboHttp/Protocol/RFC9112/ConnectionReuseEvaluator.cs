@@ -35,9 +35,7 @@ public static class ConnectionReuseEvaluator
     ///     A <see cref="ConnectionReuseDecision"/> indicating whether the connection
     ///     can be reused, the reason for the decision, and any Keep-Alive parameters.
     /// </returns>
-    public static ConnectionReuseDecision Evaluate(
-        HttpResponseMessage response,
-        Version httpVersion,
+    public static ConnectionReuseDecision Evaluate(HttpResponseMessage response, Version httpVersion,
         bool bodyFullyConsumed = true,
         bool protocolErrorOccurred = false)
     {

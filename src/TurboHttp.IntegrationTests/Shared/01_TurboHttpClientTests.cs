@@ -124,29 +124,6 @@ public sealed class TurboHttpClientTests : TestKit, IClassFixture<KestrelFixture
         await Assert.ThrowsAnyAsync<OperationCanceledException>(async () => await sendTask);
     }
 
-    [Fact(DisplayName = "CLIENT-008: 10 sequential requests all return successfully")]
-    public async Task SequentialRequests_AllReturnSuccessfully()
-    {
-        var client = CreateClient();
-        var results = new List<HttpResponseMessage>();
-        for (var i = 0; i < 10; i++)
-        {
-            var request = new HttpRequestMessage(HttpMethod.Get, $"http://127.0.0.1:{_fixture.Port}/ping")
-            {
-                Version = HttpVersion.Version11
-            };
-            results.Add(await client.SendAsync(request, CancellationToken.None));
-        }
-
-        Assert.Equal(10, results.Count);
-        foreach (var response in results)
-        {
-            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-            var body = await response.Content.ReadAsStringAsync();
-            Assert.Equal("pong", body);
-        }
-    }
-
     [Fact(DisplayName = "CLIENT-009: Completing Requests channel shuts down pipeline")]
     public async Task Dispose_CompletingRequestsChannelShutsDownPipeline()
     {

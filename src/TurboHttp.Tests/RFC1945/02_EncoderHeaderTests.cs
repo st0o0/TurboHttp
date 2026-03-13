@@ -1,6 +1,5 @@
 using System.Net.Http.Headers;
 using System.Text;
-using TurboHttp.Protocol;
 using TurboHttp.Protocol.RFC1945;
 
 namespace TurboHttp.Tests.RFC1945;
