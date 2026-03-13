@@ -101,14 +101,14 @@ stream-ref handshake between actors so that all actors can be refactored indepen
 consistently.
 
 **Acceptance Criteria:**
-- [ ] New message type `ConnectionActor.StreamRefsReady(ISinkRef<IDataItem> Sink, ISourceRef<IDataItem> Source)` defined on `ConnectionActor`.
-- [ ] New message type `HostPoolActor.RegisterConnectionRefs(IActorRef Connection, ISinkRef<IDataItem> Sink, ISourceRef<IDataItem> Source)` defined on `HostPoolActor`.
-- [ ] New message type `HostPoolActor.HostStreamRefsReady(HostKey Key, ISourceRef<IDataItem> Source)` defined on `HostPoolActor`.
-- [ ] New message type `PoolRouterActor.GetPoolRefs` and response `PoolRouterActor.PoolRefs(ISinkRef<ITransportItem> Sink, ISourceRef<IDataItem> Source)` defined on `PoolRouterActor`.
-- [ ] Old messages `SendRequest`, `Response`, `ConnectionIdle`, `ConnectionFailed` on `PoolRouterActor` removed.
-- [ ] Old messages `ConnectionResponse` on `HostPoolActor` removed.
-- [ ] `ConnectionActor.GetStreamRefs` and `ConnectionActor.StreamRefsResponse` removed.
-- [ ] Build compiles (CS errors only in implementing classes, not in type definitions).
+- [x] New message type `ConnectionActor.StreamRefsReady(ISinkRef<IDataItem> Sink, ISourceRef<IDataItem> Source)` defined on `ConnectionActor`.
+- [x] New message type `HostPoolActor.RegisterConnectionRefs(IActorRef Connection, ISinkRef<IDataItem> Sink, ISourceRef<IDataItem> Source)` defined on `HostPoolActor`.
+- [x] New message type `HostPoolActor.HostStreamRefsReady(HostKey Key, ISourceRef<IDataItem> Source)` defined on `HostPoolActor`.
+- [x] New message type `PoolRouterActor.GetPoolRefs` and response `PoolRouterActor.PoolRefs(ISinkRef<ITransportItem> Sink, ISourceRef<IDataItem> Source)` defined on `PoolRouterActor`.
+- [x] Old messages `SendRequest`, `Response`, `ConnectionIdle`, `ConnectionFailed` on `PoolRouterActor` removed.
+- [x] Old messages `ConnectionResponse` on `HostPoolActor` removed.
+- [x] `ConnectionActor.GetStreamRefs` and `ConnectionActor.StreamRefsResponse` removed.
+- [x] Build compiles (CS errors only in implementing classes, not in type definitions).
 
 ---
 

@@ -1,7 +1,6 @@
-using System;
-using System.Buffers;
 using System.Collections.Generic;
 using Akka.Actor;
+using Akka.Streams;
 using Servus.Akka;
 using TurboHttp.IO.Stages;
 
@@ -11,13 +10,9 @@ public sealed class PoolRouterActor : ReceiveActor
 {
     public sealed record RegisterHost(string PoolKey, TcpOptions Options);
 
-    public sealed record SendRequest(string PoolKey, DataItem Data, IActorRef ReplyTo, Version? HttpVersion = null);
+    public sealed record GetPoolRefs;
 
-    public sealed record Response(string PoolKey, IMemoryOwner<byte> Memory, int Length);
-
-    public sealed record ConnectionIdle(IActorRef Connection);
-
-    public sealed record ConnectionFailed(IActorRef Connection, Exception? Cause);
+    public sealed record PoolRefs(ISinkRef<ITransportItem> Sink, ISourceRef<IDataItem> Source);
 
     private readonly Dictionary<string, IActorRef> _hosts = new();
 

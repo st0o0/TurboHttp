@@ -13,9 +13,7 @@ namespace TurboHttp.IO;
 
 public sealed class ConnectionActor : ReceiveActor
 {
-    public sealed record GetStreamRefs;
-
-    public sealed record StreamRefsResponse(ISinkRef<IDataItem> Requests, ISourceRef<IDataItem> Responses);
+    public sealed record StreamRefsReady(ISinkRef<IDataItem> Sink, ISourceRef<IDataItem> Source);
 
     private readonly TcpOptions _options;
     private readonly IActorRef _clientManager;

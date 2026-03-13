@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Net;
 using Akka.Actor;
+using Akka.Streams;
 using TurboHttp.IO.Stages;
 
 namespace TurboHttp.IO;
@@ -14,7 +15,9 @@ public sealed class HostPoolActor : ReceiveActor
 
     public sealed record ConnectionFailed(IActorRef Connection);
 
-    public sealed record ConnectionResponse(IActorRef Connection, IMemoryOwner<byte> Memory, int Length);
+    public sealed record RegisterConnectionRefs(IActorRef Connection, ISinkRef<IDataItem> Sink, ISourceRef<IDataItem> Source);
+
+    public sealed record HostStreamRefsReady(HostKey Key, ISourceRef<IDataItem> Source);
 
     public sealed record IdleCheck;
 
