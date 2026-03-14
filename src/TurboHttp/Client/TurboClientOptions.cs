@@ -2,6 +2,7 @@ using System;
 using System.Net.Security;
 using System.Security.Authentication;
 using System.Security.Cryptography.X509Certificates;
+using TurboHttp.IO;
 using TurboHttp.Protocol.RFC9110;
 using TurboHttp.Protocol.RFC9111;
 using TurboHttp.Protocol.RFC9112;
@@ -25,4 +26,5 @@ public record TurboClientOptions
     public RetryPolicy? RetryPolicy { get; init; } = RetryPolicy.Default;
     public CachePolicy? CachePolicy { get; init; } = CachePolicy.Default;
     public ConnectionPolicy? ConnectionPolicy { get; init; } = ConnectionPolicy.Default;
+    public PoolConfig PoolConfig { get; init; } = new PoolConfig();
 }

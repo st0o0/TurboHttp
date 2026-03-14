@@ -219,12 +219,12 @@ and pass it to the refactored `ConnectionStage` so that the production path uses
 actor-pool stream topology.
 
 **Acceptance Criteria:**
-- [ ] `Engine.cs` creates a `PoolRouterActor` (or receives one via constructor/DI) before building the graph.
-- [ ] `BuildConnectionFlow<TEngine>` passes `poolRouterActor` to `new ConnectionStage(poolRouterActor)` instead of `clientManager`.
-- [ ] The `PoolConfig` used to construct `PoolRouterActor` children is configurable (default stays).
-- [ ] `ClientManager` is no longer injected into `ConnectionStage` (it is only used inside `ConnectionActor`).
-- [ ] Existing `BuildConnectionFlow` topology (Broadcast → ConnectItem inject → Concat → ConnectionStage) remains structurally unchanged where it does not conflict with the new design.
-- [ ] Build succeeds, zero CS warnings introduced.
+- [x] `Engine.cs` creates a `PoolRouterActor` (or receives one via constructor/DI) before building the graph.
+- [x] `BuildConnectionFlow<TEngine>` passes `poolRouterActor` to `new ConnectionStage(poolRouterActor)` instead of `clientManager`.
+- [x] The `PoolConfig` used to construct `PoolRouterActor` children is configurable (default stays).
+- [x] `ClientManager` is no longer injected into `ConnectionStage` (it is only used inside `ConnectionActor`).
+- [x] Existing `BuildConnectionFlow` topology (Broadcast → ConnectItem inject → Concat → ConnectionStage) remains structurally unchanged where it does not conflict with the new design.
+- [x] Build succeeds, zero CS warnings introduced.
 
 ---
 

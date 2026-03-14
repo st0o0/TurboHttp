@@ -37,8 +37,11 @@ internal sealed class TurboClientStreamManager
         var responseWriter = responsesChannel.Writer;
         var requestReader = requestsChannel.Reader;
 
-        // Create ClientManager actor for TCP connection lifecycle
-        var clientManager = system.ActorOf(Props.Create<ClientManager>(), $"client-manager-{streamManagerId}");
+        // Create PoolRouterActor — supervises the actor-based connection pool hierarchy.
+        // PoolRouterActor → HostPoolActor → ConnectionActor → TCP
+        var poolRouter = system.ActorOf(
+            Props.Create(() => new PoolRouterActor(clientOptions.PoolConfig)),
+            $"pool-router-{streamManagerId}");
 
         // Build the full pipeline flow from Engine.
         // Engine.CreateFlow internally creates per-client instances:
@@ -47,7 +50,7 @@ internal sealed class TurboClientStreamManager
         //   - RedirectHandler (one per pipeline, stateful redirect count) when EnableRedirectHandling is set
         //   - Stages for retry, decompression, cookie injection/storage, cache lookup/storage
         var engine = new Engine();
-        var engineFlow = engine.CreateFlow(clientManager, clientOptions, requestOptionsFactory);
+        var engineFlow = engine.CreateFlow(poolRouter, clientOptions, requestOptionsFactory);
 
 
         var sink = Sink.ForEachAsync<HttpResponseMessage>(1, async r => await responseWriter.WriteAsync(r));

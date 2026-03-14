@@ -13,25 +13,25 @@ namespace TurboHttp.IntegrationTests.Http11;
 /// <summary>
 /// Integration tests for Http11Engine basic RFC 9112 compliance.
 /// These tests drive the actual Http11Engine Akka.Streams pipeline
-/// (encoder → ConnectionStage/ClientManager → real TCP → decoder → correlator)
+/// (encoder → ConnectionStage/PoolRouterActor → real TCP → decoder → correlator)
 /// against a real Kestrel server.
 /// </summary>
 public sealed class Http11BasicTests : TestKit, IClassFixture<KestrelFixture>
 {
     private readonly KestrelFixture _fixture;
     private readonly IMaterializer _materializer;
-    private readonly IActorRef _clientManager;
+    private readonly IActorRef _poolRouter;
 
     public Http11BasicTests(KestrelFixture fixture)
     {
         _fixture = fixture;
         _materializer = Sys.Materializer();
-        _clientManager = Sys.ActorOf(Props.Create<ClientManager>());
+        _poolRouter = Sys.ActorOf(Props.Create(() => new PoolRouterActor()));
     }
 
     /// <summary>
     /// Sends a single HTTP/1.1 request through the Http11Engine pipeline
-    /// using the real ConnectionStage + ClientManager TCP transport.
+    /// using the real ConnectionStage + PoolRouterActor TCP transport.
     /// A ConnectItem is prepended via Concat so the ConnectionStage knows
     /// where to connect. Source.Queue prevents premature upstream completion
     /// before the TCP response arrives.
@@ -49,7 +49,7 @@ public sealed class Http11BasicTests : TestKit, IClassFixture<KestrelFixture>
             Flow.Create<ITransportItem>()
                 .Prepend(Source.Single<ITransportItem>(
                     new ConnectItem(tcpOptions)))
-                .Via(new ConnectionStage(_clientManager));
+                .Via(new ConnectionStage(_poolRouter));
 
         var flow = engine.CreateFlow().Join(transport);
 

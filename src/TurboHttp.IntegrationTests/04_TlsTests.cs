@@ -20,13 +20,13 @@ public sealed class TlsTests : TestKit, IClassFixture<KestrelTlsFixture>
 {
     private readonly KestrelTlsFixture _fixture;
     private readonly IMaterializer _materializer;
-    private readonly IActorRef _clientManager;
+    private readonly IActorRef _poolRouter;
 
     public TlsTests(KestrelTlsFixture fixture)
     {
         _fixture = fixture;
         _materializer = Sys.Materializer();
-        _clientManager = Sys.ActorOf(Props.Create<ClientManager>());
+        _poolRouter = Sys.ActorOf(Props.Create(() => new PoolRouterActor()));
     }
 
     /// <summary>
@@ -49,7 +49,7 @@ public sealed class TlsTests : TestKit, IClassFixture<KestrelTlsFixture>
             Flow.Create<ITransportItem>()
                 .Prepend(Source.Single<ITransportItem>(
                     new ConnectItem(tlsOptions)))
-                .Via(new ConnectionStage(_clientManager));
+                .Via(new ConnectionStage(_poolRouter));
 
         var flow = engine.CreateFlow().Join(transport);
 

@@ -23,9 +23,9 @@ public class Engine
     /// based on <paramref name="options"/> feature flags.
     /// When all flags are false the pipeline is identical to the no-options overload.
     /// </summary>
-    public Flow<HttpRequestMessage, HttpResponseMessage, NotUsed> CreateFlow(IActorRef clientManager,
+    public Flow<HttpRequestMessage, HttpResponseMessage, NotUsed> CreateFlow(IActorRef poolRouter,
         TurboClientOptions? options)
-        => CreateFlow(clientManager, options, requestOptionsFactory: null);
+        => CreateFlow(poolRouter, options, requestOptionsFactory: null);
 
     /// <summary>
     /// Creates the full HTTP pipeline flow with an optional dynamic request-options factory.
@@ -33,7 +33,7 @@ public class Engine
     /// evaluates it per-request, enabling dynamic <see cref="TurboHttpClient.BaseAddress"/> and
     /// <see cref="TurboHttpClient.DefaultRequestHeaders"/> changes after construction.
     /// </summary>
-    public Flow<HttpRequestMessage, HttpResponseMessage, NotUsed> CreateFlow(IActorRef clientManager,
+    public Flow<HttpRequestMessage, HttpResponseMessage, NotUsed> CreateFlow(IActorRef poolRouter,
         TurboClientOptions? options,
         Func<TurboRequestOptions>? requestOptionsFactory)
     {
@@ -41,7 +41,7 @@ public class Engine
         var requestOptions = BuildRequestOptions(options);
         requestOptionsFactory ??= () => requestOptions;
 
-        return BuildExtendedPipeline(clientManager, options, requestOptionsFactory);
+        return BuildExtendedPipeline(poolRouter, options, requestOptionsFactory);
     }
 
     internal Flow<HttpRequestMessage, HttpResponseMessage, NotUsed> CreateFlow(
@@ -113,7 +113,7 @@ public class Engine
     /// </code>
     /// </summary>
     private static Flow<HttpRequestMessage, HttpResponseMessage, NotUsed> BuildExtendedPipeline(
-        IActorRef clientManager,
+        IActorRef poolRouter,
         TurboClientOptions options,
         Func<TurboRequestOptions> requestOptionsFactory,
         Func<Flow<ITransportItem, IDataItem, NotUsed>>? http10Factory = null,
@@ -155,7 +155,7 @@ public class Engine
             // ---- ENGINE CORE ----
 
             var engineCore = builder.Add(
-                BuildEngineCoreGraph(clientManager, options, http10Factory, http11Factory, http20Factory));
+                BuildEngineCoreGraph(poolRouter, options, http10Factory, http11Factory, http20Factory));
 
             builder.From(engineRequest).To(engineCore.Inlet);
             var responseTip = engineCore.Outlet;
@@ -216,7 +216,7 @@ public class Engine
     /// In production mode a 4-port Partition (HTTP/1.0, 1.1, 2.0, 3.0) is used.
     /// </summary>
     private static IGraph<FlowShape<HttpRequestMessage, HttpResponseMessage>, NotUsed> BuildEngineCoreGraph(
-        IActorRef clientManager,
+        IActorRef poolRouter,
         TurboClientOptions clientOptions,
         Func<Flow<ITransportItem, IDataItem, NotUsed>>? http10Factory,
         Func<Flow<ITransportItem, IDataItem, NotUsed>>? http11Factory,
@@ -257,13 +257,13 @@ public class Engine
                 var hub = builder.Add(new Merge<HttpResponseMessage>(4));
 
                 var http10 =
-                    builder.Add(BuildProtocolFlow<Http10Engine>(4, clientManager, clientOptions: clientOptions));
+                    builder.Add(BuildProtocolFlow<Http10Engine>(4, poolRouter, clientOptions: clientOptions));
                 var http11 =
-                    builder.Add(BuildProtocolFlow<Http11Engine>(4, clientManager, clientOptions: clientOptions));
+                    builder.Add(BuildProtocolFlow<Http11Engine>(4, poolRouter, clientOptions: clientOptions));
                 var http20 =
-                    builder.Add(BuildProtocolFlow<Http20Engine>(1, clientManager, clientOptions: clientOptions));
+                    builder.Add(BuildProtocolFlow<Http20Engine>(1, poolRouter, clientOptions: clientOptions));
                 var http30 =
-                    builder.Add(BuildProtocolFlow<Http30Engine>(1, clientManager, clientOptions: clientOptions));
+                    builder.Add(BuildProtocolFlow<Http30Engine>(1, poolRouter, clientOptions: clientOptions));
 
                 builder.From(partition.Out(0)).Via(http10).To(hub);
                 builder.From(partition.Out(1)).Via(http11).To(hub);
@@ -277,7 +277,7 @@ public class Engine
 
     private static IGraph<FlowShape<HttpRequestMessage, HttpResponseMessage>, NotUsed> BuildProtocolFlow<TEngine>(
         int connectionCount,
-        IActorRef clientManager,
+        IActorRef poolRouter,
         Func<Flow<ITransportItem, IDataItem, NotUsed>>? transportFactory = null,
         TurboClientOptions? clientOptions = null)
         where TEngine : IHttpProtocolEngine, new()
@@ -298,8 +298,8 @@ public class Engine
                 }
                 else
                 {
-                    // Production mode: inject ConnectItem from first request's URI
-                    var tcp = Flow.FromGraph(new ConnectionStage(clientManager));
+                    // Production mode: ConnectionStage obtains PoolRefs from PoolRouterActor
+                    var tcp = Flow.FromGraph(new ConnectionStage(poolRouter));
                     var conn = builder.Add(BuildConnectionFlow<TEngine>(tcp,
                         clientOptions ?? new TurboClientOptions()));
                     builder.From(balance.Out(i)).Via(conn).To(merge.In(i));

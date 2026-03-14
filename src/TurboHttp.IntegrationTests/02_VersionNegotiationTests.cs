@@ -26,14 +26,14 @@ public sealed class VersionNegotiationTests : TestKit, IClassFixture<KestrelFixt
     private readonly KestrelFixture _h1Fixture;
     private readonly KestrelH2Fixture _h2Fixture;
     private readonly IMaterializer _materializer;
-    private readonly IActorRef _clientManager;
+    private readonly IActorRef _poolRouter;
 
     public VersionNegotiationTests(KestrelFixture h1Fixture, KestrelH2Fixture h2Fixture)
     {
         _h1Fixture = h1Fixture;
         _h2Fixture = h2Fixture;
         _materializer = Sys.Materializer();
-        _clientManager = Sys.ActorOf(Props.Create<ClientManager>());
+        _poolRouter = Sys.ActorOf(Props.Create(() => new PoolRouterActor()));
     }
 
     private TurboHttpClient CreateClient()
@@ -57,7 +57,7 @@ public sealed class VersionNegotiationTests : TestKit, IClassFixture<KestrelFixt
             Flow.Create<ITransportItem>()
                 .Prepend(Source.Single<ITransportItem>(new ConnectItem(tcpOptions)))
                 .Via(new PrependPrefaceStage(windowSize))
-                .Via(new ConnectionStage(_clientManager));
+                .Via(new ConnectionStage(_poolRouter));
 
         var flow = engine.Join(transport);
 

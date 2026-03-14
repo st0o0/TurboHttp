@@ -23,13 +23,13 @@ public sealed class Http20FlowControlTests : TestKit, IClassFixture<KestrelH2Fix
 {
     private readonly KestrelH2Fixture _fixture;
     private readonly IMaterializer _materializer;
-    private readonly IActorRef _clientManager;
+    private readonly IActorRef _poolRouter;
 
     public Http20FlowControlTests(KestrelH2Fixture fixture)
     {
         _fixture = fixture;
         _materializer = Sys.Materializer();
-        _clientManager = Sys.ActorOf(Props.Create<ClientManager>());
+        _poolRouter = Sys.ActorOf(Props.Create(() => new PoolRouterActor()));
     }
 
     /// <summary>
@@ -49,7 +49,7 @@ public sealed class Http20FlowControlTests : TestKit, IClassFixture<KestrelH2Fix
             Flow.Create<ITransportItem>()
                 .Prepend(Source.Single<ITransportItem>(new ConnectItem(tcpOptions)))
                 .Via(new PrependPrefaceStage(windowSize))
-                .Via(new ConnectionStage(_clientManager));
+                .Via(new ConnectionStage(_poolRouter));
 
         return engine.Join(transport);
     }

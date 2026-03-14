@@ -24,13 +24,13 @@ public sealed class Http20CookieTests : TestKit, IClassFixture<KestrelH2Fixture>
 {
     private readonly KestrelH2Fixture _fixture;
     private readonly IMaterializer _materializer;
-    private readonly IActorRef _clientManager;
+    private readonly IActorRef _poolRouter;
 
     public Http20CookieTests(KestrelH2Fixture fixture)
     {
         _fixture = fixture;
         _materializer = Sys.Materializer();
-        _clientManager = Sys.ActorOf(Props.Create<ClientManager>());
+        _poolRouter = Sys.ActorOf(Props.Create(() => new PoolRouterActor()));
     }
 
     /// <summary>
@@ -52,7 +52,7 @@ public sealed class Http20CookieTests : TestKit, IClassFixture<KestrelH2Fixture>
             Flow.Create<ITransportItem>()
                 .Prepend(Source.Single<ITransportItem>(new ConnectItem(tcpOptions)))
                 .Via(new PrependPrefaceStage(windowSize))
-                .Via(new ConnectionStage(_clientManager));
+                .Via(new ConnectionStage(_poolRouter));
 
         return engine.Join(transport);
     }

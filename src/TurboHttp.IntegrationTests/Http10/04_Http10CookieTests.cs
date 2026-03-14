@@ -22,13 +22,13 @@ public sealed class Http10CookieTests : TestKit, IClassFixture<KestrelFixture>
 {
     private readonly KestrelFixture _fixture;
     private readonly IMaterializer _materializer;
-    private readonly IActorRef _clientManager;
+    private readonly IActorRef _poolRouter;
 
     public Http10CookieTests(KestrelFixture fixture)
     {
         _fixture = fixture;
         _materializer = Sys.Materializer();
-        _clientManager = Sys.ActorOf(Props.Create<ClientManager>());
+        _poolRouter = Sys.ActorOf(Props.Create(() => new PoolRouterActor()));
     }
 
     private async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request)
@@ -44,7 +44,7 @@ public sealed class Http10CookieTests : TestKit, IClassFixture<KestrelFixture>
             Flow.Create<ITransportItem>()
                 .Prepend(Source.Single<ITransportItem>(
                     new ConnectItem(tcpOptions)))
-                .Via(new ConnectionStage(_clientManager));
+                .Via(new ConnectionStage(_poolRouter));
 
         var flow = engine.CreateFlow().Join(transport);
 

@@ -111,6 +111,21 @@
 - No errors in type definitions
 - Implementing code will be fixed in TASK-4B-002/003/004
 
+### TASK-4B-007 Complete (2026-03-14)
+- `Engine.cs`: all `clientManager` parameters renamed to `poolRouter`; production `BuildProtocolFlow` now calls `new ConnectionStage(poolRouter)` (was `clientManager`)
+- `TurboClientStreamManager`: creates `PoolRouterActor(clientOptions.PoolConfig)` actor (was `Props.Create<ClientManager>()`)
+- `TurboClientOptions`: added `PoolConfig PoolConfig { get; init; } = new PoolConfig()` (with `using TurboHttp.IO`)
+- 27 integration test files: `_clientManager` field + `Props.Create<ClientManager>()` + `ConnectionStage(_clientManager)` → `_poolRouter` + `Props.Create(() => new PoolRouterActor())` + `ConnectionStage(_poolRouter)` throughout Http10/, Http11/, Http20/, Shared/
+- `ClientManager` is no longer passed to `ConnectionStage` anywhere in the codebase (still used internally in `ConnectionActor`)
+- Build: 0 errors, 0 warnings; 31 files changed
+
+### TASK-4B-006 Complete (2026-03-14)
+- `ConnectionPoolTypes.cs` deleted; `PoolConfig` moved to `src/TurboHttp/IO/PoolConfig.cs` in namespace `TurboHttp.IO`
+- `ConnectionPoolStage.cs`, `ConnectionPoolIntegrationTests.cs`, `ConnectionPoolStageTests.cs` were already absent (removed in TASK-4B-004)
+- `RoutedTransportItem` and `RoutedDataItem` were already removed in TASK-4B-004
+- All actor files (`HostPoolActor`, `PoolRouterActor`, `ConnectionActor`) keep `using TurboHttp.IO.Stages;` for `IDataItem`, `ITransportItem`, etc.
+- Build: 0 errors, 0 warnings; all tests remain green
+
 ### TASK-4B-005 Complete (2026-03-14)
 - `ConnectionStage` fully rewritten: accepts `IActorRef poolRouter` (no TCP types); uses `GetStageActor(OnMessage)` + `Tell(GetPoolRefs(), stageActor.Ref)` to obtain PoolRefs without PipeTo
 - `OnMessage` materializes `Source.Queue<ITransportItem>(256) → sinkRef.Sink` (Keep.Left, not tuple) and `sourceRef.Source → Sink.ForEach → _onResponse GetAsyncCallback`
