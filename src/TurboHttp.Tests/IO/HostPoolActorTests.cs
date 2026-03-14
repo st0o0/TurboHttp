@@ -5,6 +5,7 @@ using System.Threading.Channels;
 using System.Threading.Tasks;
 using Akka.Actor;
 using Akka.Event;
+using Akka.Hosting;
 using Akka.Streams;
 using Akka.Streams.Dsl;
 using Akka.TestKit.Xunit2;
@@ -101,15 +102,17 @@ public sealed class HostPoolActorTests : TestKit
     [Fact(DisplayName = "HA-002: Request routing selects idle connection's queue")]
     public async Task HA_002_RoutingSelectsIdleConnectionQueue()
     {
+        // Register a TestProbe as the ClientManager BEFORE creating the proxy so that
+        // HostPoolActor.SpawnConnection() → Context.GetActor<ClientManager>() resolves
+        // to the probe instead of throwing MissingActorRegistryEntryException.
+        var clientManagerProbe = CreateTestProbe();
+        ActorRegistry.For(Sys).Register<ClientManager>(clientManagerProbe.Ref);
+
         var proxy = CreateProxy();
         var mat = Sys.Materializer();
 
         // Receive the merged SourceRef (ignore for this test — we focus on routing)
         await ExpectMsgAsync<HostPoolActor.HostStreamRefsReady>(TimeSpan.FromSeconds(10));
-
-        // Subscribe to UnhandledMessage so we can capture the CreateTcpRunner sent by
-        // the spawned ConnectionActor to HostPoolActor (which has no handler for it).
-        Sys.EventStream.Subscribe(TestActor, typeof(UnhandledMessage));
 
         // Send a DataItem to HostPoolActor — no connections exist, so it spawns one
         // and enqueues the item as pending.
@@ -117,9 +120,9 @@ public sealed class HostPoolActorTests : TestKit
         pendingOwner.Memory.Span[0] = 0xCC;
         proxy.Tell(new DataItem(pendingOwner, 8));
 
-        // Capture the unhandled CreateTcpRunner to extract the ConnectionActor ref
-        var unhandled = await ExpectMsgAsync<UnhandledMessage>(TimeSpan.FromSeconds(5));
-        var createMsg = Assert.IsType<ClientManager.CreateTcpRunner>(unhandled.Message);
+        // Capture the CreateTcpRunner that ConnectionActor sends to its clientManager.
+        // Extract the ConnectionActor ref from the Handler field.
+        var createMsg = clientManagerProbe.ExpectMsg<ClientManager.CreateTcpRunner>(TimeSpan.FromSeconds(5));
         var connectionActor = createMsg.Handler;
 
         // Create inbound/outbound channels simulating a TCP connection

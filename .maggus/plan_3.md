@@ -121,11 +121,11 @@ Either way, the 10-second wait for `UnhandledMessage(CreateTcpRunner)` times out
 **Description:** As a test author, I want the `HostPoolActorTests` to work correctly with the new `HostPoolActor.SpawnConnection()` logic that resolves `ClientManager` via `Context.GetActor<ClientManager>()`, so that the test captures the right actor ref without relying on the old `Self`-as-clientManager trick.
 
 **Acceptance Criteria:**
-- [ ] A `TestProbe` or minimal stub is registered in the actor system under the name that `Context.GetActor<ClientManager>()` resolves to, before the `HostPoolActorProxy` is created
-- [ ] `HA-002` no longer receives a second `HostStreamRefsReady` where `UnhandledMessage` is expected
-- [ ] The test correctly extracts the `ConnectionActor` ref from the `CreateTcpRunner` message
-- [ ] `HA-001` still passes
-- [ ] Build has 0 errors
+- [x] A `TestProbe` or minimal stub is registered in the actor system under the name that `Context.GetActor<ClientManager>()` resolves to, before the `HostPoolActorProxy` is created
+- [x] `HA-002` no longer receives a second `HostStreamRefsReady` where `UnhandledMessage` is expected
+- [x] The test correctly extracts the `ConnectionActor` ref from the `CreateTcpRunner` message
+- [x] `HA-001` still passes
+- [x] Build has 0 errors
 
 ---
 
