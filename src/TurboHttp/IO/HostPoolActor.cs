@@ -113,8 +113,7 @@ public sealed class HostPoolActor : ReceiveActor
         }
         else if (_connections.Count < _config.MaxConnectionsPerHost)
         {
-            var newConn = SpawnConnection();
-            newConn.MarkBusy();
+            SpawnConnection();
             _pending.Enqueue(item);
         }
         else

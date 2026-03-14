@@ -142,21 +142,21 @@ all `ConnectionActor` children and to send requests to connections via per-conne
 so that the response path is fully stream-based.
 
 **Acceptance Criteria:**
-- [ ] `HostPoolActor` materializes a `MergeHub.Source<IDataItem>` on creation (or lazily on first connection), storing the `Sink<IDataItem>` (hub entry point) and `Source<IDataItem>` (merged output).
-- [ ] On receiving `RegisterConnectionRefs(connection, sinkRef, sourceRef)`:
+- [x] `HostPoolActor` materializes a `MergeHub.Source<IDataItem>` on creation (or lazily on first connection), storing the `Sink<IDataItem>` (hub entry point) and `Source<IDataItem>` (merged output).
+- [x] On receiving `RegisterConnectionRefs(connection, sinkRef, sourceRef)`:
   - Creates an `ISourceQueueWithComplete<IDataItem>` (buffer 128) as the per-connection request queue.
   - Runs `queueSource.RunWith(sinkRef.Sink, materializer)` — persistent stream into ConnectionActor.
   - Runs `sourceRef.Source.RunWith(mergeHubSink, materializer)` — ConnectionActor responses into MergeHub.
   - Stores `connection → queue` mapping.
-- [ ] When routing a request (`ITransportItem` received via actor message from `PoolRouterActor`):
+- [x] When routing a request (`ITransportItem` received via actor message from `PoolRouterActor`):
   - Selects (or spawns) a `ConnectionActor` using existing `SelectConnection` logic.
   - Calls `queue.OfferAsync(dataItem)` on the selected connection's queue.
-- [ ] Once the MergeHub is ready, materializes `mergeHubSource.RunWith(StreamRefs.SourceRef(), materializer)` and tells `Context.Parent` with `HostStreamRefsReady(hostKey, sourceRef)`.
-- [ ] Removes `_replyToMap`, `PendingReplyTo`, `HandleResponse`, `ConnectionResponse` — response correlation is stream-based from here.
-- [ ] `ConnectionState` class retains `Active`, `Idle`, `Reusable`, HTTP version, and stream capacity tracking (no change to selection logic).
-- [ ] On connection death (`HandleFailure`): removes connection's queue from map, closes that queue.
-- [ ] Unit test: two `ConnectionActor` SourceRefs registered → both responses appear on the merged output SourceRef.
-- [ ] Unit test: request routing selects idle connection's queue.
+- [x] Once the MergeHub is ready, materializes `mergeHubSource.RunWith(StreamRefs.SourceRef(), materializer)` and tells `Context.Parent` with `HostStreamRefsReady(hostKey, sourceRef)`.
+- [x] Removes `_replyToMap`, `PendingReplyTo`, `HandleResponse`, `ConnectionResponse` — response correlation is stream-based from here.
+- [x] `ConnectionState` class retains `Active`, `Idle`, `Reusable`, HTTP version, and stream capacity tracking (no change to selection logic).
+- [x] On connection death (`HandleFailure`): removes connection's queue from map, closes that queue.
+- [x] Unit test: two `ConnectionActor` SourceRefs registered → both responses appear on the merged output SourceRef.
+- [x] Unit test: request routing selects idle connection's queue.
 
 ---
 

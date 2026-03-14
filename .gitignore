@@ -342,3 +342,4 @@ coverage-results/
 .maggus/RELEASE_NOTES.md
 .maggus/locks/
 .maggus-work/
+.maggus/usage.csv

@@ -111,6 +111,15 @@
 - No errors in type definitions
 - Implementing code will be fixed in TASK-4B-002/003/004
 
+### TASK-4B-003 Complete (2026-03-14)
+- `HostPoolActor` materializes `MergeHub.Source<IDataItem>` in `PreStart`, tells parent `HostStreamRefsReady` once SourceRef is ready
+- `HandleRegisterConnectionRefs`: creates per-connection `Source.Queue<IDataItem>(128)`, wires queue → SinkRef → ConnectionActor outbound, wires ConnectionActor SourceRef → MergeHub, registers queue in `_connectionQueues`, calls `DrainPending`
+- **Bug fixed**: removed `newConn.MarkBusy()` from spawn path in `HandleDataItem` — calling it before queue registration prevented `DrainPending` from routing (requires `Idle=true`)
+- New tests: HA-001 (two SourceRefs → merged output), HA-002 (pending DataItem drained after RegisterConnectionRefs)
+- **UnhandledMessage trick**: `ConnectionActor` sends `CreateTcpRunner` to `HostPoolActor` (has no handler) → Akka publishes `UnhandledMessage` on EventStream → test subscribes and extracts `ConnectionActor` ref
+- **HostPoolActorProxy pattern**: bidirectional proxy that routes child→parent messages to TestActor and external→proxy to child
+- Build: 0 errors, 0 warnings; 2181 tests pass; PRA-004..007 pre-existing (PoolRouterActor SendRequest stub → TASK-4B-004)
+
 ### TASK-4B-002 Complete (2026-03-13)
 - `ConnectionActor.HandleConnected` is now `async Task`: creates `Source.Queue<IDataItem>` + PreMaterialize, awaits `SourceRef`, creates `Sink.ForEachAsync`, awaits `SinkRef`, tells parent `RegisterConnectionRefs`
 - `HandleSend(DataItem)` and `GetStreamRefs`/`StreamRefsResponse` handlers removed
