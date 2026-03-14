@@ -233,14 +233,14 @@ actor-pool stream topology.
 so that the handshake, routing, and merge semantics are verified independently of integration tests.
 
 **Acceptance Criteria:**
-- [ ] Test: `ConnectionActor` tells parent `RegisterConnectionRefs` after receiving `ClientConnected`.
-- [ ] Test: item offered to `ConnectionActor` SinkRef appears in the mocked TCP outbound channel.
-- [ ] Test: inbound TCP bytes appear as `IDataItem` on `ConnectionActor` SourceRef.
-- [ ] Test: `HostPoolActor` with two connections — both connection SourceRefs are merged; items from both appear on host SourceRef.
-- [ ] Test: `PoolRouterActor` routes by `HostKey` — item with key `("http","host-a",80)` goes to correct host actor.
-- [ ] Test: end-to-end — item pushed to `PoolRouterActor` SinkRef traverses the full hierarchy and arrives at `ConnectionActor`'s TCP outbound channel.
-- [ ] Tests use `TestKit` + `TestProbe` for actor interactions; `StreamTestBase` for stream assertions.
-- [ ] All new tests pass; build is green.
+- [x] Test: `ConnectionActor` tells parent `RegisterConnectionRefs` after receiving `ClientConnected`. (CA-016)
+- [x] Test: item offered to `ConnectionActor` SinkRef appears in the mocked TCP outbound channel. (CA-018)
+- [x] Test: inbound TCP bytes appear as `IDataItem` on `ConnectionActor` SourceRef. (CA-017)
+- [x] Test: `HostPoolActor` with two connections — both connection SourceRefs are merged; items from both appear on host SourceRef. (HA-001)
+- [x] Test: `PoolRouterActor` routes by `HostKey` — item with key `("http","host-a",80)` goes to correct host actor. (PR-003)
+- [x] Test: end-to-end — item pushed to `PoolRouterActor` SinkRef traverses the full hierarchy and arrives at `ConnectionActor`'s TCP outbound channel. (ETE-001)
+- [x] Tests use `TestKit` + `TestProbe` for actor interactions; `StreamTestBase` for stream assertions.
+- [x] All new tests pass; build is green.
 
 ---
 

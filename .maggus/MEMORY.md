@@ -111,6 +111,14 @@
 - No errors in type definitions
 - Implementing code will be fixed in TASK-4B-002/003/004
 
+### TASK-4B-008 Complete (2026-03-14)
+- 3 new tests added: CA-018, PR-003, ETE-001 — cover remaining acceptance criteria
+- **CA-018** (`ConnectionActorTests`): `DataItem` pushed via `ConnectionActor` SinkRef → arrives in TCP outbound `Channel`
+- **PR-003** (`PoolRouterActorTests`): `KeyedItem(HostKey)` routed to correct `HostPoolActor` via `PoolRouterActor`; uses `Source.Queue` + `PreMaterialize` for multi-item SinkRef push; `KeyedItem` helper exercises non-`ConnectItem` routing branch
+- **ETE-001** (`ActorHierarchyStreamRefTests`, `TurboHttp.StreamTests/IO/`): full hierarchy — `ConnectItem` via SinkRef → HostPoolActor spawned (via `UnhandledMessage`); `DataItem` → ConnectionActor spawned (via `UnhandledMessage(CreateTcpRunner)`); `ClientConnected` → pending DataItem drains to TCP outbound
+- Pre-existing tests already satisfied: CA-016, CA-017, HA-001, HA-002
+- Build: 0 errors, 0 warnings; all 3 new tests green
+
 ### TASK-4B-007 Complete (2026-03-14)
 - `Engine.cs`: all `clientManager` parameters renamed to `poolRouter`; production `BuildProtocolFlow` now calls `new ConnectionStage(poolRouter)` (was `clientManager`)
 - `TurboClientStreamManager`: creates `PoolRouterActor(clientOptions.PoolConfig)` actor (was `Props.Create<ClientManager>()`)

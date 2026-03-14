@@ -307,6 +307,38 @@ public sealed class ConnectionActorTests : TestKit
         item.Memory.Dispose();
     }
 
+    // ── TASK-4B-008: SinkRef sends item to TCP outbound channel ──────
+
+    [Fact(DisplayName = "CA-018: DataItem offered to ConnectionActor SinkRef appears in TCP outbound channel")]
+    public async Task CA_018_SinkRef_ItemAppearsInOutboundChannel()
+    {
+        var (connectionActor, cmProbe) = await CreateConnectionActorWithParent();
+
+        var (_, outbound, connMsg) = MakeConnectedMessage();
+        connectionActor.Tell(connMsg, cmProbe.Ref);
+
+        var refs = await ExpectMsgAsync<HostPoolActor.RegisterConnectionRefs>(TimeSpan.FromSeconds(10));
+
+        var mat = Sys.Materializer();
+
+        // Offer a DataItem via the SinkRef (simulates HostPoolActor writing a request to this connection)
+        var owner = MemoryPool<byte>.Shared.Rent(4);
+        owner.Memory.Span[0] = 0xDE;
+        var item = new DataItem(owner, 4);
+
+        Source.Single<IDataItem>(item)
+            .RunWith(refs.Sink.Sink, mat);
+
+        // The ConnectionActor's ForEachAsync writes each item to the TCP outbound channel
+        using var cts = new System.Threading.CancellationTokenSource(TimeSpan.FromSeconds(5));
+        var (mem, len) = await outbound.Reader.ReadAsync(cts.Token);
+
+        Assert.Equal(4, len);
+        Assert.Equal(0xDE, mem.Memory.Span[0]);
+
+        mem.Dispose();
+    }
+
     // ── Helpers ──────────────────────────────────────────────────────
 
     /// <summary>
