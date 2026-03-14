@@ -19,11 +19,10 @@ internal sealed class TurboClientStreamManager
     internal ChannelWriter<HttpRequestMessage> Requests { get; }
     internal ChannelReader<HttpResponseMessage> Responses { get; }
 
-    public TurboClientStreamManager(
-        TurboClientOptions clientOptions,
-        Func<TurboRequestOptions> requestOptionsFactory,
+    public TurboClientStreamManager(TurboClientOptions clientOptions, Func<TurboRequestOptions> requestOptionsFactory,
         ActorSystem system)
     {
+        var streamManagerId = Guid.NewGuid();
         var requestsChannel = Channel.CreateUnbounded<HttpRequestMessage>(new UnboundedChannelOptions
         {
             SingleReader = true
@@ -35,11 +34,11 @@ internal sealed class TurboClientStreamManager
 
         Requests = requestsChannel.Writer;
         Responses = responsesChannel.Reader;
+        var responseWriter = responsesChannel.Writer;
+        var requestReader = requestsChannel.Reader;
 
         // Create ClientManager actor for TCP connection lifecycle
-        var clientManager = system.ActorOf(
-            Props.Create<ClientManager>(),
-            $"client-manager-{Guid.NewGuid()}");
+        var clientManager = system.ActorOf(Props.Create<ClientManager>(), $"client-manager-{streamManagerId}");
 
         // Build the full pipeline flow from Engine.
         // Engine.CreateFlow internally creates per-client instances:
@@ -50,21 +49,33 @@ internal sealed class TurboClientStreamManager
         var engine = new Engine();
         var engineFlow = engine.CreateFlow(clientManager, clientOptions, requestOptionsFactory);
 
+
+        var sink = Sink.ForEachAsync<HttpResponseMessage>(1, async r => await responseWriter.WriteAsync(r));
         // Materialise the graph:
         //   Source.Queue → Engine flow → Sink.ForEach (writes to response channel)
-        var queue = Source.Queue<HttpRequestMessage>(256, OverflowStrategy.Backpressure)
+        var (queue, sinkTask) = Source.Queue<HttpRequestMessage>(256, OverflowStrategy.Backpressure)
             .Via(engineFlow)
-            .To(Sink.ForEach<HttpResponseMessage>(r => responsesChannel.Writer.TryWrite(r)))
-            .Run(system.Materializer());
+            .ToMaterialized(sink, Keep.Both)
+            .Run(system.Materializer(namePrefix: $"stream-manager-{streamManagerId}"));
+
+        _ = sinkTask!.ContinueWith(task =>
+        {
+            if (task.Exception is not null)
+            {
+                responseWriter.Complete(task.Exception);
+            }
+            else
+            {
+                responseWriter.Complete();
+            }
+        }, TaskContinuationOptions.ExecuteSynchronously);
 
         // Pump requests from the channel reader into the Akka.Streams queue
-        _ = PumpRequestsAsync(requestsChannel.Reader, queue, responsesChannel.Writer);
+        _ = PumpRequestsAsync(requestReader, queue);
     }
 
-    private static async Task PumpRequestsAsync(
-        ChannelReader<HttpRequestMessage> reader,
-        ISourceQueueWithComplete<HttpRequestMessage> queue,
-        ChannelWriter<HttpResponseMessage> responseWriter)
+    private static async Task PumpRequestsAsync(ChannelReader<HttpRequestMessage> reader,
+        ISourceQueueWithComplete<HttpRequestMessage> queue)
     {
         try
         {
@@ -73,10 +84,10 @@ internal sealed class TurboClientStreamManager
                 await queue.OfferAsync(request);
             }
         }
+
         finally
         {
             queue.Complete();
-            responseWriter.TryComplete();
         }
     }
 }

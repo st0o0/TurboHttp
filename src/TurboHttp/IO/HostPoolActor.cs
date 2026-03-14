@@ -24,7 +24,10 @@ public sealed class HostPoolActor : ReceiveActor
 
     public sealed record ConnectionFailed(IActorRef Connection);
 
-    public sealed record RegisterConnectionRefs(IActorRef Connection, ISinkRef<IDataItem> Sink, ISourceRef<IDataItem> Source);
+    public sealed record RegisterConnectionRefs(
+        IActorRef Connection,
+        ISinkRef<IDataItem> Sink,
+        ISourceRef<IDataItem> Source);
 
     public sealed record HostStreamRefsReady(HostKey Key, ISourceRef<IDataItem> Source);
 
@@ -73,10 +76,7 @@ public sealed class HostPoolActor : ReceiveActor
             Context.Parent.Tell(new HostStreamRefsReady(key, msg.SourceRef));
         });
 
-        Receive<MergeHubFailed>(msg =>
-        {
-            _log.Error(msg.Error, "MergeHub SourceRef initialization failed");
-        });
+        Receive<MergeHubFailed>(msg => { _log.Error(msg.Error, "MergeHub SourceRef initialization failed"); });
     }
 
     protected override void PreStart()
@@ -94,10 +94,10 @@ public sealed class HostPoolActor : ReceiveActor
         _mergeHubSink = sink;
 
         source.RunWith(StreamRefs.SourceRef<IDataItem>(), _mat)
-              .PipeTo(
-                  Self,
-                  success: sourceRef => new MergeHubReady(sourceRef),
-                  failure: ex => new MergeHubFailed(ex));
+            .PipeTo(
+                Self,
+                success: sourceRef => new MergeHubReady(sourceRef),
+                failure: ex => new MergeHubFailed(ex));
     }
 
     // ── Request routing ───────────────────────────────────────────────
@@ -127,7 +127,7 @@ public sealed class HostPoolActor : ReceiveActor
         // Create a per-connection request queue (buffer 128)
         var (queue, queueSource) =
             Source.Queue<IDataItem>(128, OverflowStrategy.Backpressure)
-                  .PreMaterialize(_mat!);
+                .PreMaterialize(_mat!);
 
         // Wire queue → SinkRef → ConnectionActor's TCP outbound
         queueSource.RunWith(msg.Sink.Sink, _mat!);
@@ -196,9 +196,7 @@ public sealed class HostPoolActor : ReceiveActor
 
     private ConnectionState SpawnConnection()
     {
-        var actor = Context.ActorOf(
-            Props.Create(() =>
-                new ConnectionActor(_options, Self)));
+        var actor = Context.ActorOf(Props.Create(() => new ConnectionActor(_options, Self)));
 
         Context.Watch(actor);
 

@@ -3,12 +3,13 @@ using Akka.Actor;
 using Akka.Streams;
 using Akka.Streams.Dsl;
 using TurboHttp.Client;
+using TurboHttp.IntegrationTests.Shared;
 using TurboHttp.IO;
 using TurboHttp.IO.Stages;
 using TurboHttp.Streams;
 using TurboHttp.Streams.Stages;
 
-namespace TurboHttp.IntegrationTests.Shared;
+namespace TurboHttp.IntegrationTests;
 
 /// <summary>
 /// Integration tests for HTTP version negotiation and demultiplexing.

@@ -1,7 +1,8 @@
 using System.Net;
 using TurboHttp.Client;
+using TurboHttp.IntegrationTests.Shared;
 
-namespace TurboHttp.IntegrationTests.Shared;
+namespace TurboHttp.IntegrationTests;
 
 public sealed class TurboHttpClientTests : TestKit, IClassFixture<KestrelFixture>
 {

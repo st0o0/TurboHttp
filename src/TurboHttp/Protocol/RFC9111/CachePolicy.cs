@@ -23,5 +23,5 @@ public sealed record CachePolicy
     /// When false (default) the cache acts as a private (client-side) cache.
     /// RFC 9111 §3.1.
     /// </summary>
-    public bool SharedCache { get; init; } = false;
+    public bool SharedCache { get; init; }
 }

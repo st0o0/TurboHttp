@@ -2,13 +2,14 @@ using System.Net;
 using Akka.Actor;
 using Akka.Streams;
 using Akka.Streams.Dsl;
+using TurboHttp.IntegrationTests.Shared;
 using TurboHttp.IO;
 using TurboHttp.IO.Stages;
 using TurboHttp.Protocol.RFC6265;
 using TurboHttp.Protocol.RFC9110;
 using TurboHttp.Streams;
 
-namespace TurboHttp.IntegrationTests.Shared;
+namespace TurboHttp.IntegrationTests;
 
 /// <summary>
 /// Integration tests for TLS behaviour.

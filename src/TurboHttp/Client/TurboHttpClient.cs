@@ -21,7 +21,7 @@ public record TurboRequestOptions(
 
 public sealed class TurboHttpClient : ITurboHttpClient
 {
-    private readonly HttpRequestOptionsKey<Guid> _key = new HttpRequestOptionsKey<Guid>("RequestId");
+    private readonly HttpRequestOptionsKey<Guid> _key = new("RequestId");
     private readonly HttpRequestMessage _defaultHeadersHolder = new();
     private readonly TurboClientStreamManager _manager;
 

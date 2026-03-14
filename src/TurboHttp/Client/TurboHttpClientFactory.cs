@@ -1,3 +1,4 @@
+using System;
 using Akka.Actor;
 using Microsoft.Extensions.Options;
 
@@ -14,10 +15,10 @@ public sealed class TurboHttpClientFactory : ITurboHttpClientFactory
         _actorSystem = system;
     }
 
-    public ITurboHttpClient CreateClient()
+    public ITurboHttpClient CreateClient(Action<TurboClientOptions>? configure = null)
     {
         var options = _options.CurrentValue;
-
+        configure?.Invoke(options);
         return new TurboHttpClient(options, _actorSystem);
     }
 }
