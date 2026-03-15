@@ -54,15 +54,6 @@ public sealed class GroupByHostKeyStage<T> : GraphStage<FlowShape<T, Source<T, N
                 {
                     _upstreamFinished = true;
                     TryFinish();
-                },
-                onUpstreamFailure: ex =>
-                {
-                    foreach (var state in _subflows.Values)
-                    {
-                        state.Queue.Fail(ex);
-                    }
-
-                    FailStage(ex);
                 });
 
             SetHandler(stage.Out, onPull: HandleOutPull);

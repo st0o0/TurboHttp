@@ -192,3 +192,72 @@ N/A — the Actor Pool is already integrated. No integration work is required.
 Stream tests (non-test code verification):
 - `src/TurboHttp.StreamTests/IO/ActorHierarchyStreamRefTests.cs` — ETE-001: full hierarchy `ConnectItem` via SinkRef → HostPoolActor spawned → DataItem → ConnectionActor spawned → TCP outbound
 - `src/TurboHttp.StreamTests/Streams/ConnectionStageTests.cs` — CS-001, CS-002: `ConnectionStage` talks to stub router, items flow in both directions
+
+---
+
+## TASK-AUD-003 — Connection Reuse: Behavioural Check
+
+**Date:** 2026-03-15
+
+### Summary
+
+| Question | Answer |
+|----------|--------|
+| HTTP/1.1 Keep-Alive (TCP reuse) | ❌ NOT empirically tested end-to-end |
+| HTTP/2 multiplexing | ✅ Tested at stream/stage level (fake TCP, not real) |
+
+---
+
+### HTTP/1.1 Keep-Alive — Detailed Findings
+
+#### What exists
+
+1. **`ConnectionReuseEvaluator`** (`src/TurboHttp/Protocol/RFC9112/ConnectionReuseEvaluator.cs`) — protocol logic: evaluates `Connection: close` vs keep-alive per RFC 9112 §9.
+2. **`ConnectionReuseStage`** (`src/TurboHttp/Streams/Stages/ConnectionReuseStage.cs`) — Akka.Streams stage wrapping the evaluator, passes decisions via `Action<ConnectionReuseDecision>` callback.
+3. **10 unit tests** (`src/TurboHttp.StreamTests/Streams/ConnectionReuseStageTests.cs`) — cover HTTP/1.1 default keep-alive, `Connection: close`, HTTP/1.0 opt-in, body-not-consumed, 101 Switching Protocols, Keep-Alive timeout/max parsing.
+4. **`Http11StageConnectionMgmtTests`** (`src/TurboHttp.StreamTests/Http11/Http11StageConnectionMgmtTests.cs`) — 5 tests that run 2–3 requests through the same `Http11Engine` materialization (same "connection" pipeline instance, using a fake TCP byte source).
+5. **Kestrel routes** — `/conn/keep-alive`, `/conn/close`, `/conn/default`, `/conn/upgrade-101` are registered in `KestrelFixture` (via `Routes.RegisterConnectionReuseRoutes`).
+
+#### Critical gap
+
+**`ConnectionReuseStage` is NOT wired into `Engine.cs`.** The stage exists and is tested in isolation, but no production code path calls it. The decision callbacks (close vs. keep-alive) are never invoked in a real pipeline.
+
+**No integration test class consumes the `/conn/*` routes.** The `src/TurboHttp.IntegrationTests/` directory contains only fixture/infrastructure files (`KestrelFixture.cs`, `KestrelH2Fixture.cs`, `KestrelTlsFixture.cs`, `Routes.cs`, `TestKit.cs`). There is no `Http11ConnectionTests` class or any other test class that sends real HTTP/1.1 requests to Kestrel and checks whether TCP connections are reused.
+
+#### Verdict: keep-alive ❌
+
+The stage-level tests prove the **protocol decision logic is correct** (RFC 9112 compliant header parsing), but there is no empirical test that proves TCP connections are actually kept open and reused across multiple requests in a real pipeline.
+
+---
+
+### HTTP/2 Multiplexing — Detailed Findings
+
+#### What exists
+
+1. **`Http20CorrelationStageTests`** (`COR20-002`) — sends requests with stream IDs 1, 3, 5 and receives responses in reverse order (5, 1, 3). All 3 are matched correctly. Tests the correlation stage in isolation with a fake source.
+2. **`Http20EngineRfcRoundTripTests`** — `SendH2EngineAsyncMany` sends 3 requests through the same `Http20Engine` materialization, receives 3 `HeadersFrame` responses on streams 1, 3, 5. Uses `H2EngineFakeConnectionStage` — a fake TCP stage that serves pre-built H2 frame bytes.
+3. **`SendH2ManyAsync` / `SendH2EngineAsyncMany`** in `EngineTestBase` — both helpers pipe multiple requests through a single engine instance (single fake TCP connection), proving the multiplexing at the protocol layer.
+
+#### Critical gap
+
+All H2 multiplexing tests use a **fake TCP stage** — byte arrays are served from an in-memory queue, not from a real TCP socket. There is no integration test that sends 2+ HTTP/2 requests to a real Kestrel server and confirms they share one TCP connection (e.g., by checking connection counts or stream IDs in the server's access log).
+
+#### Verdict: http2-multiplex ✅ (at stream layer)
+
+HTTP/2 multiplexing is tested at the stream/stage level: multiple requests are encoded with distinct odd stream IDs, sent through a single engine materialization, and responses are correctly correlated by stream ID — all on one fake TCP "connection". This validates the HTTP/2 protocol mechanics. Real TCP multiplexing is not empirically verified.
+
+---
+
+### Test File Search Results
+
+Searched for integration test classes using `/conn/keep-alive` or `/conn/close` route: **0 matches** (outside of `Routes.cs` itself).
+
+Searched for `Http11ConnectionTests`, `Http11BasicTests`, or any file consuming the connection routes: **not found**. The `Http10/`, `Http11/`, `Http20/`, `Shared/` subdirectories mentioned in MEMORY.md do not exist on disk in the `poc2` branch.
+
+---
+
+### Conclusion
+
+- **Keep-alive: ❌** — `ConnectionReuseStage` is dead code (not in Engine.cs). No integration test proves TCP reuse.
+- **HTTP/2 multiplex: ✅** — Multiplexing works at the protocol/stage layer (fake TCP). No real-TCP integration test.
+- The Kestrel routes and the stage infrastructure are in place; what is missing is: (1) wiring `ConnectionReuseStage` into the Engine, and (2) writing integration test classes that exercise the `/conn/*` routes with real TCP.

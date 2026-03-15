@@ -58,11 +58,11 @@ What is unclear right now:
 **Description:** As a developer, I want to know empirically whether HTTP Keep-Alive works — whether the client actually reuses TCP connections across requests or reconnects every time.
 
 **Acceptance Criteria:**
-- [ ] Existing integration tests searched for HTTP/1.1 connection reuse (Kestrel `/conn/keep-alive`, `/conn/close`)
-- [ ] Clear answer: are existing connections reused across multiple requests?
-- [ ] Clear answer: does HTTP/2 multiplexing work (multiple requests over one TCP connection)?
-- [ ] If no test covers this: trace through `Http11ConnectionTests` or `Http11BasicTests` manually
-- [ ] Result (keep-alive: ✅/❌, http2-multiplex: ✅/❌) documented in `.maggus/PROGRESS_7.md`
+- [x] Existing integration tests searched for HTTP/1.1 connection reuse (Kestrel `/conn/keep-alive`, `/conn/close`)
+- [x] Clear answer: are existing connections reused across multiple requests?
+- [x] Clear answer: does HTTP/2 multiplexing work (multiple requests over one TCP connection)?
+- [x] If no test covers this: trace through `Http11ConnectionTests` or `Http11BasicTests` manually
+- [x] Result (keep-alive: ✅/❌, http2-multiplex: ✅/❌) documented in `.maggus/PROGRESS_7.md`
 
 ---
 
