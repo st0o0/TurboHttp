@@ -46,10 +46,10 @@ What is unclear right now:
 **Description:** As a developer, I want to know whether `PoolRouterActor` / `HostPoolActor` / `ConnectionPoolStage` are used anywhere in production code, or whether they are only tested but never wired.
 
 **Acceptance Criteria:**
-- [ ] Grep for `ConnectionPoolStage` and `PoolRouterActor` in non-test code
-- [ ] Clear answer: is the Actor Pool used in `Engine.cs` or `TurboHttpClient`? Yes/No
-- [ ] If no: assessment of what would need to happen to integrate it
-- [ ] Result documented in `.maggus/PROGRESS_7.md`
+- [x] Grep for `ConnectionPoolStage` and `PoolRouterActor` in non-test code
+- [x] Clear answer: is the Actor Pool used in `Engine.cs` or `TurboHttpClient`? Yes/No
+- [x] If no: assessment of what would need to happen to integrate it
+- [x] Result documented in `.maggus/PROGRESS_7.md`
 
 ---
 

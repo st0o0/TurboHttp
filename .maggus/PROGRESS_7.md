@@ -135,3 +135,60 @@ Within each substream (`BuildConnectionFlowPublic`):
 - **`PoolRouterActor`** IS used in production: passed as `poolRouter: IActorRef` to `BuildProtocolFlow`, which passes it to `ConnectionStage`. So the actor pool IS integrated — but via the `ConnectionStage` bridge, not via a stream stage called "ConnectionPoolStage".
 - **`GroupByHostKeyStage`** and **`MergeSubstreamsStage`** exist as custom stages but Engine.cs uses the built-in Akka `.GroupBy()` / `.MergeSubstreams()` DSL extensions directly instead.
 - **`ExtractOptionsStage`** exists but is not wired in Engine.cs. Its former role (splitting `HttpRequest(Options, Message)`) may have been superseded by the current `RequestEnricherStage` + `requestOptionsFactory` pattern.
+
+---
+
+## TASK-AUD-002 — Plan 4 Actor Pool: Integration Status Check
+
+**Date:** 2026-03-15
+
+### Grep Results
+
+**`ConnectionPoolStage`** — grep in all of `src/`: **0 matches**. This class does not exist anywhere in the codebase. It was removed during Plan 4b (TASK-4B-004/006).
+
+**`PoolRouterActor`** — found in the following production files:
+
+| File | Usage |
+|------|-------|
+| `src/TurboHttp/IO/PoolRouterActor.cs` | Definition |
+| `src/TurboHttp/IO/Stages/ConnectionStage.cs` | `ConnectionStage` sends `PoolRouterActor.GetPoolRefs` to obtain stream refs |
+| `src/TurboHttp/Streams/Engine.cs` | `CreateFlow(IActorRef poolRouter, ...)` — all `BuildProtocolFlow` calls pass `poolRouter` → `new ConnectionStage(poolRouter)` |
+| `src/TurboHttp/Client/TurboClientStreamManager.cs` | Creates `PoolRouterActor` via `system.ActorOf(Props.Create(() => new PoolRouterActor(clientOptions.PoolConfig)), "pool-router")` and passes it to `engine.CreateFlow(poolRouter, ...)` |
+
+**`HostPoolActor`** — found in `src/TurboHttp/IO/HostPoolActor.cs` (definition) and spawned by `PoolRouterActor` internally when a `ConnectItem` arrives. No direct references in Engine.cs or TurboClientStreamManager.
+
+### Answer: Is the Actor Pool used in Engine.cs or TurboHttpClient?
+
+**YES — fully integrated.**
+
+The complete production path is:
+
+```
+TurboHttpClient.SendAsync()
+  → TurboClientStreamManager
+    → system.ActorOf(Props.Create(() => new PoolRouterActor(poolConfig)))
+    → engine.CreateFlow(poolRouter, clientOptions)
+      → Engine.BuildExtendedPipeline(poolRouter, ...)
+        → Engine.BuildEngineCoreGraph(poolRouter, ...)
+          → Engine.BuildProtocolFlow<Http10|11|20|30Engine>(poolRouter)
+            → Engine.BuildConnectionFlowPublic(poolRouter)
+              → new ConnectionStage(poolRouter)
+                → on-start: poolRouter.Tell(GetPoolRefs())
+                → receives PoolRefs(SinkRef<ITransportItem>, SourceRef<IDataItem>)
+                → stream items flow through SinkRef/SourceRef ↔ actor hierarchy
+```
+
+The actor hierarchy inside `PoolRouterActor`:
+- `PoolRouterActor` receives `ConnectItem` → spawns `HostPoolActor` per host
+- `HostPoolActor` receives `DataItem` → spawns `ConnectionActor` per TCP connection
+- `ConnectionActor` → `ClientManager` → `ClientRunner` + `ClientByteMover` → TCP
+
+### Assessment: "If no, what would need to happen?"
+
+N/A — the Actor Pool is already integrated. No integration work is required.
+
+### Test Coverage
+
+Stream tests (non-test code verification):
+- `src/TurboHttp.StreamTests/IO/ActorHierarchyStreamRefTests.cs` — ETE-001: full hierarchy `ConnectItem` via SinkRef → HostPoolActor spawned → DataItem → ConnectionActor spawned → TCP outbound
+- `src/TurboHttp.StreamTests/Streams/ConnectionStageTests.cs` — CS-001, CS-002: `ConnectionStage` talks to stub router, items flow in both directions
